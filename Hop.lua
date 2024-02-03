@@ -16,4 +16,3 @@ local Server, Next; repeat
 until Server
 
 TPS:TeleportToPlaceInstance(_place,Server.id,game.Players.LocalPlayer)
-else
