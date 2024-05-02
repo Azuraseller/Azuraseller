@@ -57,8 +57,8 @@ end
  
 RunService.RenderStepped:Connect(function()
     updateDrawings()
-    local closest = getClosestPlayerInFOV("Head")
-    if closest and closest.Character:FindFirstChild("Head") then
-        lookAt(closest.Character.Head.Position)
+    local closest = getClosestPlayerInFOV("Torso")
+    if closest and closest.Character:FindFirstChild("Torso") then
+        lookAt(closest.Character.Torso.Position)
     end
 end)
