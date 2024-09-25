@@ -1,5 +1,5 @@
  -- Variabel untuk menyimpan kecepatan
-local speed = 60
+local speed = 65
 local speedEnabled = true
 local guiVisible = true
  
