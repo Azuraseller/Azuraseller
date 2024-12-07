@@ -9,8 +9,8 @@ local enemy = nil
 local Locked = true
 
 -- Giá trị dịch camera
-local CameraOffsetX = 2 -- Sang phải (trục X)
-local CameraOffsetY = 1 -- Nâng lên (trục Y)
+local CameraOffsetX = 0 -- Sang phải (trục X)
+local CameraOffsetY = 0 -- Nâng lên (trục Y)
 local Smoothness = 0.2 -- Độ mượt (lerp)
 
 getgenv().Key = "c"
