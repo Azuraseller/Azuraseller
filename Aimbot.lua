@@ -56,28 +56,30 @@ function SmoothAim(targetPosition)
     local currentPosition = camera.CFrame.p
     local direction = (targetPosition - currentPosition).unit
     -- Tạo tween để di chuyển mượt mà
-    local tweenInfo = TweenInfo.new(smoothSpeed, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut, -1, false)
-    local goal = {CFrame = CFrame.new(currentPosition, targetPosition)}  -- Cập nhật CFrame của camera
-    local tween = TweenService:Create(camera, tweenInfo, goal)
-    tween:Play()
+    local smoothFactor = 0.1  -- Chỉnh độ mượt của camera
+    local newPosition = currentPosition + direction * smoothFactor
+    camera.CFrame = CFrame.new(newPosition, targetPosition)
 end
 
 -- Hàm xử lý chuyển động camera mượt mà khi đối thủ di chuyển
 RunService.Heartbeat:Connect(function()
     if CamlockState and enemy then
-        local targetPosition = enemy.Position + enemy.Velocity * Prediction
+        if tick() - lastUpdate > 0.1 then  -- Chỉ cập nhật sau mỗi 100ms
+            lastUpdate = tick()
+            local targetPosition = enemy.Position + enemy.Velocity * Prediction
 
-        -- Cập nhật khoảng cách hiện tại dựa trên vị trí của LocalPlayer và đối thủ
-        currentDistance = (LocalPlayer.Character.HumanoidRootPart.Position - enemy.Position).Magnitude
+            -- Cập nhật khoảng cách hiện tại dựa trên vị trí của LocalPlayer và đối thủ
+            currentDistance = (LocalPlayer.Character.HumanoidRootPart.Position - enemy.Position).Magnitude
 
-        -- Nếu đối thủ không di chuyển đáng kể (tốc độ nhỏ), giữ nguyên vị trí camera mà không giật
-        if enemy.Velocity.Magnitude < 0.1 then
-            -- Đặt camera ngay vào vị trí của đối thủ mà không cần chuyển động
-            local camera = workspace.CurrentCamera
-            camera.CFrame = CFrame.new(camera.CFrame.p, targetPosition)
-        else
-            -- Chuyển động mượt mà khi đối thủ di chuyển
-            SmoothAim(targetPosition)
+            -- Nếu đối thủ không di chuyển đáng kể (tốc độ nhỏ), giữ nguyên vị trí camera mà không giật
+            if enemy.Velocity.Magnitude < 0.1 then
+                -- Đặt camera ngay vào vị trí của đối thủ mà không cần chuyển động
+                local camera = workspace.CurrentCamera
+                camera.CFrame = CFrame.new(camera.CFrame.p, targetPosition)
+            else
+                -- Chuyển động mượt mà khi đối thủ di chuyển
+                SmoothAim(targetPosition)
+            end
         end
     end
 end)
@@ -184,6 +186,7 @@ end
 LocalPlayer.CharacterAdded:Connect(function(character)
     character:WaitForChild("Humanoid").Died:Connect(function()
         CamlockState = false  -- Đặt lại Camlock khi người chơi chết
+
         enemy = nil
         TextButton.Text = "OFF"  -- Cập nhật UI thành OFF
     end)
