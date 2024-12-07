@@ -4,7 +4,7 @@ local LocalPlayer = Players.LocalPlayer
 local Mouse = LocalPlayer:GetMouse()
 local CamlockState = false
 local Prediction = 0.16
-local Radius = 50 -- Phạm vi khóa mục tiêu
+local Radius = 300 -- Phạm vi khóa mục tiêu
 local enemy = nil
 local Locked = true
 
