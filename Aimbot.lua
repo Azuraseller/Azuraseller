@@ -160,12 +160,15 @@ else
     TextButton.Visible = false
 end
 
--- Xử lý chuyển trạng thái Camlock bằng phím trên PC
+-- Cải thiện mã xử lý Camlock trên PC
 local function ToggleCamlockOnMobile()
     Locked = not Locked
     if Locked then
+        -- Cập nhật lại enemy mỗi khi bật Camlock
         enemy = FindNearestEnemy()
-        CamlockState = true
+        if enemy then
+            CamlockState = true
+        end
     else
         enemy = nil
         CamlockState = false
@@ -186,7 +189,6 @@ end
 LocalPlayer.CharacterAdded:Connect(function(character)
     character:WaitForChild("Humanoid").Died:Connect(function()
         CamlockState = false  -- Đặt lại Camlock khi người chơi chết
-
         enemy = nil
         TextButton.Text = "OFF"  -- Cập nhật UI thành OFF
     end)
