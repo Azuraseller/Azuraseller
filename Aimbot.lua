@@ -167,7 +167,7 @@ else
     TextButton.Visible = false
 end
 
--- Cải thiện mã xử lý Camlock trên PC
+-- Cải tiến mã xử lý Camlock trên PC
 local function ToggleCamlockOnMobile()
     Locked = not Locked
     if Locked then
