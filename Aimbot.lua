@@ -1,5 +1,6 @@
-local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")  -- Sử dụng TweenService để tạo chuyển động mượt mà
 local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local LocalPlayer = Players.LocalPlayer
 local CamlockState = false
@@ -14,6 +15,8 @@ local lastVelocity = Vector3.new()  -- Tốc độ của mục tiêu để kiể
 local smoothSpeed = 0.1  -- Mức độ mượt mà của chuyển động camera (giá trị nhỏ sẽ mượt mà hơn)
 
 local isMobile = UserInputService.TouchEnabled
+
+local currentDistance = MaxDistance  -- Khởi tạo khoảng cách hiện tại bằng MaxDistance
 
 -- Hàm để tìm đối thủ gần nhất trong phạm vi tối đa
 function FindNearestEnemy()
@@ -35,7 +38,7 @@ function FindNearestEnemy()
                         local Distance = (CenterPosition - Vector2.new(Position.X, Position.Y)).Magnitude
                         local distanceToPlayer = (torso.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude
                         -- Lọc đối thủ trong phạm vi và tìm đối thủ gần nhất
-                        if Distance < ClosestDistance and distanceToPlayer <= MaxDistance then
+                        if Distance < ClosestDistance and distanceToPlayer <= currentDistance then
                             ClosestPlayer = torso
                             ClosestDistance = Distance
                         end
@@ -52,15 +55,20 @@ function SmoothAim(targetPosition)
     local camera = workspace.CurrentCamera
     local currentPosition = camera.CFrame.p
     local direction = (targetPosition - currentPosition).unit
-    -- Tính toán vị trí mới của camera bằng cách sử dụng lerp (nội suy tuyến tính)
-    local newPosition = currentPosition + direction * smoothSpeed
-    camera.CFrame = CFrame.new(newPosition, targetPosition)
+    -- Tạo tween để di chuyển mượt mà
+    local tweenInfo = TweenInfo.new(smoothSpeed, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut, -1, false)
+    local goal = {CFrame = CFrame.new(currentPosition, targetPosition)}  -- Cập nhật CFrame của camera
+    local tween = TweenService:Create(camera, tweenInfo, goal)
+    tween:Play()
 end
 
 -- Hàm xử lý chuyển động camera mượt mà khi đối thủ di chuyển
 RunService.Heartbeat:Connect(function()
     if CamlockState and enemy then
         local targetPosition = enemy.Position + enemy.Velocity * Prediction
+
+        -- Cập nhật khoảng cách hiện tại dựa trên vị trí của LocalPlayer và đối thủ
+        currentDistance = (LocalPlayer.Character.HumanoidRootPart.Position - enemy.Position).Magnitude
 
         -- Nếu đối thủ không di chuyển đáng kể (tốc độ nhỏ), giữ nguyên vị trí camera mà không giật
         if enemy.Velocity.Magnitude < 0.1 then
@@ -90,13 +98,13 @@ Frame.Parent = BladLock
 Frame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
 Frame.BorderColor3 = Color3.fromRGB(0, 0, 0)
 Frame.BorderSizePixel = 0
-Frame.Position = UDim2.new(1, -212, 0, 10)  -- GUI ở góc trên bên phải
-Frame.Size = UDim2.new(0, 202, 0, 70)
+Frame.Position = UDim2.new(1, -120, 0, 50)  -- Di chuyển GUI lên trên một chút
+Frame.Size = UDim2.new(0, 100, 0, 100)    -- Làm GUI thành hình vuông (kích thước 100x100)
 Frame.Active = true
 Frame.Draggable = true
 
 local function TopContainer()
-    Frame.Position = UDim2.new(1, -Frame.AbsoluteSize.X - 10, 0, 10) -- Giữ vị trí ở góc trên bên phải
+    Frame.Position = UDim2.new(1, -Frame.AbsoluteSize.X - 10, 0, 50)  -- Điều chỉnh vị trí khi thay đổi kích thước
 end
 TopContainer()
 
@@ -121,7 +129,7 @@ TextButton.BackgroundTransparency = 1
 TextButton.BorderColor3 = Color3.fromRGB(0, 0, 0)
 TextButton.BorderSizePixel = 0
 TextButton.Position = UDim2.new(0.35, 0, 0.15, 0)
-TextButton.Size = UDim2.new(0, 130, 0, 40)
+TextButton.Size = UDim2.new(0, 80, 0, 30)  -- Thay đổi kích thước nút một chút
 TextButton.Font = Enum.Font.SourceSansSemibold
 TextButton.Text = "Toggle CamLock"
 TextButton.TextColor3 = Color3.fromRGB(255, 255, 255)
