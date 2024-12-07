@@ -1,11 +1,11 @@
-local TweenService = game:GetService("TweenService")  -- Sử dụng TweenService để tạo chuyển động mượt mà
+local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local LocalPlayer = Players.LocalPlayer
 local CamlockState = false
 local Prediction = 0.16  -- Mức độ dự đoán chuyển động của đối thủ
-local MaxDistance = 17  -- Bán kính tối đa để nhắm mục tiêu
+local MaxDistance = 50  -- Bán kính tối đa để nhắm mục tiêu
 local Locked = false
 getgenv().Key = "c"  -- Phím để bật/tắt aimbot
 
@@ -25,7 +25,7 @@ function FindNearestEnemy()
         game:GetService("GuiService"):GetScreenResolution().X / 2,
         game:GetService("GuiService"):GetScreenResolution().Y / 2
     )
-    
+
     for _, Player in ipairs(Players:GetPlayers()) do
         if Player ~= LocalPlayer then
             local Character = Player.Character
@@ -38,7 +38,7 @@ function FindNearestEnemy()
                         local Distance = (CenterPosition - Vector2.new(Position.X, Position.Y)).Magnitude
                         local distanceToPlayer = (torso.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude
                         -- Lọc đối thủ trong phạm vi và tìm đối thủ gần nhất
-                        if Distance < ClosestDistance and distanceToPlayer <= currentDistance then
+                        if Distance < ClosestDistance and distanceToPlayer <= MaxDistance then
                             ClosestPlayer = torso
                             ClosestDistance = Distance
                         end
@@ -47,6 +47,13 @@ function FindNearestEnemy()
             end
         end
     end
+
+    -- Cập nhật nếu đối thủ gần nhất nằm trong phạm vi và tự động ngắm vào đối thủ
+    if ClosestPlayer and (ClosestPlayer.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude <= MaxDistance then
+        enemy = ClosestPlayer  -- Cập nhật đối thủ gần nhất
+        CamlockState = true  -- Bật trạng thái Camlock
+    end
+
     return ClosestPlayer
 end
 
@@ -188,12 +195,8 @@ end
 -- Lắng nghe khi nhân vật chết và đặt lại trạng thái Camlock
 LocalPlayer.CharacterAdded:Connect(function(character)
     character:WaitForChild("Humanoid").Died:Connect(function()
-        CamlockState = false  -- Đặt lại Camlock khi người chơi chết
-        enemy = nil
+        CamlockState = false  -- Đặt lại Camlock khi nhân vật chết
+        enemy = nil           -- Đặt lại mục tiêu
         TextButton.Text = "OFF"  -- Cập nhật UI thành OFF
     end)
 end)
-
--- Đảm bảo Camlock luôn OFF khi script bắt đầu
-CamlockState = false
-TextButton.Text = "OFF"
