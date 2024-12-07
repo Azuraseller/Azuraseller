@@ -2,16 +2,24 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
 local Mouse = LocalPlayer:GetMouse()
+local Camera = workspace.CurrentCamera
 local CamlockState = false
 local Prediction = 0.16
 local Radius = 50 -- Phạm vi khóa mục tiêu
 local enemy = nil
 local Locked = true
 
+-- Camera giả lập (Fake Camera)
+local ViewportGui = Instance.new("ScreenGui", game.CoreGui)
+local ViewportFrame = Instance.new("ViewportFrame", ViewportGui)
+ViewportFrame.Size = UDim2.new(0.5, 0, 0.5, 0) -- Kích thước viewport (tùy chỉnh theo ý thích)
+ViewportFrame.Position = UDim2.new(0.25, 0, 0.25, 0)
+ViewportFrame.BackgroundTransparency = 1
+ViewportFrame.CurrentCamera = Instance.new("Camera", ViewportFrame) -- Camera giả
+
 -- Giá trị dịch camera
-local CameraOffsetX = 0 -- Sang phải (trục X)
-local CameraOffsetY = 0 -- Nâng lên (trục Y)
-local Smoothness = 0.2 -- Độ mượt (lerp)
+local FakeCameraOffset = Vector3.new(0, 5, -10) -- Dời camera thứ hai
+local Smoothness = 0.15 -- Độ mượt chuyển động camera thứ hai
 
 getgenv().Key = "c"
 
@@ -35,17 +43,18 @@ function FindNearestEnemy()
     return ClosestPlayer
 end
 
--- Cập nhật camera để khóa mục tiêu
+-- Cập nhật camera và fake camera
 RunService.Heartbeat:Connect(function()
     if CamlockState and enemy then
-        local camera = workspace.CurrentCamera
         local targetPosition = enemy.Position + enemy.Velocity * Prediction
-        -- Dịch camera sang phải và nâng lên
-        targetPosition = targetPosition + Vector3.new(CameraOffsetX, CameraOffsetY, 0)
-        -- Lerp camera để di chuyển mượt mà
-        local currentCFrame = camera.CFrame
-        local targetCFrame = CFrame.new(currentCFrame.p, targetPosition)
-        camera.CFrame = currentCFrame:Lerp(targetCFrame, Smoothness)
+
+        -- Camera chính: Nhắm mục tiêu
+        Camera.CFrame = CFrame.new(Camera.CFrame.Position, targetPosition)
+
+        -- Camera giả: Hiển thị hiệu ứng dời đi
+        local FakeCamera = ViewportFrame.CurrentCamera
+        local desiredPosition = Camera.CFrame.Position + FakeCameraOffset
+        FakeCamera.CFrame = FakeCamera.CFrame:Lerp(CFrame.new(desiredPosition, targetPosition), Smoothness)
     end
 end)
 
