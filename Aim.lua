@@ -9,8 +9,8 @@ local CamlockState = false
 local Prediction = 0.16
 local Radius = 200 -- Bán kính khóa mục tiêu
 local SecondaryCamRadius = 1.2 -- Bán kính giới hạn camera phụ
-local SecondaryCamHeightOffset = Vector3.new(0, 4, 2) -- Offset chiều cao camera phụ (sau và trên nhân vật)
-local SecondaryCamSpeed = 0.3 -- Tốc độ di chuyển camera phụ
+local SecondaryCamHeightOffset = Vector3.new(0, 4, 0) -- Offset chiều cao camera phụ (sau và trên nhân vật)
+local SecondaryCamSpeed = 0.2 -- Tốc độ di chuyển camera phụ
 local enemy = nil
 local Locked = true
 
