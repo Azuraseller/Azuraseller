@@ -44,18 +44,21 @@ CloseButton.TextSize = 18
 local lastClickTime = 0
 local doubleClickThreshold = 0.5 -- Thời gian giữa hai lần nhấn để xem là nhấn đúp
 local ToggleVisible = true
+local ButtonActive = true -- Trạng thái của nút ON/OFF
 
 -- Hàm bật/tắt trạng thái CamLock từ nút
 local function ToggleCamlock()
-    Locked = not Locked
-    if Locked then
-        ToggleButton.Text = "CamLock: ON"
-        ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
-        CamlockState = true
-    else
-        ToggleButton.Text = "CamLock: OFF"
-        ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-        CamlockState = false
+    if ButtonActive then
+        Locked = not Locked
+        if Locked then
+            ToggleButton.Text = "CamLock: ON"
+            ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+            CamlockState = true
+        else
+            ToggleButton.Text = "CamLock: OFF"
+            ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+            CamlockState = false
+        end
     end
 end
 
@@ -65,10 +68,17 @@ ToggleButton.MouseButton1Click:Connect(ToggleCamlock)
 CloseButton.MouseButton1Click:Connect(function()
     local currentTime = tick()
     if currentTime - lastClickTime < doubleClickThreshold then
+        -- Nếu nhấn đúp, tắt/hoạt động lại ToggleButton
         ToggleVisible = not ToggleVisible
         ToggleButton.Visible = ToggleVisible
-        if not ToggleVisible then
-            CamlockState = false -- Vô hiệu hóa Camlock
+        
+        if ToggleVisible then
+            ButtonActive = true -- Kích hoạt lại Button
+        else
+            ButtonActive = false -- Tắt Button
+            CamlockState = false -- Tắt Camlock khi nút bị vô hiệu hóa
+            ToggleButton.Text = "CamLock: OFF"
+            ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
         end
     end
     lastClickTime = currentTime
