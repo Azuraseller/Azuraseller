@@ -10,7 +10,7 @@ local CamlockState = false
 local Prediction = 0.16
 local Radius = 200 -- Bán kính khóa mục tiêu
 local SecondaryCamRadius = 1.2 -- Bán kính giới hạn camera phụ
-local SecondaryCamHeightOffset = Vector3.new(0, 5, 0) -- Offset chiều cao camera phụ (sau và trên nhân vật)
+local SecondaryCamHeightOffset = Vector3.new(0, 5, 2) -- Offset chiều cao camera phụ (sau và trên nhân vật)
 local SecondaryCamSpeed = 0.3 -- Tốc độ di chuyển camera phụ
 local enemy = nil
 local Locked = true
@@ -20,11 +20,10 @@ getgenv().Key = "c"
 -- Tăng tốc độ ghim mục tiêu (LerpSpeed)
 local LerpSpeed = 0.15 -- Giảm giá trị này để tăng tốc độ phản hồi camera
 
--- Giao diện GUI (Nút On/Off và Định vị mục tiêu)
+-- Giao diện GUI (Nút On/Off và dấu X để đóng GUI)
 local ScreenGui = Instance.new("ScreenGui")
 local ToggleButton = Instance.new("TextButton")
 local CloseButton = Instance.new("TextButton")
-local LocateButton = Instance.new("TextButton")
 
 ScreenGui.Parent = game:GetService("CoreGui")
 ScreenGui.Enabled = true -- Bật GUI khi bắt đầu
@@ -49,16 +48,6 @@ CloseButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
 CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 CloseButton.Font = Enum.Font.SourceSans
 CloseButton.TextSize = 20
-
--- Nút định vị mục tiêu
-LocateButton.Parent = ScreenGui
-LocateButton.Size = UDim2.new(0, 100, 0, 50)
-LocateButton.Position = UDim2.new(0.85, 0, 0.1, 0) -- Vị trí dưới ToggleButton
-LocateButton.Text = "Locate Target"
-LocateButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
-LocateButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-LocateButton.Font = Enum.Font.SourceSans
-LocateButton.TextSize = 20
 
 -- Biến lưu trữ thời gian nhấn đúp
 local lastClickTime = 0
@@ -96,15 +85,6 @@ CloseButton.MouseButton1Click:Connect(function()
         uiVisibilityTween:Play()
     end
     lastClickTime = currentTime
-end)
-
--- Nút định vị mục tiêu
-LocateButton.MouseButton1Click:Connect(function()
-    local target = FindNearestEnemy()
-    if target then
-        -- Di chuyển camera về vị trí mục tiêu (sử dụng một hiệu ứng mượt cho camera)
-        Camera.CFrame = CFrame.new(Camera.CFrame.Position, target.Position)
-    end
 end)
 
 -- Tìm đối thủ gần nhất trong phạm vi
