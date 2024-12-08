@@ -3,8 +3,6 @@ local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
 local Mouse = LocalPlayer:GetMouse()
 local Camera = workspace.CurrentCamera
-local TweenService = game:GetService("TweenService")
-local UserInputService = game:GetService("UserInputService") -- Thêm UserInputService
 local StarterGui = game:GetService("StarterGui")
 
 local CamlockState = false
@@ -21,16 +19,12 @@ getgenv().Key = "c"
 -- Tăng tốc độ ghim mục tiêu (LerpSpeed)
 local LerpSpeed = 0.15 -- Giảm giá trị này để tăng tốc độ phản hồi camera
 
--- Giao diện GUI (Nút On/Off và dấu X để đóng GUI)
+-- Giao diện GUI (Nút On/Off)
 local ScreenGui = Instance.new("ScreenGui")
 local ToggleButton = Instance.new("TextButton")
 local CloseButton = Instance.new("TextButton")
 
 ScreenGui.Parent = game:GetService("CoreGui")
-ScreenGui.Enabled = true -- Bật GUI khi bắt đầu
-local uiVisibilityTween = TweenService:Create(ScreenGui, TweenInfo.new(0.5), {Transparency = 0}) -- GUI hiện lên mượt mà
-
--- Nút On/Off
 ToggleButton.Parent = ScreenGui
 ToggleButton.Size = UDim2.new(0, 100, 0, 50)
 ToggleButton.Position = UDim2.new(0.85, 0, 0.02, 0) -- Vị trí nút nâng lên cao hơn
@@ -75,15 +69,10 @@ CloseButton.MouseButton1Click:Connect(function()
     local currentTime = tick()
     if currentTime - lastClickTime <= doubleClickInterval then
         -- Nhấn đúp vào dấu X, tắt GUI
-        local hideTween = TweenService:Create(ScreenGui, TweenInfo.new(0.5), {Transparency = 1}) -- Ẩn GUI mượt mà
-        hideTween:Play()
-        hideTween.Completed:Connect(function()
-            ScreenGui.Enabled = false
-        end)
+        ScreenGui.Enabled = false
     else
         -- Nhấn một lần, bật GUI
         ScreenGui.Enabled = true
-        uiVisibilityTween:Play()
     end
     lastClickTime = currentTime
 end)
@@ -146,9 +135,8 @@ RunService.RenderStepped:Connect(function()
 end)
 
 -- Phím bật/tắt CamLock bằng phím tắt
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
-    if gameProcessed then return end
-    if input.KeyCode == Enum.KeyCode.C then
+Mouse.KeyDown:Connect(function(k)
+    if k == getgenv().Key then
         Locked = not Locked
         if Locked then
             ToggleButton.Text = "CamLock: ON"
