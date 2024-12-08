@@ -10,6 +10,7 @@ local Radius = 200 -- Bán kính khóa mục tiêu
 local CameraSpeed = 0.25 -- Tốc độ phản hồi camera
 local SmoothFactor = 0.15 -- Hệ số mượt của camera khi theo dõi
 local Locked = true
+local CurrentTarget = nil -- Mục tiêu hiện tại
 
 local Camera2 = Instance.new("Camera") -- Tạo camera thứ hai
 Camera2.Parent = workspace
@@ -107,6 +108,11 @@ RunService.RenderStepped:Connect(function()
             
             -- Kiểm tra nếu mục tiêu nằm trong phạm vi khóa
             if distance <= Radius then
+                if CurrentTarget ~= enemy then
+                    -- Nếu có mục tiêu mới, ghim mục tiêu đó
+                    CurrentTarget = enemy
+                end
+
                 -- Tính toán vị trí mục tiêu với dự đoán di chuyển
                 local targetPosition = enemy.Position + enemy.Velocity * Prediction
 
@@ -134,6 +140,7 @@ RunService.RenderStepped:Connect(function()
             else
                 -- Nếu mục tiêu ra ngoài phạm vi, tắt khóa và reset
                 CamlockState = false
+                CurrentTarget = nil
                 ToggleButton.Text = "CamLock: OFF"
                 ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
             end
