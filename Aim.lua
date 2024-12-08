@@ -16,16 +16,16 @@ local Locked = true
 
 getgenv().Key = "c"
 
--- Giao diện GUI (Nút On/Off)
+-- Giao diện GUI (Nút On/Off và nút X để tắt GUI)
 local ScreenGui = Instance.new("ScreenGui")
 local ToggleButton = Instance.new("TextButton")
-local CloseButton = Instance.new("TextButton")  -- Nút "X" để tắt GUI
+local CloseButton = Instance.new("TextButton")  -- Nút X để tắt GUI
 
 ScreenGui.Parent = game:GetService("CoreGui")
+ScreenGui.Name = "CamLockGUI"
 ToggleButton.Parent = ScreenGui
 CloseButton.Parent = ScreenGui
 
--- Nút bật/tắt CamLock
 ToggleButton.Size = UDim2.new(0, 100, 0, 50)
 ToggleButton.Position = UDim2.new(0.85, 0, 0.02, 0) -- Vị trí nút nâng lên cao hơn
 ToggleButton.Text = "CamLock: OFF"
@@ -34,14 +34,14 @@ ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 ToggleButton.Font = Enum.Font.SourceSans
 ToggleButton.TextSize = 20
 
--- Nút đóng GUI (dấu "X")
+-- Nút X để tắt GUI
 CloseButton.Size = UDim2.new(0, 30, 0, 30)
-CloseButton.Position = UDim2.new(0.89, 0, 0.02, 0)  -- Vị trí dấu "X"
+CloseButton.Position = UDim2.new(0.88, 0, 0.02, 0) -- Vị trí nút X ở gần nút On/Off
 CloseButton.Text = "X"
 CloseButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
 CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 CloseButton.Font = Enum.Font.SourceSans
-CloseButton.TextSize = 20
+CloseButton.TextSize = 18
 
 -- Hàm bật/tắt trạng thái CamLock từ nút
 ToggleButton.MouseButton1Click:Connect(function()
@@ -57,6 +57,11 @@ ToggleButton.MouseButton1Click:Connect(function()
         enemy = nil
         CamlockState = false
     end
+end)
+
+-- Hàm để ẩn/hiện GUI khi nhấn vào nút X
+CloseButton.MouseButton1Click:Connect(function()
+    ScreenGui.Visible = not ScreenGui.Visible
 end)
 
 -- Tìm đối thủ gần nhất trong phạm vi
@@ -86,15 +91,19 @@ function UpdateSecondaryCameraPosition(mainCamPos, targetPos)
     return desiredPosition
 end
 
--- Cập nhật camera mượt mà hơn
+-- Cập nhật camera mượt mà hơn, nhanh hơn khi mục tiêu thay đổi vị trí
 RunService.RenderStepped:Connect(function()
     if CamlockState and enemy then
         -- Vị trí mục tiêu và dự đoán
         local targetPosition = enemy.Position + enemy.Velocity * Prediction
+        local targetVelocity = enemy.Velocity.Magnitude
 
-        -- Cập nhật camera chính mượt mà hơn
+        -- Điều chỉnh tốc độ ghim mục tiêu khi đối thủ di chuyển nhanh
+        local cameraSpeed = targetVelocity > 50 and 0.05 or 0.2  -- Tăng tốc khi đối thủ di chuyển nhanh
+
+        -- Cập nhật camera chính mượt mà hơn, nhanh hơn khi mục tiêu di chuyển nhanh
         local newCFrame = CFrame.new(Camera.CFrame.Position, targetPosition)
-        Camera.CFrame = Camera.CFrame:Lerp(newCFrame, 0.1) -- Tăng tốc độ ghim mục tiêu
+        Camera.CFrame = Camera.CFrame:Lerp(newCFrame, cameraSpeed)  -- Dùng Lerp để mượt mà hơn
 
         -- Cập nhật camera phụ (theo trong hình cầu)
         local secondaryCamPosition = UpdateSecondaryCameraPosition(Camera.CFrame.Position, targetPosition)
@@ -145,14 +154,5 @@ RunService.RenderStepped:Connect(function()
             ToggleButton.Text = "CamLock: OFF"
             ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
         end
-    end
-end)
-
--- Xử lý khi nhấn vào nút "X" để ẩn/hủy GUI
-CloseButton.MouseButton1Click:Connect(function()
-    if ScreenGui.Enabled then
-        ScreenGui.Enabled = false
-    else
-        ScreenGui.Enabled = true
     end
 end)
