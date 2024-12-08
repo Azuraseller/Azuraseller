@@ -34,14 +34,18 @@ ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 ToggleButton.Font = Enum.Font.SourceSans
 ToggleButton.TextSize = 20
 
--- Nút X để tắt GUI
+-- Nút X để tắt GUI (được di chuyển sang trái của nút On/Off)
 CloseButton.Size = UDim2.new(0, 30, 0, 30)
-CloseButton.Position = UDim2.new(0.88, 0, 0.02, 0) -- Vị trí nút X ở gần nút On/Off
+CloseButton.Position = UDim2.new(0.79, 0, 0.02, 0) -- Vị trí nút X di chuyển sang trái của nút On/Off
 CloseButton.Text = "X"
 CloseButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
 CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 CloseButton.Font = Enum.Font.SourceSans
 CloseButton.TextSize = 18
+
+-- Biến để xử lý nhấn đúp nút X
+local lastClickTime = 0
+local doubleClickThreshold = 0.5 -- Thời gian giữa 2 lần nhấn để xem như nhấn đúp (0.5 giây)
 
 -- Hàm bật/tắt trạng thái CamLock từ nút
 ToggleButton.MouseButton1Click:Connect(function()
@@ -61,7 +65,15 @@ end)
 
 -- Hàm để ẩn/hiện GUI khi nhấn vào nút X
 CloseButton.MouseButton1Click:Connect(function()
-    ScreenGui.Visible = not ScreenGui.Visible
+    local currentTime = tick()
+    if currentTime - lastClickTime < doubleClickThreshold then
+        -- Nếu khoảng thời gian giữa 2 lần nhấn ngắn, ẩn GUI
+        ScreenGui.Visible = false
+    else
+        -- Nếu chỉ nhấn 1 lần, hiển thị lại GUI
+        ScreenGui.Visible = true
+    end
+    lastClickTime = currentTime
 end)
 
 -- Tìm đối thủ gần nhất trong phạm vi
