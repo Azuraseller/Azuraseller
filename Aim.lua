@@ -28,27 +28,23 @@ ScreenGui.Parent = game:GetService("CoreGui")
 
 -- Nút ON/OFF
 ToggleButton.Parent = ScreenGui
-ToggleButton.Size = UDim2.new(0, 150, 0, 50)
+ToggleButton.Size = UDim2.new(0, 100, 0, 50)
 ToggleButton.Position = UDim2.new(0.85, 0, 0.01, 0) -- Nâng lên cao hơn
 ToggleButton.Text = "CamLock: OFF"
 ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
 ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-ToggleButton.Font = Enum.Font.GothamBold
-ToggleButton.TextSize = 22
-ToggleButton.AutoButtonColor = true
-ToggleButton.BorderRadius = UDim.new(0, 10)
+ToggleButton.Font = Enum.Font.SourceSans
+ToggleButton.TextSize = 20
 
--- Nút X (Close Button)
+-- Nút X
 CloseButton.Parent = ScreenGui
-CloseButton.Size = UDim2.new(0, 40, 0, 40)
+CloseButton.Size = UDim2.new(0, 30, 0, 30)
 CloseButton.Position = UDim2.new(0.79, 0, 0.01, 0) -- Nằm trái nút ON/OFF
 CloseButton.Text = "X"
-CloseButton.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-CloseButton.TextColor3 = Color3.fromRGB(255, 0, 0)
-CloseButton.Font = Enum.Font.GothamBold
-CloseButton.TextSize = 20
-CloseButton.AutoButtonColor = true
-CloseButton.BorderRadius = UDim.new(0, 15)
+CloseButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+CloseButton.Font = Enum.Font.SourceSans
+CloseButton.TextSize = 18
 
 -- Biến trạng thái ẩn/hiện và kích hoạt Aim
 local lastClickTime = 0
