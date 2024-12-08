@@ -13,6 +13,7 @@ local SecondaryCamHeightOffset = Vector3.new(0, 4, 0) -- Offset chiều cao came
 local SecondaryCamSpeed = 0.2 -- Tốc độ di chuyển camera phụ
 local enemy = nil
 local Locked = true
+local EnemyCount = 0  -- Số lượng kẻ thù trong phạm vi 500
 
 getgenv().Key = "c"
 
@@ -20,11 +21,13 @@ getgenv().Key = "c"
 local ScreenGui = Instance.new("ScreenGui")
 local ToggleButton = Instance.new("TextButton")
 local CloseButton = Instance.new("TextButton")  -- Nút X để tắt GUI
+local EnemyCountLabel = Instance.new("TextLabel")  -- Hiển thị số lượng đối thủ trong bán kính
 
 ScreenGui.Parent = game:GetService("CoreGui")
 ScreenGui.Name = "CamLockGUI"
 ToggleButton.Parent = ScreenGui
 CloseButton.Parent = ScreenGui
+EnemyCountLabel.Parent = ScreenGui
 
 ToggleButton.Size = UDim2.new(0, 100, 0, 50)
 ToggleButton.Position = UDim2.new(0.85, 0, 0.02, 0) -- Vị trí nút nâng lên cao hơn
@@ -34,14 +37,23 @@ ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 ToggleButton.Font = Enum.Font.SourceSans
 ToggleButton.TextSize = 20
 
--- Nút X để tắt GUI (được di chuyển sang trái của nút On/Off)
+-- Nút X để tắt GUI (di chuyển sang trái của nút On/Off)
 CloseButton.Size = UDim2.new(0, 30, 0, 30)
-CloseButton.Position = UDim2.new(0.79, 0, 0.02, 0) -- Vị trí nút X di chuyển sang trái của nút On/Off
+CloseButton.Position = UDim2.new(0.79, 0, 0.02, 0)
 CloseButton.Text = "X"
 CloseButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
 CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 CloseButton.Font = Enum.Font.SourceSans
 CloseButton.TextSize = 18
+
+-- Hiển thị số lượng đối thủ trong bán kính
+EnemyCountLabel.Size = UDim2.new(0, 150, 0, 50)
+EnemyCountLabel.Position = UDim2.new(0.85, 0, 0.08, 0)
+EnemyCountLabel.Text = "Enemies Nearby: 0"
+EnemyCountLabel.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+EnemyCountLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+EnemyCountLabel.Font = Enum.Font.SourceSans
+EnemyCountLabel.TextSize = 18
 
 -- Biến để xử lý nhấn đúp nút X
 local lastClickTime = 0
@@ -82,12 +94,14 @@ end)
 -- Kiểm tra đồng đội (Ally) và tìm đối thủ gần nhất trong phạm vi
 function FindNearestEnemy()
     local ClosestDistance, ClosestPlayer = Radius, nil
+    local count = 0
     for _, Player in ipairs(Players:GetPlayers()) do
         if Player ~= LocalPlayer and not Player.Team == LocalPlayer.Team then  -- Kiểm tra nếu người chơi không phải là đồng đội
             local Character = Player.Character
             if Character and Character:FindFirstChild("HumanoidRootPart") and Character:FindFirstChild("Humanoid") and Character.Humanoid.Health > 0 then
                 local Distance = (Character.HumanoidRootPart.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude
                 if Distance <= Radius then
+                    count = count + 1
                     if Distance < ClosestDistance then
                         ClosestPlayer = Character.HumanoidRootPart
                         ClosestDistance = Distance
@@ -96,6 +110,8 @@ function FindNearestEnemy()
             end
         end
     end
+    EnemyCount = count
+    EnemyCountLabel.Text = "Enemies Nearby: " .. EnemyCount  -- Cập nhật số lượng đối thủ trong phạm vi
     return ClosestPlayer
 end
 
