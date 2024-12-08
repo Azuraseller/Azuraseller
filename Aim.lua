@@ -23,7 +23,7 @@ local ToggleButton = Instance.new("TextButton")
 ScreenGui.Parent = game:GetService("CoreGui")
 ToggleButton.Parent = ScreenGui
 ToggleButton.Size = UDim2.new(0, 100, 0, 50)
-ToggleButton.Position = UDim2.new(0.85, 0, 0.02, 0) -- Đẩy nút lên cao hơn so với vị trí cũ
+ToggleButton.Position = UDim2.new(0.85, 0, 0.02, 0) -- Vị trí nút nâng lên cao hơn
 ToggleButton.Text = "CamLock: OFF"
 ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
 ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -86,8 +86,19 @@ RunService.RenderStepped:Connect(function()
         -- Cập nhật camera phụ (theo trong hình cầu)
         local secondaryCamPosition = UpdateSecondaryCameraPosition(Camera.CFrame.Position, targetPosition)
         local secondaryCamCFrame = CFrame.new(secondaryCamPosition, targetPosition)
+    end
+end)
 
-        -- (Tùy chỉnh thêm để hiển thị hoặc sử dụng camera phụ nếu cần)
+-- Tự động bật aimbot khi có đối thủ trong phạm vi
+RunService.RenderStepped:Connect(function()
+    if not CamlockState then
+        local nearestEnemy = FindNearestEnemy()
+        if nearestEnemy then
+            CamlockState = true
+            enemy = nearestEnemy
+            ToggleButton.Text = "CamLock: ON"
+            ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+        end
     end
 end)
 
@@ -116,13 +127,8 @@ RunService.RenderStepped:Connect(function()
         if Distance > Radius then
             enemy = nil
             CamlockState = false
+            ToggleButton.Text = "CamLock: OFF"
+            ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
         end
-    end
-end)
-
--- Tự động tìm đối thủ mới khi không có mục tiêu
-RunService.RenderStepped:Connect(function()
-    if CamlockState and not enemy then
-        enemy = FindNearestEnemy()
     end
 end)
