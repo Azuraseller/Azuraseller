@@ -16,13 +16,9 @@ local Locked = true
 
 getgenv().Key = "c"
 
--- Tăng tốc độ ghim mục tiêu (LerpSpeed)
-local LerpSpeed = 0.15 -- Giảm giá trị này để tăng tốc độ phản hồi camera
-
 -- Giao diện GUI (Nút On/Off)
 local ScreenGui = Instance.new("ScreenGui")
 local ToggleButton = Instance.new("TextButton")
-local CloseButton = Instance.new("TextButton")
 
 ScreenGui.Parent = game:GetService("CoreGui")
 ToggleButton.Parent = ScreenGui
@@ -33,20 +29,6 @@ ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
 ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 ToggleButton.Font = Enum.Font.SourceSans
 ToggleButton.TextSize = 20
-
--- Thêm dấu X vào góc trái phía trên của nút
-CloseButton.Parent = ToggleButton
-CloseButton.Size = UDim2.new(0, 25, 0, 25)
-CloseButton.Position = UDim2.new(0, 0, 0, 0) -- Vị trí dấu X
-CloseButton.Text = "X"
-CloseButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-CloseButton.Font = Enum.Font.SourceSans
-CloseButton.TextSize = 20
-
--- Biến lưu trữ thời gian nhấn đúp
-local lastClickTime = 0
-local doubleClickInterval = 0.3 -- Khoảng thời gian cho phép nhấn đúp
 
 -- Hàm bật/tắt trạng thái CamLock từ nút
 ToggleButton.MouseButton1Click:Connect(function()
@@ -62,19 +44,6 @@ ToggleButton.MouseButton1Click:Connect(function()
         enemy = nil
         CamlockState = false
     end
-end)
-
--- Xử lý dấu X để đóng/mở GUI
-CloseButton.MouseButton1Click:Connect(function()
-    local currentTime = tick()
-    if currentTime - lastClickTime <= doubleClickInterval then
-        -- Nhấn đúp vào dấu X, tắt GUI
-        ScreenGui.Enabled = false
-    else
-        -- Nhấn một lần, bật GUI
-        ScreenGui.Enabled = true
-    end
-    lastClickTime = currentTime
 end)
 
 -- Tìm đối thủ gần nhất trong phạm vi
@@ -112,12 +81,11 @@ RunService.RenderStepped:Connect(function()
 
         -- Cập nhật camera chính
         local newCFrame = CFrame.new(Camera.CFrame.Position, targetPosition)
-        Camera.CFrame = Camera.CFrame:Lerp(newCFrame, LerpSpeed) -- Tăng tốc độ phản hồi camera chính
+        Camera.CFrame = Camera.CFrame:Lerp(newCFrame, 0.3) -- Tăng tốc phản hồi camera chính
 
         -- Cập nhật camera phụ (theo trong hình cầu)
         local secondaryCamPosition = UpdateSecondaryCameraPosition(Camera.CFrame.Position, targetPosition)
         local secondaryCamCFrame = CFrame.new(secondaryCamPosition, targetPosition)
-        Camera.CFrame = secondaryCamCFrame -- Di chuyển camera đến vị trí camera phụ
     end
 end)
 
