@@ -4,81 +4,13 @@ local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 
 -- Cấu hình các tham số
-local CamlockState = false
-local Prediction = 0.15 -- Dự đoán vị trí di chuyển của mục tiêu
-local Radius = 200 -- Bán kính khóa mục tiêu
-local CameraSpeed = 0.4 -- Tăng tốc độ phản hồi camera
-local SmoothFactor = 0.2 -- Độ mượt khi theo dõi mục tiêu (giảm để nhanh hơn)
-local Locked = false
-local CurrentTarget = nil -- Mục tiêu hiện tại
+local Radius = 200  -- Bán kính khóa mục tiêu
+local Prediction = 0.15  -- Dự đoán vị trí di chuyển của mục tiêu
+local SmoothFactor = 0.2  -- Độ mượt khi theo dõi mục tiêu (giảm để nhanh hơn)
+local CameraRotationSpeed = 0.8  -- Tăng tốc độ xoay của Camera
+local CurrentTarget = nil  -- Mục tiêu hiện tại
 
 getgenv().Key = "c"
-
--- Giao diện GUI
-local ScreenGui = Instance.new("ScreenGui")
-local ToggleButton = Instance.new("TextButton")
-local CloseButton = Instance.new("TextButton") -- Nút X
-
-ScreenGui.Parent = game:GetService("CoreGui")
-
--- Nút ON/OFF
-ToggleButton.Parent = ScreenGui
-ToggleButton.Size = UDim2.new(0, 100, 0, 50)
-ToggleButton.Position = UDim2.new(0.85, 0, 0.01, 0)
-ToggleButton.Text = "CamLock: OFF"
-ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-ToggleButton.Font = Enum.Font.SourceSans
-ToggleButton.TextSize = 20
-
--- Nút X
-CloseButton.Parent = ScreenGui
-CloseButton.Size = UDim2.new(0, 30, 0, 30)
-CloseButton.Position = UDim2.new(0.79, 0, 0.01, 0)
-CloseButton.Text = "X"
-CloseButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-CloseButton.Font = Enum.Font.SourceSans
-CloseButton.TextSize = 18
-
--- Biến trạng thái
-local ToggleVisible = true
-local AimActive = true -- Trạng thái Aim (Kích hoạt hoặc tắt Aim)
-
--- Hàm bật/tắt trạng thái CamLock từ nút
-local function ToggleCamlock()
-    if AimActive then
-        Locked = not Locked
-        if Locked then
-            ToggleButton.Text = "CamLock: ON"
-            ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
-            CamlockState = true
-        else
-            ToggleButton.Text = "CamLock: OFF"
-            ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-            CamlockState = false
-        end
-    end
-end
-
-ToggleButton.MouseButton1Click:Connect(ToggleCamlock)
-
--- Nút X để bật/tắt Aim và ẩn/hiện nút ON/OFF
-CloseButton.MouseButton1Click:Connect(function()
-    AimActive = not AimActive
-    if AimActive then
-        ToggleButton.Text = "CamLock: ON"
-        ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
-        CamlockState = true
-        ToggleButton.Visible = true
-    else
-        ToggleButton.Text = "CamLock: OFF"
-        ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-        CamlockState = false
-        ToggleButton.Visible = false
-        CurrentTarget = nil
-    end
-end)
 
 -- Tìm tất cả đối thủ trong phạm vi
 local function FindEnemiesInRadius()
