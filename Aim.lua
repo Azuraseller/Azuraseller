@@ -7,7 +7,7 @@ local StarterGui = game:GetService("StarterGui")
 
 local CamlockState = false
 local Prediction = 0.16
-local Radius = 250 -- Bán kính khóa mục tiêu
+local Radius = 50 -- Bán kính khóa mục tiêu
 local SecondaryCamRadius = 1.5 -- Bán kính giới hạn camera phụ
 local SecondaryCamHeightOffset = Vector3.new(0, 5, 0) -- Offset chiều cao camera phụ (sau và trên nhân vật)
 local SecondaryCamSpeed = 0.3 -- Tốc độ di chuyển camera phụ
@@ -23,7 +23,7 @@ local ToggleButton = Instance.new("TextButton")
 ScreenGui.Parent = game:GetService("CoreGui")
 ToggleButton.Parent = ScreenGui
 ToggleButton.Size = UDim2.new(0, 100, 0, 50)
-ToggleButton.Position = UDim2.new(0.85, 0, 0.05, 0) -- Vị trí góc phải phía trên
+ToggleButton.Position = UDim2.new(0.85, 0, 0.02, 0) -- Đẩy nút lên cao hơn so với vị trí cũ
 ToggleButton.Text = "CamLock: OFF"
 ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
 ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
