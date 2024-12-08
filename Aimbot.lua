@@ -6,7 +6,7 @@ local Camera = workspace.CurrentCamera
 local StarterGui = game:GetService("StarterGui")
 
 local CamlockState = false
-local Prediction = 0.16
+local Prediction = 0.15
 local Radius = 200 -- Bán kính khóa mục tiêu
 local SecondaryCamRadius = 1.2 -- Bán kính giới hạn camera phụ
 local SecondaryCamHeightOffset = Vector3.new(0, 4, 0) -- Offset chiều cao camera phụ (sau và trên nhân vật)
