@@ -9,7 +9,7 @@ local CamlockState = false
 local Prediction = 0.16
 local Radius = 200 -- Bán kính khóa mục tiêu
 local SecondaryCamRadius = 1.2 -- Bán kính giới hạn camera phụ
-local SecondaryCamHeightOffset = Vector3.new(0, 5, 0) -- Offset chiều cao camera phụ (sau và trên nhân vật)
+local SecondaryCamHeightOffset = Vector3.new(0, 4, 2) -- Offset chiều cao camera phụ (sau và trên nhân vật)
 local SecondaryCamSpeed = 0.3 -- Tốc độ di chuyển camera phụ
 local enemy = nil
 local Locked = true
@@ -79,9 +79,9 @@ RunService.RenderStepped:Connect(function()
         -- Vị trí mục tiêu và dự đoán
         local targetPosition = enemy.Position + enemy.Velocity * Prediction
 
-        -- Cập nhật camera chính
+        -- Cập nhật camera chính mượt mà hơn
         local newCFrame = CFrame.new(Camera.CFrame.Position, targetPosition)
-        Camera.CFrame = Camera.CFrame:Lerp(newCFrame, 0.3) -- Tăng tốc phản hồi camera chính
+        Camera.CFrame = Camera.CFrame:Lerp(newCFrame, 0.2) -- Mượt mà hơn khi điều chỉnh camera
 
         -- Cập nhật camera phụ (theo trong hình cầu)
         local secondaryCamPosition = UpdateSecondaryCameraPosition(Camera.CFrame.Position, targetPosition)
