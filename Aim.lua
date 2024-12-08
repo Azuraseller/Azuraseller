@@ -130,8 +130,8 @@ RunService.RenderStepped:Connect(function()
     local enemies = FindEnemiesInRadius()
 
     if AimActive then
-        -- Kiểm tra nếu chưa có mục tiêu hoặc mục tiêu đã chết, tìm mục tiêu mới
-        if CurrentTarget == nil or CurrentTarget.Parent == nil or CurrentTarget.Humanoid.Health <= 0 then
+        if CurrentTarget == nil or CurrentTarget.Parent == nil then
+            -- Nếu không có mục tiêu hoặc mục tiêu đã chết, tìm mục tiêu mới
             if #enemies > 0 then
                 CurrentTarget = enemies[1] -- Chọn player đầu tiên trong phạm vi (bạn có thể chọn cách chọn khác)
                 CamlockState = true
