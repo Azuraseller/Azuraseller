@@ -19,9 +19,13 @@ getgenv().Key = "c"
 -- Giao diện GUI (Nút On/Off)
 local ScreenGui = Instance.new("ScreenGui")
 local ToggleButton = Instance.new("TextButton")
+local CloseButton = Instance.new("TextButton")  -- Nút "X" để tắt GUI
 
 ScreenGui.Parent = game:GetService("CoreGui")
 ToggleButton.Parent = ScreenGui
+CloseButton.Parent = ScreenGui
+
+-- Nút bật/tắt CamLock
 ToggleButton.Size = UDim2.new(0, 100, 0, 50)
 ToggleButton.Position = UDim2.new(0.85, 0, 0.02, 0) -- Vị trí nút nâng lên cao hơn
 ToggleButton.Text = "CamLock: OFF"
@@ -29,6 +33,15 @@ ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
 ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 ToggleButton.Font = Enum.Font.SourceSans
 ToggleButton.TextSize = 20
+
+-- Nút đóng GUI (dấu "X")
+CloseButton.Size = UDim2.new(0, 30, 0, 30)
+CloseButton.Position = UDim2.new(0.89, 0, 0.02, 0)  -- Vị trí dấu "X"
+CloseButton.Text = "X"
+CloseButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+CloseButton.Font = Enum.Font.SourceSans
+CloseButton.TextSize = 20
 
 -- Hàm bật/tắt trạng thái CamLock từ nút
 ToggleButton.MouseButton1Click:Connect(function()
@@ -73,7 +86,7 @@ function UpdateSecondaryCameraPosition(mainCamPos, targetPos)
     return desiredPosition
 end
 
--- Cập nhật camera
+-- Cập nhật camera mượt mà hơn
 RunService.RenderStepped:Connect(function()
     if CamlockState and enemy then
         -- Vị trí mục tiêu và dự đoán
@@ -81,7 +94,7 @@ RunService.RenderStepped:Connect(function()
 
         -- Cập nhật camera chính mượt mà hơn
         local newCFrame = CFrame.new(Camera.CFrame.Position, targetPosition)
-        Camera.CFrame = Camera.CFrame:Lerp(newCFrame, 0.2) -- Mượt mà hơn khi điều chỉnh camera
+        Camera.CFrame = Camera.CFrame:Lerp(newCFrame, 0.1) -- Tăng tốc độ ghim mục tiêu
 
         -- Cập nhật camera phụ (theo trong hình cầu)
         local secondaryCamPosition = UpdateSecondaryCameraPosition(Camera.CFrame.Position, targetPosition)
@@ -120,15 +133,26 @@ Mouse.KeyDown:Connect(function(k)
     end
 end)
 
--- Xử lý khi đối thủ ra khỏi phạm vi
+-- Xử lý khi đối thủ ra khỏi phạm vi hoặc chết
 RunService.RenderStepped:Connect(function()
     if CamlockState and enemy then
         local Distance = (enemy.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude
-        if Distance > Radius then
+
+        -- Kiểm tra nếu đối thủ chết hoặc ra ngoài phạm vi
+        if Distance > Radius or enemy.Parent == nil or enemy.Parent:FindFirstChild("Humanoid") == nil or enemy.Parent.Humanoid.Health <= 0 then
             enemy = nil
             CamlockState = false
             ToggleButton.Text = "CamLock: OFF"
             ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
         end
+    end
+end)
+
+-- Xử lý khi nhấn vào nút "X" để ẩn/hủy GUI
+CloseButton.MouseButton1Click:Connect(function()
+    if ScreenGui.Enabled then
+        ScreenGui.Enabled = false
+    else
+        ScreenGui.Enabled = true
     end
 end)
