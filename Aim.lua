@@ -6,11 +6,10 @@ local Camera = workspace.CurrentCamera
 local CamlockState = false
 local Prediction = 0.16
 local Radius = 200 -- Bán kính khóa mục tiêu
-local CameraSpeed = 0.22 -- Tốc độ phản hồi camera
-local SmoothFactor = 0.12 -- Hệ số mượt của camera khi theo dõi
+local CameraSpeed = 0.25 -- Tốc độ phản hồi camera
+local SmoothFactor = 0.15 -- Hệ số mượt của camera khi theo dõi
 local Locked = false
 local CurrentTarget = nil -- Mục tiêu hiện tại
-local MaxRotationSpeed = 30 -- Tốc độ quay tối đa khi mục tiêu dịch chuyển nhanh
 
 getgenv().Key = "c"
 
@@ -95,50 +94,47 @@ end
 
 -- Cập nhật camera
 RunService.RenderStepped:Connect(function()
-    if CamlockState then
-        local enemy = FindNearestEnemy()
+    local enemy = FindNearestEnemy()
 
-        if enemy then
-            local distance = (enemy.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude
-            
-            -- Kiểm tra nếu mục tiêu nằm trong phạm vi khóa
-            if distance <= Radius then
-                if CurrentTarget ~= enemy then
-                    -- Nếu có mục tiêu mới, ghim mục tiêu đó
-                    CurrentTarget = enemy
-                end
+    if enemy then
+        local distance = (enemy.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude
 
-                -- Tính toán vị trí mục tiêu với dự đoán di chuyển
-                local targetPosition = enemy.Position + enemy.Velocity * Prediction
+        -- Kiểm tra và bật Aim khi mục tiêu vào phạm vi R = 200
+        if distance <= Radius then
+            if CurrentTarget ~= enemy then
+                -- Nếu có mục tiêu mới, ghim mục tiêu đó
+                CurrentTarget = enemy
+                CamlockState = true
+                ToggleButton.Text = "CamLock: ON"
+                ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+            end
 
-                -- Cập nhật camera chính với mượt mà
-                local newCFrame = CFrame.new(Camera.CFrame.Position, targetPosition)
-                Camera.CFrame = Camera.CFrame:Lerp(newCFrame, SmoothFactor)
+            -- Tính toán vị trí mục tiêu với dự đoán di chuyển
+            local targetPosition = enemy.Position + enemy.Velocity * Prediction
 
-                -- Đảm bảo tốc độ aim cao hơn khi mục tiêu di chuyển nhanh
-                if distance > Radius * 0.8 then
-                    -- Tăng tốc độ quay camera khi mục tiêu di chuyển nhanh
-                    SmoothFactor = 0.3
-                    Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, targetPosition), MaxRotationSpeed * 0.2) -- Quay nhanh
-                else
-                    SmoothFactor = 0.15 -- Trở lại mượt mà khi gần
-                end
+            -- Cập nhật camera chính với mượt mà
+            local newCFrame = CFrame.new(Camera.CFrame.Position, targetPosition)
+            Camera.CFrame = Camera.CFrame:Lerp(newCFrame, SmoothFactor)
 
-                -- Xử lý mục tiêu ra sau lưng
-                local directionToEnemy = (enemy.Position - Camera.CFrame.Position).Unit
-                local forwardDirection = Camera.CFrame.LookVector
-                if forwardDirection:Dot(directionToEnemy) < 0 then
-                    Camera.CFrame = CFrame.new(Camera.CFrame.Position, enemy.Position) -- Điều chỉnh tức thì
-                end
-            else
-                -- Nếu mục tiêu ra ngoài phạm vi, tắt khóa và reset
-                CamlockState = false
+            -- Xử lý mục tiêu ra sau lưng
+            local directionToEnemy = (enemy.Position - Camera.CFrame.Position).Unit
+            local forwardDirection = Camera.CFrame.LookVector
+            if forwardDirection:Dot(directionToEnemy) < 0 then
+                Camera.CFrame = CFrame.new(Camera.CFrame.Position, enemy.Position) -- Điều chỉnh tức thì
+            end
+        else
+            -- Nếu mục tiêu ra ngoài phạm vi, tắt khóa và reset
+            if CurrentTarget then
                 CurrentTarget = nil
+                CamlockState = false
                 ToggleButton.Text = "CamLock: OFF"
                 ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
             end
-        else
-            -- Nếu không tìm thấy mục tiêu, tắt khóa camera
+        end
+    else
+        -- Nếu không tìm thấy mục tiêu, tắt khóa camera
+        if CurrentTarget then
+            CurrentTarget = nil
             CamlockState = false
             ToggleButton.Text = "CamLock: OFF"
             ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
