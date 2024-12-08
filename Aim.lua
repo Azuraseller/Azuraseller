@@ -1,7 +1,6 @@
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
-local Mouse = LocalPlayer:GetMouse()
 local Camera = workspace.CurrentCamera
 
 local CamlockState = false
@@ -11,12 +10,7 @@ local CameraSpeed = 0.25 -- Tốc độ phản hồi camera
 local SmoothFactor = 0.15 -- Hệ số mượt của camera khi theo dõi
 local Locked = false
 local CurrentTarget = nil -- Mục tiêu hiện tại
-local MaxRotationSpeed = 15 -- Tốc độ quay tối đa khi mục tiêu dịch chuyển nhanh
-
-local Camera2 = Instance.new("Camera") -- Tạo camera thứ hai để quan sát
-Camera2.Parent = workspace
-Camera2.CFrame = Camera.CFrame -- Đặt camera thứ hai có vị trí ban đầu giống camera chính
-Camera2.FieldOfView = Camera.FieldOfView -- Giữ nguyên trường nhìn
+local MaxRotationSpeed = 30 -- Tốc độ quay tối đa khi mục tiêu dịch chuyển nhanh
 
 getgenv().Key = "c"
 
@@ -99,7 +93,7 @@ function FindNearestEnemy()
     return ClosestPlayer
 end
 
--- Cập nhật camera chính và camera thứ hai
+-- Cập nhật camera
 RunService.RenderStepped:Connect(function()
     if CamlockState then
         local enemy = FindNearestEnemy()
@@ -121,14 +115,11 @@ RunService.RenderStepped:Connect(function()
                 local newCFrame = CFrame.new(Camera.CFrame.Position, targetPosition)
                 Camera.CFrame = Camera.CFrame:Lerp(newCFrame, SmoothFactor)
 
-                -- Cập nhật camera thứ hai để quan sát
-                local camera2CFrame = CFrame.new(enemy.Position + Vector3.new(0, 5, 10), enemy.Position) -- Camera quan sát từ trên cao
-                Camera2.CFrame = camera2CFrame:Lerp(Camera2.CFrame, 0.2) -- Lerp cho camera 2 mượt mà
-
-                -- Đảm bảo phản hồi nhanh nếu mục tiêu di chuyển nhanh
+                -- Đảm bảo tốc độ aim cao hơn khi mục tiêu di chuyển nhanh
                 if distance > Radius * 0.8 then
-                    SmoothFactor = 0.25 -- Tăng tốc camera khi mục tiêu xa
-                    Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, targetPosition), MaxRotationSpeed * 0.1) -- Quay nhanh khi mục tiêu di chuyển nhanh
+                    -- Tăng tốc độ quay camera khi mục tiêu di chuyển nhanh
+                    SmoothFactor = 0.3
+                    Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, targetPosition), MaxRotationSpeed * 0.2) -- Quay nhanh
                 else
                     SmoothFactor = 0.15 -- Trở lại mượt mà khi gần
                 end
@@ -138,7 +129,6 @@ RunService.RenderStepped:Connect(function()
                 local forwardDirection = Camera.CFrame.LookVector
                 if forwardDirection:Dot(directionToEnemy) < 0 then
                     Camera.CFrame = CFrame.new(Camera.CFrame.Position, enemy.Position) -- Điều chỉnh tức thì
-                    Camera2.CFrame = CFrame.new(Camera2.CFrame.Position, enemy.Position) -- Cập nhật camera 2 khi mục tiêu ra sau lưng
                 end
             else
                 -- Nếu mục tiêu ra ngoài phạm vi, tắt khóa và reset
