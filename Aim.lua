@@ -15,7 +15,7 @@ local CameraSpeed = 0.35 -- Tăng tốc độ phản hồi camera
 local CameraRotationSpeed = 0.7 -- Tốc độ xoay camera nhanh hơn khi ghim
 local SmoothFactor = 0.1  -- Tăng độ mượt của camera khi theo dõi
 local Locked = false
-local CurrentTarget = nil -- Mục tiêu hiện tại
+local CurrentTargets = {} -- Mục tiêu hiện tại (hỗ trợ nhiều mục tiêu)
 
 getgenv().Key = "c"
 
@@ -88,7 +88,7 @@ CloseButton.MouseButton1Click:Connect(function()
             ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
             CamlockState = false
             ToggleButton.Visible = false -- Ẩn nút ON/OFF
-            CurrentTarget = nil -- Ngừng ghim mục tiêu
+            CurrentTargets = {} -- Ngừng ghim mục tiêu
         end
     end
     lastClickTime = currentTime
@@ -130,50 +130,48 @@ RunService.RenderStepped:Connect(function()
     local enemies = FindEnemiesInRadius()
 
     if AimActive then
-        if CurrentTarget == nil or CurrentTarget.Parent == nil then
-            -- Nếu không có mục tiêu hoặc mục tiêu đã chết, tìm mục tiêu mới
-            if #enemies > 0 then
-                CurrentTarget = enemies[1] -- Chọn player đầu tiên trong phạm vi (bạn có thể chọn cách chọn khác)
-                CamlockState = true
-                ToggleButton.Text = "CamLock: ON"
-                ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+        if #enemies > 0 then
+            -- Nếu có kẻ thù trong phạm vi, gắn chúng vào danh sách mục tiêu
+            CurrentTargets = enemies
+            CamlockState = true
+            ToggleButton.Text = "CamLock: ON"
+            ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+
+            for _, enemy in ipairs(CurrentTargets) do
+                local distance = (enemy.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude
+
+                -- Tính toán vị trí mục tiêu với dự đoán di chuyển
+                local targetPosition = enemy.Position + enemy.Velocity * Prediction
+
+                -- Điều chỉnh lại vị trí camera để không bị che khuất
+                targetPosition = AdjustCameraPosition(targetPosition)
+
+                -- Cập nhật camera chính với mượt mà (Camera 1)
+                local newCFrame1 = CFrame.new(Camera.CFrame.Position, targetPosition)
+                Camera.CFrame = Camera.CFrame:Lerp(newCFrame1, SmoothFactor)
+
+                -- Cập nhật camera phụ với cùng góc nhìn
+                local newCFrame2 = CFrame.new(Camera2.CFrame.Position, targetPosition)
+                Camera2.CFrame = Camera2.CFrame:Lerp(newCFrame2, SmoothFactor)
+
+                -- Tăng tốc độ xoay camera khi mục tiêu di chuyển nhanh
+                if enemy.Velocity.Magnitude > 50 then
+                    Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, targetPosition), CameraRotationSpeed)
+                    Camera2.CFrame = Camera2.CFrame:Lerp(CFrame.new(Camera2.CFrame.Position, targetPosition), CameraRotationSpeed)
+                end
+
+                -- Xử lý mục tiêu ra sau lưng
+                local directionToEnemy = (enemy.Position - Camera.CFrame.Position).Unit
+                local forwardDirection = Camera.CFrame.LookVector
+                if forwardDirection:Dot(directionToEnemy) < 0 then
+                    Camera.CFrame = CFrame.new(Camera.CFrame.Position, enemy.Position) -- Điều chỉnh tức thì
+                    Camera2.CFrame = CFrame.new(Camera2.CFrame.Position, enemy.Position) -- Camera 2 cũng phải điều chỉnh
+                end
             end
-        end
-
-        if CurrentTarget then
-            local distance = (CurrentTarget.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude
-
-            -- Tính toán vị trí mục tiêu với dự đoán di chuyển
-            local targetPosition = CurrentTarget.Position + CurrentTarget.Velocity * Prediction
-
-            -- Điều chỉnh lại vị trí camera để không bị che khuất
-            targetPosition = AdjustCameraPosition(targetPosition)
-
-            -- Cập nhật camera chính với mượt mà (Camera 1)
-            local newCFrame1 = CFrame.new(Camera.CFrame.Position, targetPosition)
-            Camera.CFrame = Camera.CFrame:Lerp(newCFrame1, SmoothFactor)
-
-            -- Cập nhật camera phụ với cùng góc nhìn
-            local newCFrame2 = CFrame.new(Camera2.CFrame.Position, targetPosition)
-            Camera2.CFrame = Camera2.CFrame:Lerp(newCFrame2, SmoothFactor)
-
-            -- Tăng tốc độ xoay camera khi mục tiêu di chuyển nhanh
-            if CurrentTarget.Velocity.Magnitude > 50 then
-                Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, targetPosition), CameraRotationSpeed)
-                Camera2.CFrame = Camera2.CFrame:Lerp(CFrame.new(Camera2.CFrame.Position, targetPosition), CameraRotationSpeed)
-            end
-
-            -- Xử lý mục tiêu ra sau lưng
-            local directionToEnemy = (CurrentTarget.Position - Camera.CFrame.Position).Unit
-            local forwardDirection = Camera.CFrame.LookVector
-            if forwardDirection:Dot(directionToEnemy) < 0 then
-                Camera.CFrame = CFrame.new(Camera.CFrame.Position, CurrentTarget.Position) -- Điều chỉnh tức thì
-                Camera2.CFrame = CFrame.new(Camera2.CFrame.Position, CurrentTarget.Position) -- Camera 2 cũng phải điều chỉnh
-            end
-
-            -- Nếu mục tiêu ra ngoài phạm vi hoặc chết, reset
-            if distance > Radius or not CurrentTarget.Parent or CurrentTarget.Humanoid.Health <= 0 then
-                CurrentTarget = nil
+        else
+            -- Nếu không có kẻ thù trong phạm vi, tắt khóa camera
+            if #CurrentTargets > 0 then
+                CurrentTargets = {}
                 CamlockState = false
                 ToggleButton.Text = "CamLock: OFF"
                 ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
