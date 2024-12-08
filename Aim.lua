@@ -28,23 +28,27 @@ ScreenGui.Parent = game:GetService("CoreGui")
 
 -- Nút ON/OFF
 ToggleButton.Parent = ScreenGui
-ToggleButton.Size = UDim2.new(0, 100, 0, 50)
+ToggleButton.Size = UDim2.new(0, 150, 0, 50)
 ToggleButton.Position = UDim2.new(0.85, 0, 0.01, 0) -- Nâng lên cao hơn
 ToggleButton.Text = "CamLock: OFF"
 ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
 ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-ToggleButton.Font = Enum.Font.SourceSans
-ToggleButton.TextSize = 20
+ToggleButton.Font = Enum.Font.GothamBold
+ToggleButton.TextSize = 22
+ToggleButton.AutoButtonColor = true
+ToggleButton.BorderRadius = UDim.new(0, 10)
 
--- Nút X
+-- Nút X (Close Button)
 CloseButton.Parent = ScreenGui
-CloseButton.Size = UDim2.new(0, 30, 0, 30)
+CloseButton.Size = UDim2.new(0, 40, 0, 40)
 CloseButton.Position = UDim2.new(0.79, 0, 0.01, 0) -- Nằm trái nút ON/OFF
 CloseButton.Text = "X"
-CloseButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-CloseButton.Font = Enum.Font.SourceSans
-CloseButton.TextSize = 18
+CloseButton.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+CloseButton.TextColor3 = Color3.fromRGB(255, 0, 0)
+CloseButton.Font = Enum.Font.GothamBold
+CloseButton.TextSize = 20
+CloseButton.AutoButtonColor = true
+CloseButton.BorderRadius = UDim.new(0, 15)
 
 -- Biến trạng thái ẩn/hiện và kích hoạt Aim
 local lastClickTime = 0
@@ -94,22 +98,21 @@ CloseButton.MouseButton1Click:Connect(function()
     lastClickTime = currentTime
 end)
 
--- Tìm đối thủ gần nhất trong phạm vi
-function FindNearestEnemy()
-    local ClosestDistance, ClosestPlayer = Radius, nil
+-- Tìm tất cả đối thủ trong phạm vi
+function FindEnemiesInRadius()
+    local targets = {}
     for _, Player in ipairs(Players:GetPlayers()) do
         if Player ~= LocalPlayer then
             local Character = Player.Character
             if Character and Character:FindFirstChild("HumanoidRootPart") and Character:FindFirstChild("Humanoid") and Character.Humanoid.Health > 0 then
                 local Distance = (Character.HumanoidRootPart.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude
-                if Distance <= Radius and Distance < ClosestDistance then
-                    ClosestPlayer = Character.HumanoidRootPart
-                    ClosestDistance = Distance
+                if Distance <= Radius then
+                    table.insert(targets, Character.HumanoidRootPart)
                 end
             end
         end
     end
-    return ClosestPlayer
+    return targets
 end
 
 -- Kiểm tra và điều chỉnh camera để không bị che khuất
@@ -128,61 +131,52 @@ end
 
 -- Cập nhật camera
 RunService.RenderStepped:Connect(function()
-    local enemy = FindNearestEnemy()
+    local enemies = FindEnemiesInRadius()
 
     if AimActive then
-        if enemy then
-            local distance = (enemy.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude
-
-            -- Kiểm tra và bật Aim khi mục tiêu vào phạm vi R = 200
-            if distance <= Radius then
-                if CurrentTarget ~= enemy then
-                    -- Nếu có mục tiêu mới, ghim mục tiêu đó
-                    CurrentTarget = enemy
-                    CamlockState = true
-                    ToggleButton.Text = "CamLock: ON"
-                    ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
-                end
-
-                -- Tính toán vị trí mục tiêu với dự đoán di chuyển
-                local targetPosition = enemy.Position + enemy.Velocity * Prediction
-
-                -- Điều chỉnh lại vị trí camera để không bị che khuất
-                targetPosition = AdjustCameraPosition(targetPosition)
-
-                -- Cập nhật camera chính với mượt mà (Camera 1)
-                local newCFrame1 = CFrame.new(Camera.CFrame.Position, targetPosition)
-                Camera.CFrame = Camera.CFrame:Lerp(newCFrame1, SmoothFactor)
-
-                -- Cập nhật camera phụ với cùng góc nhìn
-                local newCFrame2 = CFrame.new(Camera2.CFrame.Position, targetPosition)
-                Camera2.CFrame = Camera2.CFrame:Lerp(newCFrame2, SmoothFactor)
-
-                -- Tăng tốc độ xoay camera khi mục tiêu di chuyển nhanh
-                if enemy.Velocity.Magnitude > 50 then
-                    Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, targetPosition), CameraRotationSpeed)
-                    Camera2.CFrame = Camera2.CFrame:Lerp(CFrame.new(Camera2.CFrame.Position, targetPosition), CameraRotationSpeed)
-                end
-
-                -- Xử lý mục tiêu ra sau lưng
-                local directionToEnemy = (enemy.Position - Camera.CFrame.Position).Unit
-                local forwardDirection = Camera.CFrame.LookVector
-                if forwardDirection:Dot(directionToEnemy) < 0 then
-                    Camera.CFrame = CFrame.new(Camera.CFrame.Position, enemy.Position) -- Điều chỉnh tức thì
-                    Camera2.CFrame = CFrame.new(Camera2.CFrame.Position, enemy.Position) -- Camera 2 cũng phải điều chỉnh
-                end
-            else
-                -- Nếu mục tiêu ra ngoài phạm vi, tắt khóa và reset
-                if CurrentTarget then
-                    CurrentTarget = nil
-                    CamlockState = false
-                    ToggleButton.Text = "CamLock: OFF"
-                    ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-                end
+        -- Kiểm tra nếu chưa có mục tiêu hoặc mục tiêu đã chết, tìm mục tiêu mới
+        if CurrentTarget == nil or CurrentTarget.Parent == nil or CurrentTarget.Humanoid.Health <= 0 then
+            if #enemies > 0 then
+                CurrentTarget = enemies[1] -- Chọn player đầu tiên trong phạm vi (bạn có thể chọn cách chọn khác)
+                CamlockState = true
+                ToggleButton.Text = "CamLock: ON"
+                ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
             end
-        else
-            -- Nếu không tìm thấy mục tiêu, tắt khóa camera
-            if CurrentTarget then
+        end
+
+        if CurrentTarget then
+            local distance = (CurrentTarget.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude
+
+            -- Tính toán vị trí mục tiêu với dự đoán di chuyển
+            local targetPosition = CurrentTarget.Position + CurrentTarget.Velocity * Prediction
+
+            -- Điều chỉnh lại vị trí camera để không bị che khuất
+            targetPosition = AdjustCameraPosition(targetPosition)
+
+            -- Cập nhật camera chính với mượt mà (Camera 1)
+            local newCFrame1 = CFrame.new(Camera.CFrame.Position, targetPosition)
+            Camera.CFrame = Camera.CFrame:Lerp(newCFrame1, SmoothFactor)
+
+            -- Cập nhật camera phụ với cùng góc nhìn
+            local newCFrame2 = CFrame.new(Camera2.CFrame.Position, targetPosition)
+            Camera2.CFrame = Camera2.CFrame:Lerp(newCFrame2, SmoothFactor)
+
+            -- Tăng tốc độ xoay camera khi mục tiêu di chuyển nhanh
+            if CurrentTarget.Velocity.Magnitude > 50 then
+                Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, targetPosition), CameraRotationSpeed)
+                Camera2.CFrame = Camera2.CFrame:Lerp(CFrame.new(Camera2.CFrame.Position, targetPosition), CameraRotationSpeed)
+            end
+
+            -- Xử lý mục tiêu ra sau lưng
+            local directionToEnemy = (CurrentTarget.Position - Camera.CFrame.Position).Unit
+            local forwardDirection = Camera.CFrame.LookVector
+            if forwardDirection:Dot(directionToEnemy) < 0 then
+                Camera.CFrame = CFrame.new(Camera.CFrame.Position, CurrentTarget.Position) -- Điều chỉnh tức thì
+                Camera2.CFrame = CFrame.new(Camera2.CFrame.Position, CurrentTarget.Position) -- Camera 2 cũng phải điều chỉnh
+            end
+
+            -- Nếu mục tiêu ra ngoài phạm vi hoặc chết, reset
+            if distance > Radius or not CurrentTarget.Parent or CurrentTarget.Humanoid.Health <= 0 then
                 CurrentTarget = nil
                 CamlockState = false
                 ToggleButton.Text = "CamLock: OFF"
