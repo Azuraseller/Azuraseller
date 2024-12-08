@@ -9,10 +9,11 @@ local Prediction = 0.16
 local Radius = 200 -- Bán kính khóa mục tiêu
 local CameraSpeed = 0.25 -- Tốc độ phản hồi camera
 local SmoothFactor = 0.15 -- Hệ số mượt của camera khi theo dõi
-local Locked = true
+local Locked = false
 local CurrentTarget = nil -- Mục tiêu hiện tại
+local MaxRotationSpeed = 15 -- Tốc độ quay tối đa khi mục tiêu dịch chuyển nhanh
 
-local Camera2 = Instance.new("Camera") -- Tạo camera thứ hai
+local Camera2 = Instance.new("Camera") -- Tạo camera thứ hai để quan sát
 Camera2.Parent = workspace
 Camera2.CFrame = Camera.CFrame -- Đặt camera thứ hai có vị trí ban đầu giống camera chính
 Camera2.FieldOfView = Camera.FieldOfView -- Giữ nguyên trường nhìn
@@ -126,7 +127,8 @@ RunService.RenderStepped:Connect(function()
 
                 -- Đảm bảo phản hồi nhanh nếu mục tiêu di chuyển nhanh
                 if distance > Radius * 0.8 then
-                    SmoothFactor = 0.3 -- Tăng tốc camera khi mục tiêu xa
+                    SmoothFactor = 0.25 -- Tăng tốc camera khi mục tiêu xa
+                    Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, targetPosition), MaxRotationSpeed * 0.1) -- Quay nhanh khi mục tiêu di chuyển nhanh
                 else
                     SmoothFactor = 0.15 -- Trở lại mượt mà khi gần
                 end
@@ -136,6 +138,7 @@ RunService.RenderStepped:Connect(function()
                 local forwardDirection = Camera.CFrame.LookVector
                 if forwardDirection:Dot(directionToEnemy) < 0 then
                     Camera.CFrame = CFrame.new(Camera.CFrame.Position, enemy.Position) -- Điều chỉnh tức thì
+                    Camera2.CFrame = CFrame.new(Camera2.CFrame.Position, enemy.Position) -- Cập nhật camera 2 khi mục tiêu ra sau lưng
                 end
             else
                 -- Nếu mục tiêu ra ngoài phạm vi, tắt khóa và reset
