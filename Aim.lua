@@ -4,13 +4,14 @@ local LocalPlayer = Players.LocalPlayer
 local Mouse = LocalPlayer:GetMouse()
 local Camera = workspace.CurrentCamera
 local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService") -- Thêm UserInputService
 local StarterGui = game:GetService("StarterGui")
 
 local CamlockState = false
 local Prediction = 0.16
 local Radius = 200 -- Bán kính khóa mục tiêu
 local SecondaryCamRadius = 1.2 -- Bán kính giới hạn camera phụ
-local SecondaryCamHeightOffset = Vector3.new(0, 5, 2) -- Offset chiều cao camera phụ (sau và trên nhân vật)
+local SecondaryCamHeightOffset = Vector3.new(0, 5, 0) -- Offset chiều cao camera phụ (sau và trên nhân vật)
 local SecondaryCamSpeed = 0.3 -- Tốc độ di chuyển camera phụ
 local enemy = nil
 local Locked = true
@@ -145,8 +146,9 @@ RunService.RenderStepped:Connect(function()
 end)
 
 -- Phím bật/tắt CamLock bằng phím tắt
-Mouse.KeyDown:Connect(function(k)
-    if k == getgenv().Key then
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    if input.KeyCode == Enum.KeyCode.C then
         Locked = not Locked
         if Locked then
             ToggleButton.Text = "CamLock: ON"
