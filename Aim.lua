@@ -9,10 +9,11 @@ Camera2.Parent = workspace
 
 -- Cấu hình các tham số
 local CamlockState = false
-local Prediction = 0.16
-local Radius = 200 -- Bán kính khóa mục tiêu
-local CameraSpeed = 0.25 -- Tốc độ phản hồi camera
-local SmoothFactor = 0.15 -- Hệ số mượt của camera khi theo dõi
+local Prediction = 0.1  -- Giảm giá trị dự đoán để nhanh hơn
+local Radius = 200  -- Bán kính khóa mục tiêu
+local CameraSpeed = 0.35 -- Tăng tốc độ phản hồi camera
+local CameraRotationSpeed = 0.7 -- Tốc độ xoay camera nhanh hơn khi ghim
+local SmoothFactor = 0.1  -- Tăng độ mượt của camera khi theo dõi
 local Locked = false
 local CurrentTarget = nil -- Mục tiêu hiện tại
 
@@ -45,7 +46,7 @@ CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 CloseButton.Font = Enum.Font.SourceSans
 CloseButton.TextSize = 18
 
--- Biến trạng thái ẩn/hiện
+-- Biến trạng thái ẩn/hiện và kích hoạt Aim
 local lastClickTime = 0
 local doubleClickThreshold = 0.5 -- Thời gian giữa hai lần nhấn để xem là nhấn đúp
 local ToggleVisible = true
@@ -69,22 +70,24 @@ end
 
 ToggleButton.MouseButton1Click:Connect(ToggleCamlock)
 
--- Nút X để tắt/hoạt động lại aim
+-- Nút X để tắt/hoạt động lại aim và ẩn/hiện nút ON/OFF
 CloseButton.MouseButton1Click:Connect(function()
     local currentTime = tick()
     if currentTime - lastClickTime < doubleClickThreshold then
         -- Nhấn đúp sẽ tắt aim
         AimActive = not AimActive
         if AimActive then
-            -- Khi aim hoạt động lại, gán trạng thái là ON
+            -- Khi aim hoạt động lại, gán trạng thái là ON và hiện nút ON/OFF
             ToggleButton.Text = "CamLock: ON"
             ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
             CamlockState = true
+            ToggleButton.Visible = true -- Hiện lại nút ON/OFF
         else
-            -- Khi aim bị tắt, gán trạng thái là OFF
+            -- Khi aim bị tắt, gán trạng thái là OFF và ẩn nút ON/OFF
             ToggleButton.Text = "CamLock: OFF"
             ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
             CamlockState = false
+            ToggleButton.Visible = false -- Ẩn nút ON/OFF
             CurrentTarget = nil -- Ngừng ghim mục tiêu
         end
     end
@@ -109,6 +112,20 @@ function FindNearestEnemy()
     return ClosestPlayer
 end
 
+-- Kiểm tra và điều chỉnh camera để không bị che khuất
+local function AdjustCameraPosition(targetPosition)
+    local ray = Ray.new(Camera.CFrame.Position, targetPosition - Camera.CFrame.Position)
+    local hitPart, hitPosition = workspace:FindPartOnRay(ray, LocalPlayer.Character)
+    
+    -- Nếu có vật thể chắn, điều chỉnh camera để không bị che
+    if hitPart then
+        local direction = (targetPosition - Camera.CFrame.Position).Unit
+        local offset = direction * 5 -- Đẩy camera ra xa 5 studs để tránh vật cản
+        return Camera.CFrame.Position + offset
+    end
+    return targetPosition
+end
+
 -- Cập nhật camera
 RunService.RenderStepped:Connect(function()
     local enemy = FindNearestEnemy()
@@ -130,6 +147,9 @@ RunService.RenderStepped:Connect(function()
                 -- Tính toán vị trí mục tiêu với dự đoán di chuyển
                 local targetPosition = enemy.Position + enemy.Velocity * Prediction
 
+                -- Điều chỉnh lại vị trí camera để không bị che khuất
+                targetPosition = AdjustCameraPosition(targetPosition)
+
                 -- Cập nhật camera chính với mượt mà (Camera 1)
                 local newCFrame1 = CFrame.new(Camera.CFrame.Position, targetPosition)
                 Camera.CFrame = Camera.CFrame:Lerp(newCFrame1, SmoothFactor)
@@ -137,6 +157,12 @@ RunService.RenderStepped:Connect(function()
                 -- Cập nhật camera phụ với cùng góc nhìn
                 local newCFrame2 = CFrame.new(Camera2.CFrame.Position, targetPosition)
                 Camera2.CFrame = Camera2.CFrame:Lerp(newCFrame2, SmoothFactor)
+
+                -- Tăng tốc độ xoay camera khi mục tiêu di chuyển nhanh
+                if enemy.Velocity.Magnitude > 50 then
+                    Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, targetPosition), CameraRotationSpeed)
+                    Camera2.CFrame = Camera2.CFrame:Lerp(CFrame.new(Camera2.CFrame.Position, targetPosition), CameraRotationSpeed)
+                end
 
                 -- Xử lý mục tiêu ra sau lưng
                 local directionToEnemy = (enemy.Position - Camera.CFrame.Position).Unit
