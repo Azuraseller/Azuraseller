@@ -2,142 +2,121 @@ local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 
--- Tạo GUI
+-- Tạo GUI chính
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 
--- Tạo danh sách nền mờ đục
-local PlayerListFrame = Instance.new("Frame")
-PlayerListFrame.Parent = ScreenGui
-PlayerListFrame.Size = UDim2.new(0, 150, 0, 0)
-PlayerListFrame.Position = UDim2.new(0.75, 0, 0.06, 0)  -- Dịch sang trái một chút
-PlayerListFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-PlayerListFrame.BackgroundTransparency = 0.6
-PlayerListFrame.BorderColor3 = Color3.fromRGB(255, 0, 0)
-PlayerListFrame.BorderSizePixel = 2
-PlayerListFrame.ClipsDescendants = true
+local playerListFrame = Instance.new("Frame")
+playerListFrame.Size = UDim2.new(0, 250, 0, 400)
+playerListFrame.Position = UDim2.new(0.5, -125, 0.5, -200)
+playerListFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+playerListFrame.BackgroundTransparency = 0.5
+playerListFrame.Parent = ScreenGui
 
--- Nút cuộn lên/xuống
-local ScrollButtonToggle = Instance.new("TextButton")
-ScrollButtonToggle.Parent = ScreenGui
-ScrollButtonToggle.Size = UDim2.new(0, 30, 0, 30)
-ScrollButtonToggle.Position = UDim2.new(0.72, 0, 0.06, 0)  -- Đặt ở góc trái phía trên
-ScrollButtonToggle.Text = "↓"
-ScrollButtonToggle.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-ScrollButtonToggle.TextColor3 = Color3.fromRGB(255, 255, 255)
-ScrollButtonToggle.Font = Enum.Font.SourceSans
-ScrollButtonToggle.TextSize = 18
+-- Tạo nút cuộn xuống và cuộn lên
+local scrollDownButton = Instance.new("TextButton")
+scrollDownButton.Size = UDim2.new(0, 30, 0, 30)
+scrollDownButton.Position = UDim2.new(0.5, -15, 1, -40)
+scrollDownButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+scrollDownButton.Text = "↓"
+scrollDownButton.Parent = playerListFrame
 
--- Khung cuộn danh sách người chơi
-local PlayerListScrollingFrame = Instance.new("ScrollingFrame")
-PlayerListScrollingFrame.Parent = PlayerListFrame
-PlayerListScrollingFrame.Size = UDim2.new(1, 0, 1, -30)
-PlayerListScrollingFrame.Position = UDim2.new(0, 0, 0, 30)
-PlayerListScrollingFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
-PlayerListScrollingFrame.BackgroundTransparency = 1
-PlayerListScrollingFrame.ScrollBarThickness = 8
+local scrollUpButton = Instance.new("TextButton")
+scrollUpButton.Size = UDim2.new(0, 30, 0, 30)
+scrollUpButton.Position = UDim2.new(0.5, -15, 0, 10)
+scrollUpButton.BackgroundColor3 = Color3.fromRGB(0, 0, 255)
+scrollUpButton.Text = "↑"
+scrollUpButton.Parent = playerListFrame
+scrollUpButton.Visible = false
 
--- Hiển thị danh sách người chơi
-local function UpdatePlayerList()
-    -- Xóa các mục cũ
-    for _, child in ipairs(PlayerListScrollingFrame:GetChildren()) do
-        if child:IsA("TextButton") or child:IsA("Frame") then
-            child:Destroy()
-        end
+-- Danh sách người chơi
+local playerList = Instance.new("UIListLayout")
+playerList.SortOrder = Enum.SortOrder.LayoutOrder
+playerList.Parent = playerListFrame
+
+-- Chức năng cuộn
+local isScrollingDown = false
+
+scrollDownButton.MouseButton1Click:Connect(function()
+    if not isScrollingDown then
+        isScrollingDown = true
+        scrollUpButton.Visible = true
+        scrollDownButton.Text = "↑"
+        scrollUpButton.Position = UDim2.new(0.5, -15, 0, playerListFrame.Size.Y.Offset - 30)
+    else
+        isScrollingDown = false
+        scrollUpButton.Visible = false
+        scrollDownButton.Text = "↓"
     end
+end)
 
-    local yOffset = 0
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer then
-            -- Tạo frame cho mỗi người chơi
-            local PlayerButton = Instance.new("TextButton")
-            PlayerButton.Parent = PlayerListScrollingFrame
-            PlayerButton.Size = UDim2.new(1, -8, 0, 30)
-            PlayerButton.Position = UDim2.new(0, 4, 0, yOffset)
-            PlayerButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-            PlayerButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-            PlayerButton.Font = Enum.Font.SourceSans
-            PlayerButton.TextSize = 16
+scrollUpButton.MouseButton1Click:Connect(function()
+    scrollUpButton.Visible = false
+    scrollDownButton.Text = "↓"
+    isScrollingDown = false
+end)
 
-            -- Thêm hình ảnh người chơi
-            local PlayerImage = Instance.new("ImageLabel")
-            PlayerImage.Parent = PlayerButton
-            PlayerImage.Size = UDim2.new(0, 25, 0, 25)
-            PlayerImage.Position = UDim2.new(0, 5, 0, 2)
-            PlayerImage.Image = player.PlayerGui:WaitForChild("PlayerThumbnail"):FindFirstChild("Image") and player.PlayerGui:WaitForChild("PlayerThumbnail").Image or "rbxassetid://0"
-            PlayerImage.BackgroundTransparency = 1
-            PlayerImage.BorderSizePixel = 0
-            local PlayerImageCorner = Instance.new("UICorner")
-            PlayerImageCorner.Parent = PlayerImage
-            PlayerImageCorner.CornerRadius = UDim.new(1, 0) -- Để tạo thành hình tròn
+-- Tạo danh sách player
+local function createPlayerEntry(player)
+    local playerFrame = Instance.new("Frame")
+    playerFrame.Size = UDim2.new(1, 0, 0, 50)
+    playerFrame.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+    playerFrame.Parent = playerListFrame
 
-            -- Nút xem camera
-            local ViewButton = Instance.new("TextButton")
-            ViewButton.Parent = PlayerButton
-            ViewButton.Size = UDim2.new(0, 30, 0, 30)
-            ViewButton.Position = UDim2.new(0.8, 0, 0, 0)  -- Dời nút View sang phải
-            ViewButton.Text = ""
-            ViewButton.BackgroundColor3 = Color3.fromRGB(0, 0, 255)
-            local ViewButtonCorner = Instance.new("UICorner")
-            ViewButtonCorner.Parent = ViewButton
-            ViewButtonCorner.CornerRadius = UDim.new(1, 0)  -- Tạo thành hình tròn
-            ViewButton.MouseButton1Click:Connect(function()
-                -- Toggle camera view
-                if Camera.CameraSubject == player.Character.Humanoid then
-                    Camera.CameraSubject = LocalPlayer.Character.Humanoid
-                    ViewButton.BackgroundColor3 = Color3.fromRGB(0, 0, 255)  -- Revert color when view is off
-                else
-                    Camera.CameraSubject = player.Character.Humanoid
-                    ViewButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)  -- Change to green when view is on
-                end
-            end)
+    local playerName = Instance.new("TextLabel")
+    playerName.Size = UDim2.new(0.7, 0, 1, 0)
+    playerName.Text = player.Name
+    playerName.TextColor3 = Color3.fromRGB(255, 255, 255)
+    playerName.BackgroundTransparency = 1
+    playerName.Parent = playerFrame
 
-            -- Nút dịch chuyển
-            local TeleportButton = Instance.new("TextButton")
-            TeleportButton.Parent = PlayerButton
-            TeleportButton.Size = UDim2.new(0, 30, 0, 30)
-            TeleportButton.Position = UDim2.new(0.85, 0, 0, 0)
-            TeleportButton.Text = ""
-            TeleportButton.BackgroundColor3 = Color3.fromRGB(128, 0, 128)
-            local TeleportButtonCorner = Instance.new("UICorner")
-            TeleportButtonCorner.Parent = TeleportButton
-            TeleportButtonCorner.CornerRadius = UDim.new(1, 0)  -- Tạo thành hình tròn
-            TeleportButton.MouseButton1Click:Connect(function()
-                if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-                    if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-                        LocalPlayer.Character.HumanoidRootPart.CFrame = player.Character.HumanoidRootPart.CFrame
-                    end
-                end
-            end)
+    local cameraButton = Instance.new("TextButton")
+    cameraButton.Size = UDim2.new(0, 30, 0, 30)
+    cameraButton.Position = UDim2.new(0.7, 5, 0.5, -15)
+    cameraButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- Màu đỏ
+    cameraButton.Text = ""
+    cameraButton.Shape = Enum.ButtonStyle.Rounded
+    cameraButton.Parent = playerFrame
 
-            yOffset = yOffset + 35
+    local teleportButton = Instance.new("TextButton")
+    teleportButton.Size = UDim2.new(0, 30, 0, 30)
+    teleportButton.Position = UDim2.new(0.8, 5, 0.5, -15)
+    teleportButton.BackgroundColor3 = Color3.fromRGB(0, 0, 255) -- Màu xanh dương
+    teleportButton.Text = ""
+    teleportButton.Shape = Enum.ButtonStyle.Rounded
+    teleportButton.Parent = playerFrame
+
+    local isViewing = false
+
+    -- Xử lý camera view
+    cameraButton.MouseButton1Click:Connect(function()
+        if isViewing then
+            cameraButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- Đỏ (Tắt)
+            Camera.CameraSubject = LocalPlayer.Character.Humanoid
+            isViewing = false
+        else
+            cameraButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0) -- Xanh lá (Bật)
+            Camera.CameraSubject = player.Character.Humanoid
+            isViewing = true
         end
-    end
+    end)
 
-    -- Cập nhật kích thước canvas
-    PlayerListScrollingFrame.CanvasSize = UDim2.new(0, 0, 0, yOffset)
+    -- Xử lý dịch chuyển tới player
+    teleportButton.MouseButton1Click:Connect(function()
+        LocalPlayer.Character:SetPrimaryPartCFrame(player.Character.HumanoidRootPart.CFrame)
+    end)
 end
 
--- Cập nhật danh sách khi có thay đổi
-Players.PlayerAdded:Connect(UpdatePlayerList)
-Players.PlayerRemoving:Connect(UpdatePlayerList)
-UpdatePlayerList()
+-- Tạo danh sách player trong game
+for _, player in pairs(Players:GetPlayers()) do
+    if player ~= LocalPlayer then
+        createPlayerEntry(player)
+    end
+end
 
--- Xử lý cuộn lên/xuống
-local isExpanded = false
-ScrollButtonToggle.MouseButton1Click:Connect(function()
-    isExpanded = not isExpanded
-    if isExpanded then
-        -- Mở rộng danh sách
-        PlayerListFrame.Size = UDim2.new(0, 150, 0, 200)
-        ScrollButtonToggle.Text = "↑"
-        -- Cập nhật lại CanvasSize khi mở rộng
-        PlayerListScrollingFrame.CanvasSize = UDim2.new(0, 0, 0, yOffset)
-    else
-        -- Thu gọn danh sách
-        PlayerListFrame.Size = UDim2.new(0, 150, 0, 0)
-        ScrollButtonToggle.Text = "↓"
-        -- Đặt lại CanvasSize khi thu gọn
-        PlayerListScrollingFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+-- Cập nhật danh sách khi có player mới vào game
+Players.PlayerAdded:Connect(function(player)
+    if player ~= LocalPlayer then
+        createPlayerEntry(player)
     end
 end)
