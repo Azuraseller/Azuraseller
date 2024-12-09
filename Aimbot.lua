@@ -36,14 +36,13 @@ SettingsButton.Size = UDim2.new(0, 40, 0, 40)
 SettingsButton.Position = UDim2.new(0.9, 0, 0.01, 0)
 SettingsButton.BackgroundTransparency = 1
 SettingsButton.Image = "rbxassetid://6035047377" -- Biểu tượng bánh răng
+SettingsButton.Visible = true -- Đảm bảo nút cài đặt luôn hiển thị
 
 -- Tạo hiệu ứng xoay nút cài đặt
 local function RotateSettingsButton()
-    local rotation = 0
     local TweenService = game:GetService("TweenService")
-    rotation = (rotation + 30) % 360
-    local Tween = TweenService:Create(SettingsButton, TweenInfo.new(0.3), {Rotation = rotation})
-    Tween:Play()
+    local rotationTween = TweenService:Create(SettingsButton, TweenInfo.new(0.3), {Rotation = SettingsButton.Rotation + 30})
+    rotationTween:Play()
 end
 
 -- Bật/tắt Aim và hiển thị nút ON/OFF
