@@ -10,27 +10,23 @@ ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 local PlayerListFrame = Instance.new("Frame")
 PlayerListFrame.Parent = ScreenGui
 PlayerListFrame.Size = UDim2.new(0, 150, 0, 0)
-PlayerListFrame.Position = UDim2.new(0.68, 0, 0.06, 0)  -- Dịch sang trái 0.6cm
+PlayerListFrame.Position = UDim2.new(0.75, 0, 0.06, 0)  -- Dịch sang trái một chút
 PlayerListFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
 PlayerListFrame.BackgroundTransparency = 0.6
 PlayerListFrame.BorderColor3 = Color3.fromRGB(255, 0, 0)
 PlayerListFrame.BorderSizePixel = 2
 PlayerListFrame.ClipsDescendants = true
-PlayerListFrame.ZIndex = 1  -- Ensure it stays behind the buttons
 
--- Nút cuộn lên/xuống (nút ↑ sát góc)
+-- Nút cuộn lên/xuống
 local ScrollButtonToggle = Instance.new("TextButton")
 ScrollButtonToggle.Parent = ScreenGui
 ScrollButtonToggle.Size = UDim2.new(0, 30, 0, 30)
-ScrollButtonToggle.Position = UDim2.new(0.79, 0, 0.06, 0)  -- Nút cuộn lên nằm sát góc
+ScrollButtonToggle.Position = UDim2.new(0.79, 0, 0.06, 0)
 ScrollButtonToggle.Text = "↓"
 ScrollButtonToggle.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
 ScrollButtonToggle.TextColor3 = Color3.fromRGB(255, 255, 255)
 ScrollButtonToggle.Font = Enum.Font.SourceSans
 ScrollButtonToggle.TextSize = 18
-ScrollButtonToggle.AutoButtonColor = false
-ScrollButtonToggle.TextButtonMode = Enum.TextButtonMode.Button
-ScrollButtonToggle.ZIndex = 2  -- Ensure it's on top of the PlayerListFrame
 
 -- Khung cuộn danh sách người chơi
 local PlayerListScrollingFrame = Instance.new("ScrollingFrame")
@@ -64,14 +60,13 @@ local function UpdatePlayerList()
             PlayerButton.Font = Enum.Font.SourceSans
             PlayerButton.TextSize = 16
 
-            -- Nút xem camera (hình tròn)
+            -- Nút xem camera
             local ViewButton = Instance.new("TextButton")
             ViewButton.Parent = PlayerButton
-            ViewButton.Size = UDim2.new(0, 30, 0, 30)
+            ViewButton.Size = UDim2.new(0, 30, 1, 0)
             ViewButton.Position = UDim2.new(0.8, 0, 0, 0)  -- Dời nút View sang phải
             ViewButton.Text = ""
             ViewButton.BackgroundColor3 = Color3.fromRGB(0, 0, 255)
-            ViewButton.Shape = Enum.UIShape.Circle  -- Chỉnh hình tròn
             ViewButton.MouseButton1Click:Connect(function()
                 -- Toggle camera view
                 if Camera.CameraSubject == player.Character.Humanoid then
@@ -83,14 +78,13 @@ local function UpdatePlayerList()
                 end
             end)
 
-            -- Nút dịch chuyển (hình tròn)
+            -- Nút dịch chuyển
             local TeleportButton = Instance.new("TextButton")
             TeleportButton.Parent = PlayerButton
-            TeleportButton.Size = UDim2.new(0, 30, 0, 30)
+            TeleportButton.Size = UDim2.new(0, 30, 1, 0)
             TeleportButton.Position = UDim2.new(0.85, 0, 0, 0)
             TeleportButton.Text = ""
             TeleportButton.BackgroundColor3 = Color3.fromRGB(128, 0, 128)
-            TeleportButton.Shape = Enum.UIShape.Circle  -- Chỉnh hình tròn
             TeleportButton.MouseButton1Click:Connect(function()
                 if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
                     if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
