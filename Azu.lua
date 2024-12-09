@@ -10,7 +10,7 @@ ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 local PlayerListFrame = Instance.new("Frame")
 PlayerListFrame.Parent = ScreenGui
 PlayerListFrame.Size = UDim2.new(0, 150, 0, 0)
-PlayerListFrame.Position = UDim2.new(0.7, 0, 0.06, 0)  -- Dịch sang trái một chút
+PlayerListFrame.Position = UDim2.new(0.75, 0, 0.06, 0)  -- Dịch sang trái một chút
 PlayerListFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
 PlayerListFrame.BackgroundTransparency = 0.6
 PlayerListFrame.BorderColor3 = Color3.fromRGB(255, 0, 0)
@@ -130,12 +130,8 @@ ScrollButtonToggle.MouseButton1Click:Connect(function()
     if isExpanded then
         PlayerListFrame.Size = UDim2.new(0, 150, 0, 200)
         ScrollButtonToggle.Text = "↑"
-        -- Mở rộng danh sách và làm cho nó cuộn đúng
-        PlayerListScrollingFrame.CanvasSize = UDim2.new(0, 0, 0, yOffset)
     else
         PlayerListFrame.Size = UDim2.new(0, 150, 0, 0)
         ScrollButtonToggle.Text = "↓"
-        -- Đóng danh sách
-        PlayerListScrollingFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
     end
 end)
