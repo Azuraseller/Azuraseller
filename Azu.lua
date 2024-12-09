@@ -10,35 +10,23 @@ ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 local PlayerListFrame = Instance.new("Frame")
 PlayerListFrame.Parent = ScreenGui
 PlayerListFrame.Size = UDim2.new(0, 150, 0, 0)
-PlayerListFrame.Position = UDim2.new(0.79, 0, 0.06, 0)
+PlayerListFrame.Position = UDim2.new(0.75, 0, 0.06, 0)  -- Dịch sang trái một chút
 PlayerListFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
 PlayerListFrame.BackgroundTransparency = 0.6
 PlayerListFrame.BorderColor3 = Color3.fromRGB(255, 0, 0)
 PlayerListFrame.BorderSizePixel = 2
 PlayerListFrame.ClipsDescendants = true
 
--- Nút cuộn xuống
-local ScrollButtonDown = Instance.new("TextButton")
-ScrollButtonDown.Parent = ScreenGui
-ScrollButtonDown.Size = UDim2.new(0, 30, 0, 30)
-ScrollButtonDown.Position = UDim2.new(0.79, 0, 0.06, 0)
-ScrollButtonDown.Text = "↓"
-ScrollButtonDown.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-ScrollButtonDown.TextColor3 = Color3.fromRGB(255, 255, 255)
-ScrollButtonDown.Font = Enum.Font.SourceSans
-ScrollButtonDown.TextSize = 18
-
--- Nút cuộn lên (ẩn mặc định)
-local ScrollButtonUp = Instance.new("TextButton")
-ScrollButtonUp.Parent = PlayerListFrame
-ScrollButtonUp.Size = UDim2.new(0, 30, 0, 30)
-ScrollButtonUp.Position = UDim2.new(0, 60, 0, 5)
-ScrollButtonUp.Text = "↑"
-ScrollButtonUp.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-ScrollButtonUp.TextColor3 = Color3.fromRGB(255, 255, 255)
-ScrollButtonUp.Font = Enum.Font.SourceSans
-ScrollButtonUp.TextSize = 18
-ScrollButtonUp.Visible = false
+-- Nút cuộn lên/xuống
+local ScrollButtonToggle = Instance.new("TextButton")
+ScrollButtonToggle.Parent = ScreenGui
+ScrollButtonToggle.Size = UDim2.new(0, 30, 0, 30)
+ScrollButtonToggle.Position = UDim2.new(0.79, 0, 0.06, 0)
+ScrollButtonToggle.Text = "↓"
+ScrollButtonToggle.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+ScrollButtonToggle.TextColor3 = Color3.fromRGB(255, 255, 255)
+ScrollButtonToggle.Font = Enum.Font.SourceSans
+ScrollButtonToggle.TextSize = 18
 
 -- Khung cuộn danh sách người chơi
 local PlayerListScrollingFrame = Instance.new("ScrollingFrame")
@@ -76,12 +64,17 @@ local function UpdatePlayerList()
             local ViewButton = Instance.new("TextButton")
             ViewButton.Parent = PlayerButton
             ViewButton.Size = UDim2.new(0, 30, 1, 0)
-            ViewButton.Position = UDim2.new(0.7, 0, 0, 0)
+            ViewButton.Position = UDim2.new(0.8, 0, 0, 0)  -- Dời nút View sang phải
             ViewButton.Text = ""
             ViewButton.BackgroundColor3 = Color3.fromRGB(0, 0, 255)
             ViewButton.MouseButton1Click:Connect(function()
-                if player.Character and player.Character:FindFirstChild("Humanoid") then
+                -- Toggle camera view
+                if Camera.CameraSubject == player.Character.Humanoid then
+                    Camera.CameraSubject = LocalPlayer.Character.Humanoid
+                    ViewButton.BackgroundColor3 = Color3.fromRGB(0, 0, 255)  -- Revert color when view is off
+                else
                     Camera.CameraSubject = player.Character.Humanoid
+                    ViewButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)  -- Change to green when view is on
                 end
             end)
 
@@ -113,21 +106,15 @@ Players.PlayerAdded:Connect(UpdatePlayerList)
 Players.PlayerRemoving:Connect(UpdatePlayerList)
 UpdatePlayerList()
 
--- Xử lý cuộn xuống và lên
+-- Xử lý cuộn lên/xuống
 local isExpanded = false
-ScrollButtonDown.MouseButton1Click:Connect(function()
+ScrollButtonToggle.MouseButton1Click:Connect(function()
     isExpanded = not isExpanded
     if isExpanded then
         PlayerListFrame.Size = UDim2.new(0, 150, 0, 200)
-        ScrollButtonUp.Visible = true
+        ScrollButtonToggle.Text = "↑"
     else
         PlayerListFrame.Size = UDim2.new(0, 150, 0, 0)
-        ScrollButtonUp.Visible = false
+        ScrollButtonToggle.Text = "↓"
     end
-end)
-
-ScrollButtonUp.MouseButton1Click:Connect(function()
-    PlayerListFrame.Size = UDim2.new(0, 150, 0, 0)
-    ScrollButtonUp.Visible = false
-    isExpanded = false
 end)
