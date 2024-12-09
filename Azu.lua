@@ -10,7 +10,7 @@ ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 local PlayerListFrame = Instance.new("Frame")
 PlayerListFrame.Parent = ScreenGui
 PlayerListFrame.Size = UDim2.new(0, 150, 0, 0)
-PlayerListFrame.Position = UDim2.new(0.75, 0, 0.06, 0)  -- Dịch sang trái một chút
+PlayerListFrame.Position = UDim2.new(0.7, 0, 0.06, 0)  -- Dịch sang trái một chút
 PlayerListFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
 PlayerListFrame.BackgroundTransparency = 0.6
 PlayerListFrame.BorderColor3 = Color3.fromRGB(255, 0, 0)
@@ -21,7 +21,7 @@ PlayerListFrame.ClipsDescendants = true
 local ScrollButtonToggle = Instance.new("TextButton")
 ScrollButtonToggle.Parent = ScreenGui
 ScrollButtonToggle.Size = UDim2.new(0, 30, 0, 30)
-ScrollButtonToggle.Position = UDim2.new(0.79, 0, 0.06, 0)
+ScrollButtonToggle.Position = UDim2.new(0.72, 0, 0.06, 0)  -- Đặt ở góc trái phía trên
 ScrollButtonToggle.Text = "↓"
 ScrollButtonToggle.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
 ScrollButtonToggle.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -49,24 +49,38 @@ local function UpdatePlayerList()
     local yOffset = 0
     for _, player in ipairs(Players:GetPlayers()) do
         if player ~= LocalPlayer then
-            -- Nút tên người chơi
+            -- Tạo frame cho mỗi người chơi
             local PlayerButton = Instance.new("TextButton")
             PlayerButton.Parent = PlayerListScrollingFrame
             PlayerButton.Size = UDim2.new(1, -8, 0, 30)
             PlayerButton.Position = UDim2.new(0, 4, 0, yOffset)
-            PlayerButton.Text = player.Name
             PlayerButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
             PlayerButton.TextColor3 = Color3.fromRGB(255, 255, 255)
             PlayerButton.Font = Enum.Font.SourceSans
             PlayerButton.TextSize = 16
 
+            -- Thêm hình ảnh người chơi
+            local PlayerImage = Instance.new("ImageLabel")
+            PlayerImage.Parent = PlayerButton
+            PlayerImage.Size = UDim2.new(0, 25, 0, 25)
+            PlayerImage.Position = UDim2.new(0, 5, 0, 2)
+            PlayerImage.Image = player.PlayerGui:WaitForChild("PlayerThumbnail"):FindFirstChild("Image") and player.PlayerGui:WaitForChild("PlayerThumbnail").Image or "rbxassetid://0"
+            PlayerImage.BackgroundTransparency = 1
+            PlayerImage.BorderSizePixel = 0
+            local PlayerImageCorner = Instance.new("UICorner")
+            PlayerImageCorner.Parent = PlayerImage
+            PlayerImageCorner.CornerRadius = UDim.new(1, 0) -- Để tạo thành hình tròn
+
             -- Nút xem camera
             local ViewButton = Instance.new("TextButton")
             ViewButton.Parent = PlayerButton
-            ViewButton.Size = UDim2.new(0, 30, 1, 0)
+            ViewButton.Size = UDim2.new(0, 30, 0, 30)
             ViewButton.Position = UDim2.new(0.8, 0, 0, 0)  -- Dời nút View sang phải
             ViewButton.Text = ""
             ViewButton.BackgroundColor3 = Color3.fromRGB(0, 0, 255)
+            local ViewButtonCorner = Instance.new("UICorner")
+            ViewButtonCorner.Parent = ViewButton
+            ViewButtonCorner.CornerRadius = UDim.new(1, 0)  -- Tạo thành hình tròn
             ViewButton.MouseButton1Click:Connect(function()
                 -- Toggle camera view
                 if Camera.CameraSubject == player.Character.Humanoid then
@@ -81,10 +95,13 @@ local function UpdatePlayerList()
             -- Nút dịch chuyển
             local TeleportButton = Instance.new("TextButton")
             TeleportButton.Parent = PlayerButton
-            TeleportButton.Size = UDim2.new(0, 30, 1, 0)
+            TeleportButton.Size = UDim2.new(0, 30, 0, 30)
             TeleportButton.Position = UDim2.new(0.85, 0, 0, 0)
             TeleportButton.Text = ""
             TeleportButton.BackgroundColor3 = Color3.fromRGB(128, 0, 128)
+            local TeleportButtonCorner = Instance.new("UICorner")
+            TeleportButtonCorner.Parent = TeleportButton
+            TeleportButtonCorner.CornerRadius = UDim.new(1, 0)  -- Tạo thành hình tròn
             TeleportButton.MouseButton1Click:Connect(function()
                 if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
                     if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
