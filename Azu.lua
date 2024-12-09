@@ -126,14 +126,6 @@ local function UpdatePlayerList()
             end)
 
             yOffset = yOffset + 35
-
-            -- Kiểm tra xem có phải cần nút cuộn lên hoặc cuộn xuống
-            if yOffset > 30 then
-                showScrollUp = true
-            end
-            if yOffset > 200 then
-                showScrollDown = true
-            end
         end
     end
 
@@ -141,6 +133,13 @@ local function UpdatePlayerList()
     PlayerListScrollingFrame.CanvasSize = UDim2.new(0, 0, 0, yOffset)
 
     -- Hiển thị các nút cuộn lên và cuộn xuống nếu cần
+    if yOffset > 30 then
+        showScrollUp = true
+    end
+    if yOffset > PlayerListScrollingFrame.AbsoluteSize.Y then
+        showScrollDown = true
+    end
+
     ScrollButtonUp.Visible = showScrollUp
     ScrollButtonDown.Visible = showScrollDown
 end
