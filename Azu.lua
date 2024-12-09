@@ -10,7 +10,7 @@ ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 local PlayerListFrame = Instance.new("Frame")
 PlayerListFrame.Parent = ScreenGui
 PlayerListFrame.Size = UDim2.new(0, 150, 0, 0)
-PlayerListFrame.Position = UDim2.new(0.79, 0, 0.06, 0)
+PlayerListFrame.Position = UDim2.new(0.4, 0, 0.2, 0) -- Vị trí gần giữa bên trái
 PlayerListFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
 PlayerListFrame.BackgroundTransparency = 0.6
 PlayerListFrame.BorderColor3 = Color3.fromRGB(255, 0, 0)
@@ -21,7 +21,7 @@ PlayerListFrame.ClipsDescendants = true
 local ScrollButtonDown = Instance.new("TextButton")
 ScrollButtonDown.Parent = ScreenGui
 ScrollButtonDown.Size = UDim2.new(0, 30, 0, 30)
-ScrollButtonDown.Position = UDim2.new(0.79, 0, 0.06, 0)
+ScrollButtonDown.Position = UDim2.new(0.4, 0, 0.2, 0) -- Vị trí nút cuộn đồng bộ với danh sách
 ScrollButtonDown.Text = "↓"
 ScrollButtonDown.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
 ScrollButtonDown.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -72,7 +72,16 @@ local function UpdatePlayerList()
             PlayerButton.Font = Enum.Font.SourceSans
             PlayerButton.TextSize = 16
 
-            -- Nút xem camera
+            -- Hình ảnh bên trái tên người chơi
+            local PlayerImage = Instance.new("ImageLabel")
+            PlayerImage.Parent = PlayerButton
+            PlayerImage.Size = UDim2.new(0, 30, 0, 30)
+            PlayerImage.Position = UDim2.new(0, -35, 0, 0)
+            PlayerImage.BackgroundTransparency = 1
+            PlayerImage.Image = Players:GetUserThumbnailAsync(player.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size48x48)
+
+            -- Nút xem camera (bật/tắt)
+            local isViewing = false
             local ViewButton = Instance.new("TextButton")
             ViewButton.Parent = PlayerButton
             ViewButton.Size = UDim2.new(0, 30, 1, 0)
@@ -80,8 +89,16 @@ local function UpdatePlayerList()
             ViewButton.Text = ""
             ViewButton.BackgroundColor3 = Color3.fromRGB(0, 0, 255)
             ViewButton.MouseButton1Click:Connect(function()
-                if player.Character and player.Character:FindFirstChild("Humanoid") then
-                    Camera.CameraSubject = player.Character.Humanoid
+                if isViewing then
+                    Camera.CameraSubject = LocalPlayer.Character.Humanoid
+                    isViewing = false
+                    ViewButton.BackgroundColor3 = Color3.fromRGB(0, 0, 255)
+                else
+                    if player.Character and player.Character:FindFirstChild("Humanoid") then
+                        Camera.CameraSubject = player.Character.Humanoid
+                        isViewing = true
+                        ViewButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0) -- Xanh lá khi đang xem
+                    end
                 end
             end)
 
