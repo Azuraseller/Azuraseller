@@ -10,12 +10,13 @@ ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 local PlayerListFrame = Instance.new("Frame")
 PlayerListFrame.Parent = ScreenGui
 PlayerListFrame.Size = UDim2.new(0, 150, 0, 0)
-PlayerListFrame.Position = UDim2.new(0.7, 0, 0.06, 0)  -- Dịch sang trái nữa
+PlayerListFrame.Position = UDim2.new(0.68, 0, 0.06, 0)  -- Dịch sang trái 0.6cm
 PlayerListFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
 PlayerListFrame.BackgroundTransparency = 0.6
 PlayerListFrame.BorderColor3 = Color3.fromRGB(255, 0, 0)
 PlayerListFrame.BorderSizePixel = 2
 PlayerListFrame.ClipsDescendants = true
+PlayerListFrame.ZIndex = 1  -- Ensure it stays behind the buttons
 
 -- Nút cuộn lên/xuống (nút ↑ sát góc)
 local ScrollButtonToggle = Instance.new("TextButton")
@@ -29,6 +30,7 @@ ScrollButtonToggle.Font = Enum.Font.SourceSans
 ScrollButtonToggle.TextSize = 18
 ScrollButtonToggle.AutoButtonColor = false
 ScrollButtonToggle.TextButtonMode = Enum.TextButtonMode.Button
+ScrollButtonToggle.ZIndex = 2  -- Ensure it's on top of the PlayerListFrame
 
 -- Khung cuộn danh sách người chơi
 local PlayerListScrollingFrame = Instance.new("ScrollingFrame")
