@@ -130,8 +130,12 @@ ScrollButtonToggle.MouseButton1Click:Connect(function()
     if isExpanded then
         PlayerListFrame.Size = UDim2.new(0, 150, 0, 200)
         ScrollButtonToggle.Text = "↑"
+        -- Mở rộng danh sách và làm cho nó cuộn đúng
+        PlayerListScrollingFrame.CanvasSize = UDim2.new(0, 0, 0, yOffset)
     else
         PlayerListFrame.Size = UDim2.new(0, 150, 0, 0)
         ScrollButtonToggle.Text = "↓"
+        -- Đóng danh sách
+        PlayerListScrollingFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
     end
 end)
