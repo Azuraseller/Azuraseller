@@ -2,14 +2,8 @@
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
-local SoundService = game:GetService("SoundService")
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
-
--- Tạo một âm thanh khi cuộn
-local scrollSound = Instance.new("Sound")
-scrollSound.SoundId = "rbxassetid://123456789"  -- Thay thế ID này bằng ID âm thanh của bạn
-scrollSound.Parent = SoundService
 
 -- GUI: Player List
 local PlayerListFrame = Instance.new("Frame")
@@ -45,12 +39,6 @@ PlayerListScrollingFrame.ScrollBarThickness = 8
 local currentViewedPlayer = nil
 local currentViewedButton = nil
 
--- GUI cho nút View và Teleport (ngoài PlayerListFrame)
-local viewTeleportFrame = Instance.new("Frame")
-viewTeleportFrame.Parent = ScreenGui
-viewTeleportFrame.BackgroundTransparency = 1
-viewTeleportFrame.Size = UDim2.new(0, 0, 0, 0)
-
 -- Hiển thị danh sách người chơi
 local function UpdatePlayerList()
     -- Xóa các button cũ trong danh sách
@@ -62,6 +50,7 @@ local function UpdatePlayerList()
     local yOffset = 0
     for _, player in ipairs(Players:GetPlayers()) do
         if player ~= LocalPlayer then
+            -- Tạo TextButton cho player
             local PlayerButton = Instance.new("TextButton")
             PlayerButton.Parent = PlayerListScrollingFrame
             PlayerButton.Size = UDim2.new(1, -8, 0, 30)
@@ -76,24 +65,22 @@ local function UpdatePlayerList()
             local UICorner = Instance.new("UICorner")
             UICorner.Parent = PlayerButton
 
-            -- Khởi tạo nút View và Teleport (ẩn mặc định)
+            -- Tạo nút View và Teleport (ẩn mặc định)
             local ViewButton = Instance.new("TextButton")
+            ViewButton.Parent = PlayerButton
             ViewButton.Size = UDim2.new(0, 30, 0, 30)
+            ViewButton.Position = UDim2.new(0, 0, 0, -30) -- Đặt View trên tên player
             ViewButton.Text = ""
             ViewButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- Đỏ mặc định
-            ViewButton.Visible = false -- Ẩn khi chưa bấm vào tên
+            ViewButton.Visible = false -- Ẩn mặc định
 
             local TeleportButton = Instance.new("TextButton")
+            TeleportButton.Parent = PlayerButton
             TeleportButton.Size = UDim2.new(0, 30, 0, 30)
+            TeleportButton.Position = UDim2.new(0, 35, 0, -30) -- Đặt Teleport bên cạnh View
             TeleportButton.Text = ""
             TeleportButton.BackgroundColor3 = Color3.fromRGB(128, 0, 128) -- Tím
-            TeleportButton.Visible = false -- Ẩn khi chưa bấm vào tên
-
-            -- Đặt các nút View và Teleport **bên trên** tên player
-            ViewButton.Parent = viewTeleportFrame
-            TeleportButton.Parent = viewTeleportFrame
-            ViewButton.Position = UDim2.new(0, 0, 0, yOffset - 35) -- Đặt View lên trên tên player
-            TeleportButton.Position = UDim2.new(0, 35, 0, yOffset - 35) -- Đặt Teleport bên cạnh View
+            TeleportButton.Visible = false -- Ẩn mặc định
 
             -- Bật/ Tắt nút View và Teleport khi click vào tên player
             local toggleVisibility = false
@@ -174,19 +161,4 @@ ScrollButtonToggle.MouseButton1Click:Connect(function()
     -- Xoay bánh răng 60°
     rotation = rotation + 60
     ScrollButtonToggle.Rotation = rotation
-end)
-
--- Xử lý cuộn với MouseWheel và phát âm thanh
-local UserInputService = game:GetService("UserInputService")
-
-PlayerListScrollingFrame.MouseWheelForward:Connect(function()
-    rotation = rotation - 45
-    ScrollButtonToggle.Rotation = rotation
-    scrollSound:Play()  -- Phát âm thanh khi cuộn lên
-end)
-
-PlayerListScrollingFrame.MouseWheelBackward:Connect(function()
-    rotation = rotation + 45
-    ScrollButtonToggle.Rotation = rotation
-    scrollSound:Play()  -- Phát âm thanh khi cuộn xuống
 end)
