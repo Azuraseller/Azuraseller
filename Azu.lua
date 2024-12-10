@@ -76,12 +76,13 @@ local function UpdatePlayerList()
             PlayerButton.TextColor3 = Color3.fromRGB(255, 255, 255) -- Màu chữ trắng
             PlayerButton.Font = Enum.Font.SourceSans
             PlayerButton.TextSize = 16
+            PlayerButton.ClipsDescendants = false -- Cho phép nút con tràn
 
             -- Nút View (hình tròn trước tên)
             local ViewButton = Instance.new("TextButton")
             ViewButton.Parent = PlayerButton
             ViewButton.Size = UDim2.new(0, 20, 0, 20)
-            ViewButton.Position = UDim2.new(0, -25, 0.5, -10)
+            ViewButton.Position = UDim2.new(-0.15, 0, 0.5, -10)
             ViewButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- Đỏ
             ViewButton.Text = ""
             local ViewCorner = Instance.new("UICorner")
@@ -92,7 +93,7 @@ local function UpdatePlayerList()
             local TeleportButton = Instance.new("TextButton")
             TeleportButton.Parent = PlayerButton
             TeleportButton.Size = UDim2.new(0, 20, 0, 20)
-            TeleportButton.Position = UDim2.new(1, 5, 0.5, -10)
+            TeleportButton.Position = UDim2.new(1.1, 0, 0.5, -10)
             TeleportButton.BackgroundColor3 = Color3.fromRGB(128, 0, 128) -- Tím
             TeleportButton.Text = ""
             local TeleportCorner = Instance.new("UICorner")
@@ -103,7 +104,7 @@ local function UpdatePlayerList()
             ViewButton.MouseButton1Click:Connect(function()
                 for _, button in ipairs(PlayerListScrollingFrame:GetChildren()) do
                     if button:IsA("TextButton") and button:FindFirstChild("TextButton") then
-                        button.TextButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- Reset nút khác về đỏ
+                        button:FindFirstChild("TextButton").BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- Reset nút khác về đỏ
                     end
                 end
                 ViewButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0) -- Chuyển sang xanh
