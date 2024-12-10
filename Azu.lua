@@ -69,13 +69,14 @@ local function UpdatePlayerList()
             local UICorner = Instance.new("UICorner")
             UICorner.Parent = PlayerButton
 
-            -- Nút View
+            -- Nút View (ẩn mặc định)
             local ViewButton = Instance.new("TextButton")
             ViewButton.Parent = PlayerButton
             ViewButton.Size = UDim2.new(0, 30, 0, 30)
             ViewButton.Position = UDim2.new(0, 0, 1, 0) -- Đặt ở dưới cùng tên người chơi
             ViewButton.Text = ""
             ViewButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- Đỏ mặc định
+            ViewButton.Visible = false  -- Ẩn nút View ban đầu
             ViewButton.MouseButton1Click:Connect(function()
                 if currentViewedPlayer == player then
                     -- Nếu player đang được view, tắt view
@@ -101,13 +102,14 @@ local function UpdatePlayerList()
             ViewCorner.CornerRadius = UDim.new(1, 0)
             ViewCorner.Parent = ViewButton
 
-            -- Nút Teleport
+            -- Nút Teleport (ẩn mặc định)
             local TeleportButton = Instance.new("TextButton")
             TeleportButton.Parent = PlayerButton
             TeleportButton.Size = UDim2.new(0, 30, 0, 30)
             TeleportButton.Position = UDim2.new(0, 35, 1, 0) -- Đặt cạnh ViewButton (khoảng cách "••")
             TeleportButton.Text = ""
             TeleportButton.BackgroundColor3 = Color3.fromRGB(128, 0, 128) -- Tím
+            TeleportButton.Visible = false  -- Ẩn nút Teleport ban đầu
             TeleportButton.MouseButton1Click:Connect(function()
                 -- Tắt view nếu đang view player này
                 if currentViewedPlayer == player then
@@ -126,6 +128,23 @@ local function UpdatePlayerList()
             local TeleportCorner = Instance.new("UICorner")
             TeleportCorner.CornerRadius = UDim.new(1, 0)
             TeleportCorner.Parent = TeleportButton
+
+            -- Bật nút View và Teleport khi click vào tên player
+            PlayerButton.MouseButton1Click:Connect(function()
+                -- Ẩn nút của player khác trước
+                for _, pButton in ipairs(PlayerListScrollingFrame:GetChildren()) do
+                    if pButton:IsA("TextButton") and pButton ~= PlayerButton then
+                        local pViewButton = pButton:FindFirstChild("ViewButton")
+                        local pTeleportButton = pButton:FindFirstChild("TeleportButton")
+                        if pViewButton then pViewButton.Visible = false end
+                        if pTeleportButton then pTeleportButton.Visible = false end
+                    end
+                end
+                
+                -- Hiện nút View và Teleport cho player này
+                ViewButton.Visible = true
+                TeleportButton.Visible = true
+            end)
 
             yOffset = yOffset + 40 -- Tăng khoảng cách giữa các player
         end
