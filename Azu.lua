@@ -92,22 +92,32 @@ local function UpdatePlayerList()
             -- Đặt các nút View và Teleport ra ngoài PlayerListFrame
             ViewButton.Parent = viewTeleportFrame
             TeleportButton.Parent = viewTeleportFrame
-            ViewButton.Position = UDim2.new(0, 0, 0, yOffset) -- Đặt View gần tên player
-            TeleportButton.Position = UDim2.new(0, 35, 0, yOffset) -- Đặt Teleport cách View 1 chút
+            ViewButton.Position = UDim2.new(0, -35, 0, yOffset) -- Đặt View phía sau tên player
+            TeleportButton.Position = UDim2.new(0, -70, 0, yOffset) -- Đặt Teleport cách View 1 chút
 
             -- Bật/ Tắt nút View và Teleport khi click vào tên player
             local toggleVisibility = false
             PlayerButton.MouseButton1Click:Connect(function()
-                -- Nếu nút View và Teleport đang ẩn, thì hiện lên
+                -- Nếu bấm vào tên player đã có nút View, ẩn các nút cũ
+                if currentViewedPlayer and currentViewedPlayer ~= player then
+                    currentViewedButton.Visible = false
+                    currentViewedButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- Đặt lại màu đỏ
+                    currentViewedButton = nil
+                end
+                -- Nếu nút View và Teleport chưa hiện, hiển thị chúng
                 if not toggleVisibility then
                     ViewButton.Visible = true
                     TeleportButton.Visible = true
                     toggleVisibility = true
+                    currentViewedPlayer = player
+                    currentViewedButton = ViewButton
                 else
-                    -- Nếu nút View và Teleport đang hiển thị, thì ẩn đi
+                    -- Ẩn chúng nếu đã được hiển thị
                     ViewButton.Visible = false
                     TeleportButton.Visible = false
                     toggleVisibility = false
+                    currentViewedPlayer = nil
+                    currentViewedButton = nil
                 end
             end)
 
