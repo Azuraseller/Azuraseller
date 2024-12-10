@@ -134,12 +134,16 @@ RunService.RenderStepped:Connect(function()
                 if targetCharacter.Humanoid.Health <= 0 or distance > Radius then
                     CurrentTarget = nil
                 else
-                    targetPosition = AdjustCameraPosition(targetPosition)
+                    -- Giữ trạng thái camera ngang nếu mục tiêu đến gần
+                    local targetDirection = targetPosition - Camera.CFrame.Position
+                    targetDirection = Vector3.new(targetDirection.X, 0, targetDirection.Z).Unit * targetDirection.Magnitude -- Loại bỏ trục Y (hướng lên/xuống)
 
-                    -- Nếu mục tiêu di chuyển nhanh hoặc ra sau, tăng tốc camera
                     local lerpFactor = (distance > Radius / 2) and FastFollowFactor or SmoothFactor
-                    Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, targetPosition), lerpFactor)
-                    Camera2.CFrame = Camera2.CFrame:Lerp(CFrame.new(Camera2.CFrame.Position, targetPosition), lerpFactor)
+                    local adjustedTargetPosition = Camera.CFrame.Position + targetDirection
+
+                    -- Cập nhật CFrame của camera chính và camera phụ
+                    Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, adjustedTargetPosition), lerpFactor)
+                    Camera2.CFrame = Camera2.CFrame:Lerp(CFrame.new(Camera2.CFrame.Position, adjustedTargetPosition), lerpFactor)
                 end
             end
         end
