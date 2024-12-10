@@ -1,148 +1,129 @@
--- Khai báo các biến cần thiết
+-- Khai báo các dịch vụ cần thiết
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
-local Camera = workspace.CurrentCamera
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 
--- GUI: Player List
+-- GUI: Player List Frame
 local PlayerListFrame = Instance.new("Frame")
 local ScrollButtonToggle = Instance.new("ImageButton")
 local PlayerListScrollingFrame = Instance.new("ScrollingFrame")
 
--- Tạo danh sách nền mờ đục
+-- Thiết kế danh sách người chơi (Player List Frame)
 PlayerListFrame.Parent = ScreenGui
-PlayerListFrame.Size = UDim2.new(0, 150, 0, 0)
-PlayerListFrame.Position = UDim2.new(0.6, 0, 0.06, 0) -- Di chuyển sang trái
-PlayerListFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-PlayerListFrame.BackgroundTransparency = 0.6
-PlayerListFrame.BorderColor3 = Color3.fromRGB(255, 0, 0)
-PlayerListFrame.BorderSizePixel = 2
-PlayerListFrame.ClipsDescendants = true
+PlayerListFrame.Size = UDim2.new(0, 150, 0, 0) -- Ban đầu đóng
+PlayerListFrame.Position = UDim2.new(0.6, 0, 0.06, 0) -- Vị trí danh sách
+PlayerListFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0) -- Màu nền đen
+PlayerListFrame.BackgroundTransparency = 0.6 -- Làm mờ nền
+PlayerListFrame.BorderColor3 = Color3.fromRGB(255, 0, 0) -- Viền màu đỏ
+PlayerListFrame.BorderSizePixel = 2 -- Độ dày viền
+PlayerListFrame.ClipsDescendants = true -- Cắt nội dung vượt khung
 
--- Nút toggle cuộn danh sách (bánh răng)
+-- Nút cuộn (Scroll Button Toggle)
 ScrollButtonToggle.Parent = ScreenGui
-ScrollButtonToggle.Size = UDim2.new(0, 30, 0, 30)
-ScrollButtonToggle.Position = UDim2.new(0.6, 0, 0.06, 0) -- Di chuyển sang trái
+ScrollButtonToggle.Size = UDim2.new(0, 40, 0, 40) -- Kích thước hình vuông để bo tròn
+ScrollButtonToggle.Position = UDim2.new(0.6, 0, 0.06, -50) -- Nằm trên danh sách
 ScrollButtonToggle.Image = "rbxassetid://6035047377" -- Biểu tượng bánh răng
-ScrollButtonToggle.BackgroundTransparency = 1
+ScrollButtonToggle.BackgroundColor3 = Color3.fromRGB(50, 50, 50) -- Nền xám
+ScrollButtonToggle.BackgroundTransparency = 0 -- Nền không trong suốt
+
+-- Bo tròn nút cuộn
+local ScrollCorner = Instance.new("UICorner")
+ScrollCorner.CornerRadius = UDim.new(1, 0) -- Tạo hình tròn
+ScrollCorner.Parent = ScrollButtonToggle
 
 -- Khung cuộn danh sách người chơi
 PlayerListScrollingFrame.Parent = PlayerListFrame
-PlayerListScrollingFrame.Size = UDim2.new(1, 0, 1, -30)
+PlayerListScrollingFrame.Size = UDim2.new(1, 0, 1, -30) -- Khung cuộn vừa trong danh sách
 PlayerListScrollingFrame.Position = UDim2.new(0, 0, 0, 30)
 PlayerListScrollingFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
 PlayerListScrollingFrame.BackgroundTransparency = 1
 PlayerListScrollingFrame.ScrollBarThickness = 8
 
--- Biến để theo dõi player đang được view
-local currentViewedPlayer = nil
-local currentViewedButton = nil
+-- Hiệu ứng mở/đóng danh sách và xoay bánh răng
+local isExpanded = false
+local rotation = 0 -- Biến lưu trạng thái xoay
+ScrollButtonToggle.MouseButton1Click:Connect(function()
+    isExpanded = not isExpanded -- Đổi trạng thái mở/đóng
+    if isExpanded then
+        PlayerListFrame.Size = UDim2.new(0, 150, 0, 200) -- Mở danh sách
+        rotation = rotation + 45 -- Xoay theo chiều kim đồng hồ
+    else
+        PlayerListFrame.Size = UDim2.new(0, 150, 0, 0) -- Đóng danh sách
+        rotation = rotation - 45 -- Xoay ngược chiều kim đồng hồ
+    end
+    -- Cập nhật trạng thái xoay
+    ScrollButtonToggle.Rotation = rotation
+end)
 
--- Hiển thị danh sách người chơi
+-- Hàm cập nhật danh sách người chơi
 local function UpdatePlayerList()
     for _, child in ipairs(PlayerListScrollingFrame:GetChildren()) do
         if child:IsA("TextButton") or child:IsA("Frame") then
-            child:Destroy()
+            child:Destroy() -- Xóa các nút cũ để làm mới danh sách
         end
     end
     local yOffset = 0
     for _, player in ipairs(Players:GetPlayers()) do
         if player ~= LocalPlayer then
+            -- Tạo nút tên người chơi
             local PlayerButton = Instance.new("TextButton")
             PlayerButton.Parent = PlayerListScrollingFrame
             PlayerButton.Size = UDim2.new(1, -8, 0, 30)
             PlayerButton.Position = UDim2.new(0, 4, 0, yOffset)
             PlayerButton.Text = player.Name
-            PlayerButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-            PlayerButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+            PlayerButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50) -- Nền xám
+            PlayerButton.TextColor3 = Color3.fromRGB(255, 255, 255) -- Màu chữ trắng
             PlayerButton.Font = Enum.Font.SourceSans
             PlayerButton.TextSize = 16
 
-            -- Tạo góc bo tròn
-            local UICorner = Instance.new("UICorner")
-            UICorner.Parent = PlayerButton
-
-            -- Nút View
+            -- Nút View (hình tròn trước tên)
             local ViewButton = Instance.new("TextButton")
             ViewButton.Parent = PlayerButton
-            ViewButton.Size = UDim2.new(0, 30, 0, 30)
-            ViewButton.Position = UDim2.new(0.6, -35, 0, 0) -- Khoảng cách cho nút đầu tiên
+            ViewButton.Size = UDim2.new(0, 20, 0, 20)
+            ViewButton.Position = UDim2.new(0, -25, 0.5, -10)
+            ViewButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- Đỏ
             ViewButton.Text = ""
-            ViewButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- Đỏ mặc định
-            ViewButton.MouseButton1Click:Connect(function()
-                if currentViewedPlayer == player then
-                    -- Nếu player đang được view, tắt view
-                    Camera.CameraSubject = LocalPlayer.Character.Humanoid
-                    ViewButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- Đỏ khi tắt
-                    currentViewedPlayer = nil
-                    currentViewedButton = nil
-                else
-                    -- Tắt view player trước đó
-                    if currentViewedButton then
-                        currentViewedButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- Đỏ
-                    end
-                    -- View player mới
-                    Camera.CameraSubject = player.Character.Humanoid
-                    ViewButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0) -- Xanh lá khi đang view
-                    currentViewedPlayer = player
-                    currentViewedButton = ViewButton
-                end
-            end)
-
-            -- Góc bo tròn cho nút View
             local ViewCorner = Instance.new("UICorner")
-            ViewCorner.CornerRadius = UDim.new(1, 0)
+            ViewCorner.CornerRadius = UDim.new(1, 0) -- Bo tròn
             ViewCorner.Parent = ViewButton
 
-            -- Nút Teleport
+            -- Nút Teleport (hình tròn sau tên)
             local TeleportButton = Instance.new("TextButton")
             TeleportButton.Parent = PlayerButton
-            TeleportButton.Size = UDim2.new(0, 30, 0, 30)
-            TeleportButton.Position = UDim2.new(0.75, -10, 0, 0) -- Khoảng cách tránh bấm nhầm
-            TeleportButton.Text = ""
+            TeleportButton.Size = UDim2.new(0, 20, 0, 20)
+            TeleportButton.Position = UDim2.new(1, 5, 0.5, -10)
             TeleportButton.BackgroundColor3 = Color3.fromRGB(128, 0, 128) -- Tím
-            TeleportButton.MouseButton1Click:Connect(function()
-                if currentViewedPlayer == player then
-                    -- Tắt view nếu đang view player này
-                    Camera.CameraSubject = LocalPlayer.Character.Humanoid
-                    currentViewedPlayer = nil
-                    currentViewedButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- Đỏ
-                    currentViewedButton = nil
+            TeleportButton.Text = ""
+            local TeleportCorner = Instance.new("UICorner")
+            TeleportCorner.CornerRadius = UDim.new(1, 0) -- Bo tròn
+            TeleportCorner.Parent = TeleportButton
+
+            -- Sự kiện khi bấm View
+            ViewButton.MouseButton1Click:Connect(function()
+                for _, button in ipairs(PlayerListScrollingFrame:GetChildren()) do
+                    if button:IsA("TextButton") and button:FindFirstChild("TextButton") then
+                        button.TextButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- Reset nút khác về đỏ
+                    end
                 end
-                -- Dịch chuyển tới player
+                ViewButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0) -- Chuyển sang xanh
+            end)
+
+            -- Sự kiện khi bấm Teleport
+            TeleportButton.MouseButton1Click:Connect(function()
+                ViewButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- Tắt View
                 if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
                     LocalPlayer.Character.HumanoidRootPart.CFrame = player.Character.HumanoidRootPart.CFrame
                 end
             end)
 
-            -- Góc bo tròn cho nút Teleport
-            local TeleportCorner = Instance.new("UICorner")
-            TeleportCorner.CornerRadius = UDim.new(1, 0)
-            TeleportCorner.Parent = TeleportButton
-
-            yOffset = yOffset + 40 -- Tăng khoảng cách giữa các player
+            yOffset = yOffset + 35 -- Cập nhật khoảng cách cho nút tiếp theo
         end
     end
-    PlayerListScrollingFrame.CanvasSize = UDim2.new(0, 0, 0, yOffset)
+    PlayerListScrollingFrame.CanvasSize = UDim2.new(0, 0, 0, yOffset) -- Điều chỉnh kích thước canvas
 end
 
--- Cập nhật danh sách khi có thay đổi
+-- Lắng nghe sự kiện thêm/xóa người chơi
 Players.PlayerAdded:Connect(UpdatePlayerList)
 Players.PlayerRemoving:Connect(UpdatePlayerList)
-UpdatePlayerList()
-
--- Xử lý toggle cuộn danh sách (với hiệu ứng xoay bánh răng)
-local isExpanded = false
-local rotation = 0
-ScrollButtonToggle.MouseButton1Click:Connect(function()
-    isExpanded = not isExpanded
-    if isExpanded then
-        PlayerListFrame.Size = UDim2.new(0, 150, 0, 200)
-    else
-        PlayerListFrame.Size = UDim2.new(0, 150, 0, 0)
-    end
-    -- Xoay bánh răng 60°
-    rotation = rotation + 60
-    ScrollButtonToggle.Rotation = rotation
-end)
+UpdatePlayerList() -- Lần đầu hiển thị danh sách
