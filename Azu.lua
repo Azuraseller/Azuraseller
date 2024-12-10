@@ -110,21 +110,3 @@ local function UpdatePlayerList()
                 ViewButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0) -- Chuyển sang xanh
             end)
 
-            -- Sự kiện khi bấm Teleport
-            TeleportButton.MouseButton1Click:Connect(function()
-                ViewButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- Tắt View
-                if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-                    LocalPlayer.Character.HumanoidRootPart.CFrame = player.Character.HumanoidRootPart.CFrame
-                end
-            end)
-
-            yOffset = yOffset + 35 -- Cập nhật khoảng cách cho nút tiếp theo
-        end
-    end
-    PlayerListScrollingFrame.CanvasSize = UDim2.new(0, 0, 0, yOffset) -- Điều chỉnh kích thước canvas
-end
-
--- Lắng nghe sự kiện thêm/xóa người chơi
-Players.PlayerAdded:Connect(UpdatePlayerList)
-Players.PlayerRemoving:Connect(UpdatePlayerList)
-UpdatePlayerList() -- Lần đầu hiển thị danh sách
