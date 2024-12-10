@@ -7,8 +7,7 @@ ScreenGui.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
 
 -- GUI: Player List
 local PlayerListFrame = Instance.new("Frame")
-local ScrollButtonDown = Instance.new("TextButton")
-local ScrollButtonUp = Instance.new("TextButton")
+local ScrollButtonToggle = Instance.new("TextButton")
 local PlayerListScrollingFrame = Instance.new("ScrollingFrame")
 
 -- Tạo danh sách nền mờ đục
@@ -21,26 +20,15 @@ PlayerListFrame.BorderColor3 = Color3.fromRGB(255, 0, 0)
 PlayerListFrame.BorderSizePixel = 2
 PlayerListFrame.ClipsDescendants = true
 
--- Nút cuộn xuống
-ScrollButtonDown.Parent = ScreenGui
-ScrollButtonDown.Size = UDim2.new(0, 30, 0, 30)
-ScrollButtonDown.Position = UDim2.new(0.6, 0, 0.06, 0) -- Di chuyển sang trái
-ScrollButtonDown.Text = "↓"
-ScrollButtonDown.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-ScrollButtonDown.TextColor3 = Color3.fromRGB(255, 255, 255)
-ScrollButtonDown.Font = Enum.Font.SourceSans
-ScrollButtonDown.TextSize = 18
-
--- Nút cuộn lên
-ScrollButtonUp.Parent = PlayerListFrame
-ScrollButtonUp.Size = UDim2.new(0, 30, 0, 30)
-ScrollButtonUp.Position = UDim2.new(0, 60, 0, 5)
-ScrollButtonUp.Text = "↑"
-ScrollButtonUp.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-ScrollButtonUp.TextColor3 = Color3.fromRGB(255, 255, 255)
-ScrollButtonUp.Font = Enum.Font.SourceSans
-ScrollButtonUp.TextSize = 18
-ScrollButtonUp.Visible = false -- Mặc định ẩn
+-- Nút toggle cuộn danh sách
+ScrollButtonToggle.Parent = ScreenGui
+ScrollButtonToggle.Size = UDim2.new(0, 30, 0, 30)
+ScrollButtonToggle.Position = UDim2.new(0.6, 0, 0.06, 0) -- Di chuyển sang trái
+ScrollButtonToggle.Text = "⇕"
+ScrollButtonToggle.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+ScrollButtonToggle.TextColor3 = Color3.fromRGB(255, 255, 255)
+ScrollButtonToggle.Font = Enum.Font.SourceSans
+ScrollButtonToggle.TextSize = 18
 
 -- Khung cuộn danh sách người chơi
 PlayerListScrollingFrame.Parent = PlayerListFrame
@@ -49,6 +37,9 @@ PlayerListScrollingFrame.Position = UDim2.new(0, 0, 0, 30)
 PlayerListScrollingFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
 PlayerListScrollingFrame.BackgroundTransparency = 1
 PlayerListScrollingFrame.ScrollBarThickness = 8
+
+-- Biến để theo dõi player đang được view
+local currentViewedPlayer = nil
 
 -- Hiển thị danh sách người chơi
 local function UpdatePlayerList()
@@ -77,12 +68,29 @@ local function UpdatePlayerList()
             -- Nút View
             local ViewButton = Instance.new("TextButton")
             ViewButton.Parent = PlayerButton
-            ViewButton.Size = UDim2.new(0, 30, 1, 0)
-            ViewButton.Position = UDim2.new(0.7, 0, 0, 0)
+            ViewButton.Size = UDim2.new(0, 30, 0, 30)
+            ViewButton.Position = UDim2.new(0.65, 0, 0, 0) -- Sắp xếp để tránh trùng
             ViewButton.Text = ""
-            ViewButton.BackgroundColor3 = Color3.fromRGB(0, 0, 255)
+            ViewButton.BackgroundColor3 = Color3.fromRGB(0, 0, 255) -- Xanh dương mặc định
             ViewButton.MouseButton1Click:Connect(function()
-                Camera.CameraSubject = player.Character.Humanoid -- Xem camera player
+                if currentViewedPlayer == player then
+                    -- Nếu player đang được view, tắt view
+                    Camera.CameraSubject = LocalPlayer.Character.Humanoid
+                    ViewButton.BackgroundColor3 = Color3.fromRGB(0, 0, 255)
+                    currentViewedPlayer = nil
+                else
+                    -- View player mới
+                    if currentViewedPlayer then
+                        -- Tắt view player trước đó
+                        local previousButton = PlayerListScrollingFrame:FindFirstChild(currentViewedPlayer.Name)
+                        if previousButton and previousButton:FindFirstChild("ViewButton") then
+                            previousButton.ViewButton.BackgroundColor3 = Color3.fromRGB(0, 0, 255)
+                        end
+                    end
+                    Camera.CameraSubject = player.Character.Humanoid
+                    ViewButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0) -- Xanh lá khi đang view
+                    currentViewedPlayer = player
+                end
             end)
 
             -- Góc bo tròn cho nút View
@@ -93,10 +101,10 @@ local function UpdatePlayerList()
             -- Nút Teleport
             local TeleportButton = Instance.new("TextButton")
             TeleportButton.Parent = PlayerButton
-            TeleportButton.Size = UDim2.new(0, 30, 1, 0)
-            TeleportButton.Position = UDim2.new(0.85, 0, 0, 0)
+            TeleportButton.Size = UDim2.new(0, 30, 0, 30)
+            TeleportButton.Position = UDim2.new(0.8, 0, 0, 0) -- Sắp xếp để tránh trùng
             TeleportButton.Text = ""
-            TeleportButton.BackgroundColor3 = Color3.fromRGB(128, 0, 128)
+            TeleportButton.BackgroundColor3 = Color3.fromRGB(128, 0, 128) -- Tím
             TeleportButton.MouseButton1Click:Connect(function()
                 if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
                     LocalPlayer.Character.HumanoidRootPart.CFrame = player.Character.HumanoidRootPart.CFrame
@@ -108,7 +116,7 @@ local function UpdatePlayerList()
             TeleportCorner.CornerRadius = UDim.new(1, 0)
             TeleportCorner.Parent = TeleportButton
 
-            yOffset = yOffset + 35
+            yOffset = yOffset + 40 -- Tăng khoảng cách giữa các player
         end
     end
     PlayerListScrollingFrame.CanvasSize = UDim2.new(0, 0, 0, yOffset)
@@ -119,20 +127,13 @@ Players.PlayerAdded:Connect(UpdatePlayerList)
 Players.PlayerRemoving:Connect(UpdatePlayerList)
 UpdatePlayerList()
 
--- Xử lý cuộn xuống và lên
+-- Xử lý toggle cuộn danh sách
 local isExpanded = false
-ScrollButtonDown.MouseButton1Click:Connect(function()
+ScrollButtonToggle.MouseButton1Click:Connect(function()
     isExpanded = not isExpanded
     if isExpanded then
         PlayerListFrame.Size = UDim2.new(0, 150, 0, 200)
-        ScrollButtonUp.Visible = true
     else
         PlayerListFrame.Size = UDim2.new(0, 150, 0, 0)
-        ScrollButtonUp.Visible = false
     end
-end)
-ScrollButtonUp.MouseButton1Click:Connect(function()
-    PlayerListFrame.Size = UDim2.new(0, 150, 0, 0)
-    ScrollButtonUp.Visible = false
-    isExpanded = false
 end)
