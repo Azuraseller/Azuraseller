@@ -49,5 +49,34 @@ function JoinServer()
    end
 end
 
--- Gọi hàm JoinServer để bắt đầu quá trình tham gia vào server
-JoinServer()
+-- Hàm kiểm tra khung giờ hiện tại
+function IsAllowedTime()
+   local currentTime = os.date("*t")
+   local hour = currentTime.hour
+   local minute = currentTime.min
+   local totalMinutes = hour * 60 + minute
+
+   -- Danh sách các khung giờ cho phép (đơn vị phút)
+   local allowedTimeRanges = {
+       {247, 260}, -- 4:07 đến 4:20
+       {526, 537}, -- 8:46 đến 8:57
+       {790, 808}, -- 13:10 đến 13:28
+       {1060, 1077}, -- 17:40 đến 17:57
+       {1330, 1346}, -- 22:10 đến 22:26
+   }
+
+   for _, range in ipairs(allowedTimeRanges) do
+       if totalMinutes >= range[1] and totalMinutes <= range[2] then
+           return true
+       end
+   end
+
+   return false
+end
+
+-- Kiểm tra thời gian trước khi gọi JoinServer
+if IsAllowedTime() then
+   JoinServer()
+else
+   warn("Hiện không nằm trong khung giờ được phép.")
+end
