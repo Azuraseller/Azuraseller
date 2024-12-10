@@ -67,7 +67,7 @@ local function UpdatePlayerList()
             local ViewButton = Instance.new("TextButton")
             ViewButton.Parent = PlayerButton
             ViewButton.Size = UDim2.new(0, 30, 0, 30)
-            ViewButton.Position = UDim2.new(0.6, -35, 0, 0) -- Khoảng cách cho nút đầu tiên
+            ViewButton.Position = UDim2.new(0.7, -40, 0, 0) -- Đặt trong khung đỏ
             ViewButton.Text = ""
             ViewButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- Đỏ mặc định
             ViewButton.MouseButton1Click:Connect(function()
@@ -99,18 +99,10 @@ local function UpdatePlayerList()
             local TeleportButton = Instance.new("TextButton")
             TeleportButton.Parent = PlayerButton
             TeleportButton.Size = UDim2.new(0, 30, 0, 30)
-            TeleportButton.Position = UDim2.new(0.75, -10, 0, 0) -- Khoảng cách tránh bấm nhầm
+            TeleportButton.Position = UDim2.new(0.7, -5, 0, 0) -- Đặt cạnh ViewButton (khoảng cách "••")
             TeleportButton.Text = ""
             TeleportButton.BackgroundColor3 = Color3.fromRGB(128, 0, 128) -- Tím
             TeleportButton.MouseButton1Click:Connect(function()
-                if currentViewedPlayer == player then
-                    -- Tắt view nếu đang view player này
-                    Camera.CameraSubject = LocalPlayer.Character.Humanoid
-                    currentViewedPlayer = nil
-                    currentViewedButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- Đỏ
-                    currentViewedButton = nil
-                end
-                -- Dịch chuyển tới player
                 if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
                     LocalPlayer.Character.HumanoidRootPart.CFrame = player.Character.HumanoidRootPart.CFrame
                 end
@@ -144,5 +136,18 @@ ScrollButtonToggle.MouseButton1Click:Connect(function()
     end
     -- Xoay bánh răng 60°
     rotation = rotation + 60
+    ScrollButtonToggle.Rotation = rotation
+end)
+
+-- Xử lý cuộn với MouseWheel
+local UserInputService = game:GetService("UserInputService")
+
+PlayerListScrollingFrame.MouseWheelForward:Connect(function()
+    rotation = rotation - 45
+    ScrollButtonToggle.Rotation = rotation
+end)
+
+PlayerListScrollingFrame.MouseWheelBackward:Connect(function()
+    rotation = rotation + 45
     ScrollButtonToggle.Rotation = rotation
 end)
