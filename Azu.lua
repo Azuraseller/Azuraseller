@@ -89,11 +89,11 @@ local function UpdatePlayerList()
             TeleportButton.BackgroundColor3 = Color3.fromRGB(128, 0, 128) -- Tím
             TeleportButton.Visible = false -- Ẩn khi chưa bấm vào tên
 
-            -- Đặt các nút View và Teleport ra ngoài PlayerListFrame
+            -- Đặt các nút View và Teleport **bên trên** tên player
             ViewButton.Parent = viewTeleportFrame
             TeleportButton.Parent = viewTeleportFrame
-            ViewButton.Position = UDim2.new(0, -35, 0, yOffset) -- Đặt View phía sau tên player
-            TeleportButton.Position = UDim2.new(0, -70, 0, yOffset) -- Đặt Teleport cách View 1 chút
+            ViewButton.Position = UDim2.new(0, 0, 0, yOffset - 35) -- Đặt View lên trên tên player
+            TeleportButton.Position = UDim2.new(0, 35, 0, yOffset - 35) -- Đặt Teleport bên cạnh View
 
             -- Bật/ Tắt nút View và Teleport khi click vào tên player
             local toggleVisibility = false
