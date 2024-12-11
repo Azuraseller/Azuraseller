@@ -39,23 +39,6 @@ PlayerListScrollingFrame.ScrollBarThickness = 8
 local currentViewedPlayer = nil
 local currentSelectedButton = nil
 
--- Tạo các nút View và Teleport nằm bên ngoài Player List
-local ViewButton = Instance.new("ImageButton")
-ViewButton.Parent = ScreenGui
-ViewButton.Size = UDim2.new(0, 30, 0, 30)
-ViewButton.Position = UDim2.new(0.8, 0, 0.06, 0) -- Đặt bên phải PlayerListFrame
-ViewButton.Image = "rbxassetid://6035047380" -- Biểu tượng con mắt
-ViewButton.BackgroundTransparency = 1
-ViewButton.Visible = false -- Ẩn mặc định
-
-local TeleportButton = Instance.new("ImageButton")
-TeleportButton.Parent = ScreenGui
-TeleportButton.Size = UDim2.new(0, 30, 0, 30)
-TeleportButton.Position = UDim2.new(0.85, 0, 0.06, 0) -- Đặt bên phải PlayerListFrame
-TeleportButton.Image = "rbxassetid://6035047390" -- Biểu tượng dịch chuyển
-TeleportButton.BackgroundTransparency = 1
-TeleportButton.Visible = false -- Ẩn mặc định
-
 -- Hiển thị danh sách người chơi
 local function UpdatePlayerList()
     -- Xóa hết các nút hiện tại
@@ -78,34 +61,61 @@ local function UpdatePlayerList()
             PlayerButton.Font = Enum.Font.SourceSans
             PlayerButton.TextSize = 16
 
-            -- Tạo góc bo tròn
+            -- Tạo góc bo tròn cho button
             local UICorner = Instance.new("UICorner")
             UICorner.Parent = PlayerButton
 
-            -- Logic bấm vào tên người chơi
+            -- Các nút View và Teleport
+            local ViewButton = Instance.new("ImageButton")
+            ViewButton.Parent = PlayerButton
+            ViewButton.Size = UDim2.new(0, 30, 0, 30)
+            ViewButton.Position = UDim2.new(1, 0, 0, 0)  -- Nút View sẽ nằm ngay sau tên player
+            ViewButton.Image = "rbxassetid://6035047380"  -- Biểu tượng con mắt
+            ViewButton.BackgroundTransparency = 1
+            ViewButton.Visible = false  -- Ẩn nút mặc định
+
+            local TeleportButton = Instance.new("ImageButton")
+            TeleportButton.Parent = PlayerButton
+            TeleportButton.Size = UDim2.new(0, 30, 0, 30)
+            TeleportButton.Position = UDim2.new(1, 35, 0, 0)  -- Nút Teleport nằm cạnh nút View
+            TeleportButton.Image = "rbxassetid://6035047390"  -- Biểu tượng dịch chuyển
+            TeleportButton.BackgroundTransparency = 1
+            TeleportButton.Visible = false  -- Ẩn nút mặc định
+
+            -- Logic khi bấm vào tên người chơi
             PlayerButton.MouseButton1Click:Connect(function()
                 -- Ẩn các nút trước đó
-                ViewButton.Visible = false
-                TeleportButton.Visible = false
+                if currentViewedPlayer then
+                    currentViewedPlayer.ViewButton.Visible = false
+                    currentViewedPlayer.TeleportButton.Visible = false
+                end
 
                 -- Hiển thị các nút cho người chơi hiện tại
                 ViewButton.Visible = true
                 TeleportButton.Visible = true
 
-                -- Cập nhật logic cho nút View
+                -- Cập nhật player hiện tại đang xem
+                currentViewedPlayer = {
+                    player = player,
+                    ViewButton = ViewButton,
+                    TeleportButton = TeleportButton
+                }
+
+                -- Logic cho nút View
+                local isViewing = false
                 ViewButton.MouseButton1Click:Connect(function()
-                    if currentViewedPlayer == player then
+                    if isViewing then
                         -- Tắt view
                         Camera.CameraSubject = LocalPlayer.Character.Humanoid
-                        currentViewedPlayer = nil
+                        isViewing = false
                     else
                         -- Chuyển view
                         Camera.CameraSubject = player.Character.Humanoid
-                        currentViewedPlayer = player
+                        isViewing = true
                     end
                 end)
 
-                -- Cập nhật logic cho nút Teleport
+                -- Logic cho nút Teleport
                 TeleportButton.MouseButton1Click:Connect(function()
                     if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
                         LocalPlayer.Character.HumanoidRootPart.CFrame = player.Character.HumanoidRootPart.CFrame
@@ -113,9 +123,10 @@ local function UpdatePlayerList()
                 end)
             end)
 
-            yOffset = yOffset + 40
+            yOffset = yOffset + 40  -- Điều chỉnh khoảng cách giữa các player
         end
     end
+
     PlayerListScrollingFrame.CanvasSize = UDim2.new(0, 0, 0, yOffset)
 end
 
