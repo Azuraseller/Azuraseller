@@ -2,14 +2,8 @@
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
-local SoundService = game:GetService("SoundService")
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
-
--- Tạo một âm thanh khi cuộn
-local scrollSound = Instance.new("Sound")
-scrollSound.SoundId = "rbxassetid://123456789"  -- Thay thế ID này bằng ID âm thanh của bạn
-scrollSound.Parent = SoundService
 
 -- GUI: Player List
 local PlayerListFrame = Instance.new("Frame")
@@ -52,10 +46,7 @@ local function UpdatePlayerList()
             child:Destroy()
         end
     end
-
     local yOffset = 0
-    local lastActivePlayerButton = nil -- Lưu nút của người chơi trước đó
-
     for _, player in ipairs(Players:GetPlayers()) do
         if player ~= LocalPlayer then
             local PlayerButton = Instance.new("TextButton")
@@ -72,51 +63,26 @@ local function UpdatePlayerList()
             local UICorner = Instance.new("UICorner")
             UICorner.Parent = PlayerButton
 
-            -- Nút View (ẩn mặc định)
+            -- Nút View
             local ViewButton = Instance.new("TextButton")
             ViewButton.Parent = PlayerButton
             ViewButton.Size = UDim2.new(0, 30, 0, 30)
-            ViewButton.Position = UDim2.new(0, 0, 1, 0)
+            ViewButton.Position = UDim2.new(0.6, -35, 0, 0) -- Khoảng cách cho nút đầu tiên
             ViewButton.Text = ""
             ViewButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- Đỏ mặc định
-            ViewButton.Visible = false  -- Ẩn nút View ban đầu
-
-            -- Nút Teleport (ẩn mặc định)
-            local TeleportButton = Instance.new("TextButton")
-            TeleportButton.Parent = PlayerButton
-            TeleportButton.Size = UDim2.new(0, 30, 0, 30)
-            TeleportButton.Position = UDim2.new(0, 35, 1, 0) -- Đặt cạnh ViewButton
-            TeleportButton.Text = ""
-            TeleportButton.BackgroundColor3 = Color3.fromRGB(128, 0, 128) -- Tím
-            TeleportButton.Visible = false -- Ẩn nút Teleport ban đầu
-
-            -- Bật/Tắt nút View và Teleport khi click vào tên player
-            PlayerButton.MouseButton1Click:Connect(function()
-                if lastActivePlayerButton and lastActivePlayerButton ~= PlayerButton then
-                    -- Ẩn các nút của người chơi trước đó
-                    lastActivePlayerButton.ViewButton.Visible = false
-                    lastActivePlayerButton.TeleportButton.Visible = false
-                end
-
-                -- Hiển thị hoặc ẩn nút của người chơi hiện tại
-                ViewButton.Visible = not ViewButton.Visible
-                TeleportButton.Visible = not TeleportButton.Visible
-
-                -- Cập nhật nút đang hoạt động
-                lastActivePlayerButton = PlayerButton
-            end)
-
-            -- Nút View sự kiện
             ViewButton.MouseButton1Click:Connect(function()
                 if currentViewedPlayer == player then
+                    -- Nếu player đang được view, tắt view
                     Camera.CameraSubject = LocalPlayer.Character.Humanoid
                     ViewButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- Đỏ khi tắt
                     currentViewedPlayer = nil
                     currentViewedButton = nil
                 else
+                    -- Tắt view player trước đó
                     if currentViewedButton then
                         currentViewedButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- Đỏ
                     end
+                    -- View player mới
                     Camera.CameraSubject = player.Character.Humanoid
                     ViewButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0) -- Xanh lá khi đang view
                     currentViewedPlayer = player
@@ -129,8 +95,22 @@ local function UpdatePlayerList()
             ViewCorner.CornerRadius = UDim.new(1, 0)
             ViewCorner.Parent = ViewButton
 
-            -- Nút Teleport sự kiện
+            -- Nút Teleport
+            local TeleportButton = Instance.new("TextButton")
+            TeleportButton.Parent = PlayerButton
+            TeleportButton.Size = UDim2.new(0, 30, 0, 30)
+            TeleportButton.Position = UDim2.new(0.75, -10, 0, 0) -- Khoảng cách tránh bấm nhầm
+            TeleportButton.Text = ""
+            TeleportButton.BackgroundColor3 = Color3.fromRGB(128, 0, 128) -- Tím
             TeleportButton.MouseButton1Click:Connect(function()
+                if currentViewedPlayer == player then
+                    -- Tắt view nếu đang view player này
+                    Camera.CameraSubject = LocalPlayer.Character.Humanoid
+                    currentViewedPlayer = nil
+                    currentViewedButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- Đỏ
+                    currentViewedButton = nil
+                end
+                -- Dịch chuyển tới player
                 if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
                     LocalPlayer.Character.HumanoidRootPart.CFrame = player.Character.HumanoidRootPart.CFrame
                 end
@@ -151,3 +131,18 @@ end
 Players.PlayerAdded:Connect(UpdatePlayerList)
 Players.PlayerRemoving:Connect(UpdatePlayerList)
 UpdatePlayerList()
+
+-- Xử lý toggle cuộn danh sách (với hiệu ứng xoay bánh răng)
+local isExpanded = false
+local rotation = 0
+ScrollButtonToggle.MouseButton1Click:Connect(function()
+    isExpanded = not isExpanded
+    if isExpanded then
+        PlayerListFrame.Size = UDim2.new(0, 150, 0, 200)
+    else
+        PlayerListFrame.Size = UDim2.new(0, 150, 0, 0)
+    end
+    -- Xoay bánh răng 60°
+    rotation = rotation + 60
+    ScrollButtonToggle.Rotation = rotation
+end)
