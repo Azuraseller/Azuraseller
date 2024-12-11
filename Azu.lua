@@ -52,7 +52,10 @@ local function UpdatePlayerList()
             child:Destroy()
         end
     end
+
     local yOffset = 0
+    local lastActivePlayerButton = nil -- Lưu nút của người chơi trước đó
+
     for _, player in ipairs(Players:GetPlayers()) do
         if player ~= LocalPlayer then
             local PlayerButton = Instance.new("TextButton")
@@ -73,7 +76,7 @@ local function UpdatePlayerList()
             local ViewButton = Instance.new("TextButton")
             ViewButton.Parent = PlayerButton
             ViewButton.Size = UDim2.new(0, 30, 0, 30)
-            ViewButton.Position = UDim2.new(0, 0, 1, 0) -- Đặt ở dưới cùng tên người chơi
+            ViewButton.Position = UDim2.new(0, 0, 1, 0)
             ViewButton.Text = ""
             ViewButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- Đỏ mặc định
             ViewButton.Visible = false  -- Ẩn nút View ban đầu
@@ -82,41 +85,38 @@ local function UpdatePlayerList()
             local TeleportButton = Instance.new("TextButton")
             TeleportButton.Parent = PlayerButton
             TeleportButton.Size = UDim2.new(0, 30, 0, 30)
-            TeleportButton.Position = UDim2.new(0, 35, 1, 0) -- Đặt cạnh ViewButton (khoảng cách "••")
+            TeleportButton.Position = UDim2.new(0, 35, 1, 0) -- Đặt cạnh ViewButton
             TeleportButton.Text = ""
             TeleportButton.BackgroundColor3 = Color3.fromRGB(128, 0, 128) -- Tím
-            TeleportButton.Visible = false  -- Ẩn nút Teleport ban đầu
+            TeleportButton.Visible = false -- Ẩn nút Teleport ban đầu
 
-            -- Bật/ Tắt nút View và Teleport khi click vào tên player
-            local toggleVisibility = false
+            -- Bật/Tắt nút View và Teleport khi click vào tên player
             PlayerButton.MouseButton1Click:Connect(function()
-                -- Nếu nút View và Teleport đang ẩn, thì hiện lên
-                if not toggleVisibility then
-                    ViewButton.Visible = true
-                    TeleportButton.Visible = true
-                    toggleVisibility = true
-                else
-                    -- Nếu nút View và Teleport đang hiển thị, thì ẩn đi
-                    ViewButton.Visible = false
-                    TeleportButton.Visible = false
-                    toggleVisibility = false
+                if lastActivePlayerButton and lastActivePlayerButton ~= PlayerButton then
+                    -- Ẩn các nút của người chơi trước đó
+                    lastActivePlayerButton.ViewButton.Visible = false
+                    lastActivePlayerButton.TeleportButton.Visible = false
                 end
+
+                -- Hiển thị hoặc ẩn nút của người chơi hiện tại
+                ViewButton.Visible = not ViewButton.Visible
+                TeleportButton.Visible = not TeleportButton.Visible
+
+                -- Cập nhật nút đang hoạt động
+                lastActivePlayerButton = PlayerButton
             end)
 
             -- Nút View sự kiện
             ViewButton.MouseButton1Click:Connect(function()
                 if currentViewedPlayer == player then
-                    -- Nếu player đang được view, tắt view
                     Camera.CameraSubject = LocalPlayer.Character.Humanoid
                     ViewButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- Đỏ khi tắt
                     currentViewedPlayer = nil
                     currentViewedButton = nil
                 else
-                    -- Tắt view player trước đó
                     if currentViewedButton then
                         currentViewedButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- Đỏ
                     end
-                    -- View player mới
                     Camera.CameraSubject = player.Character.Humanoid
                     ViewButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0) -- Xanh lá khi đang view
                     currentViewedPlayer = player
@@ -131,14 +131,6 @@ local function UpdatePlayerList()
 
             -- Nút Teleport sự kiện
             TeleportButton.MouseButton1Click:Connect(function()
-                -- Tắt view nếu đang view player này
-                if currentViewedPlayer == player then
-                    Camera.CameraSubject = LocalPlayer.Character.Humanoid
-                    currentViewedPlayer = nil
-                    currentViewedButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- Đỏ
-                    currentViewedButton = nil
-                end
-                -- Dịch chuyển tới player
                 if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
                     LocalPlayer.Character.HumanoidRootPart.CFrame = player.Character.HumanoidRootPart.CFrame
                 end
@@ -159,33 +151,3 @@ end
 Players.PlayerAdded:Connect(UpdatePlayerList)
 Players.PlayerRemoving:Connect(UpdatePlayerList)
 UpdatePlayerList()
-
--- Xử lý toggle cuộn danh sách (với hiệu ứng xoay bánh răng)
-local isExpanded = false
-local rotation = 0
-ScrollButtonToggle.MouseButton1Click:Connect(function()
-    isExpanded = not isExpanded
-    if isExpanded then
-        PlayerListFrame.Size = UDim2.new(0, 150, 0, 200)
-    else
-        PlayerListFrame.Size = UDim2.new(0, 150, 0, 0)
-    end
-    -- Xoay bánh răng 60°
-    rotation = rotation + 60
-    ScrollButtonToggle.Rotation = rotation
-end)
-
--- Xử lý cuộn với MouseWheel và phát âm thanh
-local UserInputService = game:GetService("UserInputService")
-
-PlayerListScrollingFrame.MouseWheelForward:Connect(function()
-    rotation = rotation - 45
-    ScrollButtonToggle.Rotation = rotation
-    scrollSound:Play()  -- Phát âm thanh khi cuộn lên
-end)
-
-PlayerListScrollingFrame.MouseWheelBackward:Connect(function()
-    rotation = rotation + 45
-    ScrollButtonToggle.Rotation = rotation
-    scrollSound:Play()  -- Phát âm thanh khi cuộn xuống
-end)
