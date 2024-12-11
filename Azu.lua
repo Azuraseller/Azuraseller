@@ -68,7 +68,7 @@ local function UpdatePlayerList()
             local ViewButton = Instance.new("ImageButton")
             ViewButton.Parent = ScreenGui -- Đưa nút ra ngoài danh sách
             ViewButton.Size = UDim2.new(0, 30, 0, 30)
-            ViewButton.Position = UDim2.new(1.5, -35, 0, 0) -- Vị trí 1.5
+            ViewButton.Position = UDim2.new(1.5, 0, 0.06, 0) -- Vị trí 1.5
             ViewButton.Image = "rbxassetid://6035047380" -- Biểu tượng con mắt
             ViewButton.Visible = false
             ViewButton.BackgroundTransparency = 1
@@ -77,7 +77,7 @@ local function UpdatePlayerList()
             local TeleportButton = Instance.new("ImageButton")
             TeleportButton.Parent = ScreenGui -- Đưa nút ra ngoài danh sách
             TeleportButton.Size = UDim2.new(0, 30, 0, 30)
-            TeleportButton.Position = UDim2.new(1.75, -10, 0, 0) -- Vị trí 1.75
+            TeleportButton.Position = UDim2.new(1.75, 0, 0.06, 0) -- Vị trí 1.75
             TeleportButton.Image = "rbxassetid://6035047390" -- Biểu tượng dịch chuyển
             TeleportButton.Visible = false
             TeleportButton.BackgroundTransparency = 1
