@@ -84,7 +84,7 @@ local function UpdatePlayerList()
 
             -- Logic bấm vào tên người chơi
             PlayerButton.MouseButton1Click:Connect(function()
-                -- Ẩn nút của player trước đó
+                -- Ẩn nút của player trước đó nếu có
                 if currentSelectedButton then
                     currentSelectedButton.ViewButton.Visible = false
                     currentSelectedButton.TeleportButton.Visible = false
