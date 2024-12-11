@@ -35,9 +35,9 @@ PlayerListScrollingFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
 PlayerListScrollingFrame.BackgroundTransparency = 1
 PlayerListScrollingFrame.ScrollBarThickness = 8
 
--- Biến lưu trạng thái
-local currentSelectedButton = nil
+-- Biến để theo dõi player đang được chọn
 local currentViewedPlayer = nil
+local currentSelectedButton = nil
 
 -- Hiển thị danh sách người chơi
 local function UpdatePlayerList()
@@ -64,22 +64,23 @@ local function UpdatePlayerList()
             local UICorner = Instance.new("UICorner")
             UICorner.Parent = PlayerButton
 
-            -- Các nút View và Teleport
+            -- Nút View
             local ViewButton = Instance.new("ImageButton")
+            ViewButton.Parent = ScreenGui -- Đưa nút ra ngoài danh sách
             ViewButton.Size = UDim2.new(0, 30, 0, 30)
-            ViewButton.Position = UDim2.new(0.6, -35, 0, 0)
+            ViewButton.Position = UDim2.new(1.5, 0, 0.06, 0) -- Vị trí 1.5
             ViewButton.Image = "rbxassetid://6035047380" -- Biểu tượng con mắt
             ViewButton.Visible = false
             ViewButton.BackgroundTransparency = 1
-            ViewButton.Parent = PlayerButton
 
+            -- Nút Teleport
             local TeleportButton = Instance.new("ImageButton")
+            TeleportButton.Parent = ScreenGui -- Đưa nút ra ngoài danh sách
             TeleportButton.Size = UDim2.new(0, 30, 0, 30)
-            TeleportButton.Position = UDim2.new(0.75, -10, 0, 0)
+            TeleportButton.Position = UDim2.new(1.75, 0, 0.06, 0) -- Vị trí 1.75
             TeleportButton.Image = "rbxassetid://6035047390" -- Biểu tượng dịch chuyển
             TeleportButton.Visible = false
             TeleportButton.BackgroundTransparency = 1
-            TeleportButton.Parent = PlayerButton
 
             -- Xử lý khi bấm vào tên người chơi
             PlayerButton.MouseButton1Click:Connect(function()
@@ -93,28 +94,28 @@ local function UpdatePlayerList()
                 ViewButton.Visible = true
                 TeleportButton.Visible = true
                 currentSelectedButton = {ViewButton = ViewButton, TeleportButton = TeleportButton}
-            end)
 
-            -- Xử lý nút View
-            ViewButton.MouseButton1Click:Connect(function()
-                if currentViewedPlayer == player then
-                    -- Tắt view
-                    Camera.CameraSubject = LocalPlayer.Character.Humanoid
-                    currentViewedPlayer = nil
-                    ViewButton.ImageColor3 = Color3.fromRGB(255, 255, 255)
-                else
-                    -- Chuyển view
-                    Camera.CameraSubject = player.Character.Humanoid
-                    currentViewedPlayer = player
-                    ViewButton.ImageColor3 = Color3.fromRGB(0, 255, 0)
-                end
-            end)
+                -- Cập nhật logic cho nút View
+                ViewButton.MouseButton1Click:Connect(function()
+                    if currentViewedPlayer == player then
+                        -- Tắt view
+                        Camera.CameraSubject = LocalPlayer.Character.Humanoid
+                        currentViewedPlayer = nil
+                        ViewButton.ImageColor3 = Color3.fromRGB(255, 255, 255)
+                    else
+                        -- Chuyển view
+                        Camera.CameraSubject = player.Character.Humanoid
+                        currentViewedPlayer = player
+                        ViewButton.ImageColor3 = Color3.fromRGB(0, 255, 0)
+                    end
+                end)
 
-            -- Xử lý nút Teleport
-            TeleportButton.MouseButton1Click:Connect(function()
-                if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-                    LocalPlayer.Character.HumanoidRootPart.CFrame = player.Character.HumanoidRootPart.CFrame
-                end
+                -- Cập nhật logic cho nút Teleport
+                TeleportButton.MouseButton1Click:Connect(function()
+                    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                        LocalPlayer.Character.HumanoidRootPart.CFrame = player.Character.HumanoidRootPart.CFrame
+                    end
+                end)
             end)
 
             yOffset = yOffset + 40
@@ -128,7 +129,7 @@ Players.PlayerAdded:Connect(UpdatePlayerList)
 Players.PlayerRemoving:Connect(UpdatePlayerList)
 UpdatePlayerList()
 
--- Xử lý toggle cuộn danh sách
+-- Xử lý toggle cuộn danh sách (với hiệu ứng xoay bánh răng)
 local isExpanded = false
 local rotation = 0
 ScrollButtonToggle.MouseButton1Click:Connect(function()
@@ -138,6 +139,7 @@ ScrollButtonToggle.MouseButton1Click:Connect(function()
     else
         PlayerListFrame.Size = UDim2.new(0, 150, 0, 0)
     end
-    rotation = rotation + 60
+    -- Xoay bánh răng 60°
+    rotation = rotation + 45
     ScrollButtonToggle.Rotation = rotation
 end)
