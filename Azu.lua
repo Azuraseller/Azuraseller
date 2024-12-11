@@ -39,6 +39,23 @@ PlayerListScrollingFrame.ScrollBarThickness = 8
 local currentViewedPlayer = nil
 local currentSelectedButton = nil
 
+-- Tạo các nút View và Teleport nằm bên ngoài Player List
+local ViewButton = Instance.new("ImageButton")
+ViewButton.Parent = ScreenGui
+ViewButton.Size = UDim2.new(0, 30, 0, 30)
+ViewButton.Position = UDim2.new(0.8, 0, 0.06, 0) -- Đặt bên phải PlayerListFrame
+ViewButton.Image = "rbxassetid://6035047380" -- Biểu tượng con mắt
+ViewButton.BackgroundTransparency = 1
+ViewButton.Visible = false -- Ẩn mặc định
+
+local TeleportButton = Instance.new("ImageButton")
+TeleportButton.Parent = ScreenGui
+TeleportButton.Size = UDim2.new(0, 30, 0, 30)
+TeleportButton.Position = UDim2.new(0.85, 0, 0.06, 0) -- Đặt bên phải PlayerListFrame
+TeleportButton.Image = "rbxassetid://6035047390" -- Biểu tượng dịch chuyển
+TeleportButton.BackgroundTransparency = 1
+TeleportButton.Visible = false -- Ẩn mặc định
+
 -- Hiển thị danh sách người chơi
 local function UpdatePlayerList()
     -- Xóa hết các nút hiện tại
@@ -65,35 +82,15 @@ local function UpdatePlayerList()
             local UICorner = Instance.new("UICorner")
             UICorner.Parent = PlayerButton
 
-            -- Tạo các nút View và Teleport
-            local ViewButton = Instance.new("ImageButton")
-            ViewButton.Parent = PlayerButton
-            ViewButton.Size = UDim2.new(0, 30, 0, 30)
-            ViewButton.Position = UDim2.new(1.5, 0, 0, 0) -- Nút View di chuyển sang phải
-            ViewButton.Image = "rbxassetid://6035047380" -- Biểu tượng con mắt
-            ViewButton.BackgroundTransparency = 1
-            ViewButton.Visible = false -- Ẩn mặc định
-
-            local TeleportButton = Instance.new("ImageButton")
-            TeleportButton.Parent = PlayerButton
-            TeleportButton.Size = UDim2.new(0, 30, 0, 30)
-            TeleportButton.Position = UDim2.new(1.75, 0, 0, 0) -- Nút Teleport di chuyển sang phải
-            TeleportButton.Image = "rbxassetid://6035047390" -- Biểu tượng dịch chuyển
-            TeleportButton.BackgroundTransparency = 1
-            TeleportButton.Visible = false -- Ẩn mặc định
-
             -- Logic bấm vào tên người chơi
             PlayerButton.MouseButton1Click:Connect(function()
-                -- Ẩn nút của player trước đó nếu có
-                if currentSelectedButton then
-                    currentSelectedButton.ViewButton.Visible = false
-                    currentSelectedButton.TeleportButton.Visible = false
-                end
+                -- Ẩn các nút trước đó
+                ViewButton.Visible = false
+                TeleportButton.Visible = false
 
-                -- Hiển thị nút của player hiện tại
+                -- Hiển thị các nút cho người chơi hiện tại
                 ViewButton.Visible = true
                 TeleportButton.Visible = true
-                currentSelectedButton = {ViewButton = ViewButton, TeleportButton = TeleportButton}
 
                 -- Cập nhật logic cho nút View
                 ViewButton.MouseButton1Click:Connect(function()
