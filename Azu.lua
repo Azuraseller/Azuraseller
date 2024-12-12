@@ -1,5 +1,4 @@
 local player = game.Players.LocalPlayer
-local mouse = player:GetMouse()
 local camera = workspace.CurrentCamera
 local aimEnabled = false
 local target = nil
@@ -49,52 +48,55 @@ toggleButton.MouseButton1Click:Connect(function()
     end
 end)
 
--- Sự kiện bấm nút Aimbot
-mainButton.MouseButton1Click:Connect(function()
-    aimEnabled = not aimEnabled
+-- Bật/tắt Aimbot tự động
+local function toggleAimbot(state)
+    aimEnabled = state
     mainButton.Text = aimEnabled and "Aimbot: ON" or "Aimbot: OFF"
     mainButton.BackgroundColor3 = aimEnabled and Color3.new(0, 1, 0) or Color3.new(1, 0, 0)
-end)
+end
 
 -- Tìm mục tiêu trong bán kính
 local function findTarget()
-    if target and target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
-        local distance = (player.Character.HumanoidRootPart.Position - target.Character.HumanoidRootPart.Position).Magnitude
-        if distance > radius or not target.Character:FindFirstChild("Humanoid") or target.Character.Humanoid.Health <= 0 then
-            target = nil
-        end
-    end
+    local closestPlayer = nil
+    local closestDistance = radius
 
-    if not target then
-        local closestPlayer = nil
-        local closestDistance = radius
-
-        for _, otherPlayer in pairs(game.Players:GetPlayers()) do
-            if otherPlayer ~= player and otherPlayer.Character and otherPlayer.Character:FindFirstChild("HumanoidRootPart") then
-                local distance = (player.Character.HumanoidRootPart.Position - otherPlayer.Character.HumanoidRootPart.Position).Magnitude
-                if distance < closestDistance and distance > closeRange then
-                    closestDistance = distance
-                    closestPlayer = otherPlayer
-                end
+    for _, otherPlayer in pairs(game.Players:GetPlayers()) do
+        if otherPlayer ~= player and otherPlayer.Character and otherPlayer.Character:FindFirstChild("HumanoidRootPart") then
+            local distance = (player.Character.HumanoidRootPart.Position - otherPlayer.Character.HumanoidRootPart.Position).Magnitude
+            if distance < closestDistance and distance > closeRange then
+                closestDistance = distance
+                closestPlayer = otherPlayer
+            elseif distance <= closeRange then
+                -- Tắt Aimbot nếu player trong bán kính 45
+                toggleAimbot(false)
+                return nil
             end
         end
-
-        target = closestPlayer
     end
 
-    return target
+    return closestPlayer
 end
 
 -- Camera theo dõi mục tiêu
 game:GetService("RunService").RenderStepped:Connect(function()
-    if aimEnabled then
-        target = findTarget()
-        if target and target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
+    target = findTarget()
+
+    if target then
+        if not aimEnabled then
+            toggleAimbot(true) -- Bật Aimbot nếu có mục tiêu
+        end
+
+        -- Camera ghim vào mục tiêu
+        if target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
             local targetPosition = target.Character.HumanoidRootPart.Position
             local direction = (targetPosition - camera.CFrame.Position).unit
             camera.CFrame = CFrame.new(camera.CFrame.Position, camera.CFrame.Position + direction)
         else
             target = nil
+        end
+    else
+        if aimEnabled then
+            toggleAimbot(false) -- Tắt Aimbot nếu không có mục tiêu
         end
     end
 end)
