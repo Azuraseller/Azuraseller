@@ -1,151 +1,143 @@
--- Khai báo các biến cần thiết
+-- Khởi tạo
 local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local TeleportService = game:GetService("TeleportService")
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
+
+-- Thông số
+local aimbotEnabled = false
+local aimRange = 250
+local speedEnabled = false
+local defaultWalkSpeed = 16
+local boostedWalkSpeed = 40
+
+-- Tạo GUI
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+local MainFrame = Instance.new("Frame")
+local AimbotButton = Instance.new("TextButton")
+local ToggleButton = Instance.new("TextButton")
+local PlayerListButton = Instance.new("TextButton")
+local PlayerListFrame = Instance.new("ScrollingFrame")
+local ServerHopButton = Instance.new("TextButton")
+local SpeedButton = Instance.new("TextButton")
 
--- GUI: Player List
-local PlayerListFrame = Instance.new("Frame")
-local ScrollButtonToggle = Instance.new("ImageButton")
-local PlayerListScrollingFrame = Instance.new("ScrollingFrame")
+ScreenGui.Parent = game.CoreGui
 
--- Tạo danh sách nền mờ đục
-PlayerListFrame.Parent = ScreenGui
-PlayerListFrame.Size = UDim2.new(0, 150, 0, 0)
-PlayerListFrame.Position = UDim2.new(0.6, 0, 0.06, 0)
-PlayerListFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-PlayerListFrame.BackgroundTransparency = 0.6
-PlayerListFrame.BorderColor3 = Color3.fromRGB(255, 0, 0)
-PlayerListFrame.BorderSizePixel = 2
-PlayerListFrame.ClipsDescendants = true
+-- GUI chính
+MainFrame.Name = "MainFrame"
+MainFrame.Parent = ScreenGui
+MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+MainFrame.Position = UDim2.new(0.8, 0, 0.1, 0)
+MainFrame.Size = UDim2.new(0, 200, 0, 300)
+MainFrame.Visible = false
 
--- Nút toggle cuộn danh sách (bánh răng)
-ScrollButtonToggle.Parent = ScreenGui
-ScrollButtonToggle.Size = UDim2.new(0, 30, 0, 30)
-ScrollButtonToggle.Position = UDim2.new(0.6, 0, 0.06, 0)
-ScrollButtonToggle.Image = "rbxassetid://6035047377"
-ScrollButtonToggle.BackgroundTransparency = 1
-
--- Khung cuộn danh sách người chơi
-PlayerListScrollingFrame.Parent = PlayerListFrame
-PlayerListScrollingFrame.Size = UDim2.new(1, 0, 1, -30)
-PlayerListScrollingFrame.Position = UDim2.new(0, 0, 0, 30)
-PlayerListScrollingFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
-PlayerListScrollingFrame.BackgroundTransparency = 1
-PlayerListScrollingFrame.ScrollBarThickness = 8
-
--- Biến để theo dõi player đang được chọn
-local currentViewedPlayer = nil
-local currentSelectedButton = nil
-
--- Hiển thị danh sách người chơi
-local function UpdatePlayerList()
-    -- Xóa hết các nút hiện tại
-    for _, child in ipairs(PlayerListScrollingFrame:GetChildren()) do
-        if child:IsA("TextButton") then
-            child:Destroy()
-        end
-    end
-
-    local yOffset = 0
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer then
-            local PlayerButton = Instance.new("TextButton")
-            PlayerButton.Parent = PlayerListScrollingFrame
-            PlayerButton.Size = UDim2.new(1, -8, 0, 30)
-            PlayerButton.Position = UDim2.new(0, 4, 0, yOffset)
-            PlayerButton.Text = player.Name
-            PlayerButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-            PlayerButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-            PlayerButton.Font = Enum.Font.SourceSans
-            PlayerButton.TextSize = 16
-
-            -- Tạo góc bo tròn cho button
-            local UICorner = Instance.new("UICorner")
-            UICorner.Parent = PlayerButton
-
-            -- Các nút View và Teleport
-            local ViewButton = Instance.new("ImageButton")
-            ViewButton.Parent = PlayerButton
-            ViewButton.Size = UDim2.new(0, 30, 0, 30)
-            ViewButton.Position = UDim2.new(1, 0, 0, 0)  -- Nút View sẽ nằm ngay sau tên player
-            ViewButton.Image = "rbxassetid://6035047380"  -- Biểu tượng con mắt
-            ViewButton.BackgroundTransparency = 1
-            ViewButton.Visible = false  -- Ẩn nút mặc định
-
-            local TeleportButton = Instance.new("ImageButton")
-            TeleportButton.Parent = PlayerButton
-            TeleportButton.Size = UDim2.new(0, 30, 0, 30)
-            TeleportButton.Position = UDim2.new(1, 35, 0, 0)  -- Nút Teleport nằm cạnh nút View
-            TeleportButton.Image = "rbxassetid://6035047390"  -- Biểu tượng dịch chuyển
-            TeleportButton.BackgroundTransparency = 1
-            TeleportButton.Visible = false  -- Ẩn nút mặc định
-
-            -- Logic khi bấm vào tên người chơi
-            PlayerButton.MouseButton1Click:Connect(function()
-                -- Ẩn các nút trước đó
-                if currentViewedPlayer then
-                    currentViewedPlayer.ViewButton.Visible = false
-                    currentViewedPlayer.TeleportButton.Visible = false
-                end
-
-                -- Hiển thị các nút cho người chơi hiện tại
-                ViewButton.Visible = true
-                TeleportButton.Visible = true
-
-                -- Cập nhật player hiện tại đang xem
-                currentViewedPlayer = {
-                    player = player,
-                    ViewButton = ViewButton,
-                    TeleportButton = TeleportButton
-                }
-
-                -- Logic cho nút View
-                local isViewing = false
-                ViewButton.MouseButton1Click:Connect(function()
-                    if isViewing then
-                        -- Tắt view
-                        Camera.CameraSubject = LocalPlayer.Character.Humanoid
-                        isViewing = false
-                    else
-                        -- Chuyển view
-                        Camera.CameraSubject = player.Character.Humanoid
-                        isViewing = true
-                    end
-                end)
-
-                -- Logic cho nút Teleport
-                TeleportButton.MouseButton1Click:Connect(function()
-                    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-                        LocalPlayer.Character.HumanoidRootPart.CFrame = player.Character.HumanoidRootPart.CFrame
-                    end
-                end)
-            end)
-
-            yOffset = yOffset + 40  -- Điều chỉnh khoảng cách giữa các player
-        end
-    end
-
-    PlayerListScrollingFrame.CanvasSize = UDim2.new(0, 0, 0, yOffset)
-end
-
--- Cập nhật danh sách khi có thay đổi
-Players.PlayerAdded:Connect(UpdatePlayerList)
-Players.PlayerRemoving:Connect(UpdatePlayerList)
-UpdatePlayerList()
-
--- Xử lý toggle cuộn danh sách (với hiệu ứng xoay bánh răng)
-local isExpanded = false
-local rotation = 0
-ScrollButtonToggle.MouseButton1Click:Connect(function()
-    isExpanded = not isExpanded
-    if isExpanded then
-        PlayerListFrame.Size = UDim2.new(0, 150, 0, 200)
+-- Nút bật/tắt GUI
+ToggleButton.Name = "ToggleButton"
+ToggleButton.Parent = ScreenGui
+ToggleButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+ToggleButton.Position = UDim2.new(0.78, 0, 0.1, 0)
+ToggleButton.Size = UDim2.new(0, 50, 0, 50)
+ToggleButton.Text = "+"
+ToggleButton.MouseButton1Click:Connect(function()
+    MainFrame.Visible = not MainFrame.Visible
+    if MainFrame.Visible then
+        ToggleButton.Text = "-"
     else
-        PlayerListFrame.Size = UDim2.new(0, 150, 0, 0)
+        ToggleButton.Text = "+"
     end
-    -- Xoay bánh răng 60°
-    rotation = rotation + 45
-    ScrollButtonToggle.Rotation = rotation
+end)
+
+-- Nút Aimbot
+AimbotButton.Name = "AimbotButton"
+AimbotButton.Parent = MainFrame
+AimbotButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+AimbotButton.Position = UDim2.new(0.1, 0, 0.1, 0)
+AimbotButton.Size = UDim2.new(0, 100, 0, 50)
+AimbotButton.Text = "Aimbot OFF"
+AimbotButton.MouseButton1Click:Connect(function()
+    aimbotEnabled = not aimbotEnabled
+    if aimbotEnabled then
+        AimbotButton.Text = "Aimbot ON"
+        AimbotButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+    else
+        AimbotButton.Text = "Aimbot OFF"
+        AimbotButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+    end
+end)
+
+-- Nút Speed
+SpeedButton.Name = "SpeedButton"
+SpeedButton.Parent = MainFrame
+SpeedButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+SpeedButton.Position = UDim2.new(0.1, 0, 0.3, 0)
+SpeedButton.Size = UDim2.new(0, 100, 0, 50)
+SpeedButton.Text = "Speed OFF"
+SpeedButton.MouseButton1Click:Connect(function()
+    speedEnabled = not speedEnabled
+    if speedEnabled then
+        SpeedButton.Text = "Speed ON"
+        SpeedButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+        LocalPlayer.Character.Humanoid.WalkSpeed = boostedWalkSpeed
+    else
+        SpeedButton.Text = "Speed OFF"
+        SpeedButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+        LocalPlayer.Character.Humanoid.WalkSpeed = defaultWalkSpeed
+    end
+end)
+
+-- Server Hop
+ServerHopButton.Name = "ServerHopButton"
+ServerHopButton.Parent = MainFrame
+ServerHopButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+ServerHopButton.Position = UDim2.new(0.1, 0, 0.5, 0)
+ServerHopButton.Size = UDim2.new(0, 100, 0, 50)
+ServerHopButton.Text = "Server Hop"
+ServerHopButton.MouseButton1Click:Connect(function()
+    local yesNoFrame = Instance.new("Frame")
+    local yesButton = Instance.new("TextButton")
+    local noButton = Instance.new("TextButton")
+
+    yesNoFrame.Parent = MainFrame
+    yesNoFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    yesNoFrame.Size = UDim2.new(0, 100, 0, 50)
+    yesNoFrame.Position = UDim2.new(0.1, 0, 0.7, 0)
+
+    yesButton.Parent = yesNoFrame
+    yesButton.Size = UDim2.new(0, 50, 0, 50)
+    yesButton.Text = "Yes"
+    yesButton.MouseButton1Click:Connect(function()
+        -- Chuyển server (logic tìm server ít người)
+        TeleportService:Teleport(game.PlaceId)
+    end)
+
+    noButton.Parent = yesNoFrame
+    noButton.Size = UDim2.new(0, 50, 0, 50)
+    noButton.Text = "No"
+    noButton.Position = UDim2.new(0.5, 0, 0, 0)
+    noButton.MouseButton1Click:Connect(function()
+        yesNoFrame:Destroy()
+    end)
+end)
+
+-- Chức năng Aimbot
+RunService.RenderStepped:Connect(function()
+    if aimbotEnabled then
+        local closestPlayer = nil
+        local shortestDistance = aimRange
+        for _, player in pairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+                local distance = (LocalPlayer.Character.HumanoidRootPart.Position - player.Character.HumanoidRootPart.Position).Magnitude
+                if distance < shortestDistance then
+                    closestPlayer = player
+                    shortestDistance = distance
+                end
+            end
+        end
+
+        if closestPlayer and closestPlayer.Character and closestPlayer.Character:FindFirstChild("HumanoidRootPart") then
+            Camera.CFrame = CFrame.new(Camera.CFrame.Position, closestPlayer.Character.HumanoidRootPart.Position)
+        end
+    end
 end)
