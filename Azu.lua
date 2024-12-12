@@ -5,13 +5,12 @@ local UserInputService = game:GetService("UserInputService")
 local TeleportService = game:GetService("TeleportService")
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
-
--- Thông số
-local aimbotEnabled = false
-local aimRange = 250
-local speedEnabled = false
 local defaultWalkSpeed = 16
 local boostedWalkSpeed = 40
+local aimbotEnabled = false
+local speedEnabled = false
+local aimRange = 250
+local targetPlayer = nil
 
 -- Tạo GUI
 local ScreenGui = Instance.new("ScreenGui")
@@ -22,6 +21,7 @@ local PlayerListButton = Instance.new("TextButton")
 local PlayerListFrame = Instance.new("ScrollingFrame")
 local ServerHopButton = Instance.new("TextButton")
 local SpeedButton = Instance.new("TextButton")
+local PlayerList = {}
 
 ScreenGui.Parent = game.CoreGui
 
@@ -137,7 +137,59 @@ RunService.RenderStepped:Connect(function()
         end
 
         if closestPlayer and closestPlayer.Character and closestPlayer.Character:FindFirstChild("HumanoidRootPart") then
+            targetPlayer = closestPlayer
             Camera.CFrame = CFrame.new(Camera.CFrame.Position, closestPlayer.Character.HumanoidRootPart.Position)
+        else
+            targetPlayer = nil
         end
     end
 end)
+
+-- Chức năng xử lý khi player chết hoặc rời khỏi phạm vi
+Players.PlayerAdded:Connect(function(player)
+    player.CharacterAdded:Connect(function(character)
+        character:WaitForChild("Humanoid").Died:Connect(function()
+            if targetPlayer == player then
+                targetPlayer = nil
+            end
+        end)
+    end)
+end)
+
+-- Cập nhật danh sách người chơi trong GUI
+Players.PlayerAdded:Connect(function(player)
+    local playerButton = Instance.new("TextButton")
+    playerButton.Parent = PlayerListFrame
+    playerButton.Size = UDim2.new(0, 180, 0, 30)
+    playerButton.Text = player.Name
+    playerButton.MouseButton1Click:Connect(function()
+        -- Tạo các nút "View" và "Tele" cho mỗi player
+        local viewButton = Instance.new("TextButton")
+        local teleButton = Instance.new("TextButton")
+        viewButton.Parent = playerButton
+        teleButton.Parent = playerButton
+        viewButton.Size = UDim2.new(0, 30, 0, 30)
+        teleButton.Size = UDim2.new(0, 30, 0, 30)
+        viewButton.Position = UDim2.new(1, 0, 0, 0)
+        teleButton.Position = UDim2.new(1, 40, 0, 0)
+        viewButton.Text = "View"
+        teleButton.Text = "Tele"
+
+        viewButton.MouseButton1Click:Connect(function()
+            Camera.CFrame = CFrame.new(Camera.CFrame.Position, player.Character.HumanoidRootPart.Position)
+            viewButton.Text = "Viewing"
+        end)
+
+        teleButton.MouseButton1Click:Connect(function()
+            LocalPlayer.Character:SetPrimaryPartCFrame(player.Character.HumanoidRootPart.CFrame)
+        end)
+    end)
+end)
+
+-- Tạo Player List Frame
+PlayerListFrame.Name = "PlayerListFrame"
+PlayerListFrame.Parent = MainFrame
+PlayerListFrame.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+PlayerListFrame.Position = UDim2.new(0, 0, 0.6, 0)
+PlayerListFrame.Size = UDim2.new(0, 180, 0, 120)
+PlayerListFrame.ScrollBarThickness = 10
