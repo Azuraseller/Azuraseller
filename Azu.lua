@@ -4,24 +4,24 @@ local aimEnabled = false
 local target = nil
 local radius = 250
 local closeRange = 45
+local customCamera = Instance.new("Camera", workspace) -- Camera 2
 
 -- Tạo giao diện
 local screenGui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
 screenGui.Name = "AimbotGui"
 
--- Nút "+" (dùng để mở rộng giao diện)
+-- Nút bật/tắt Aimbot (nút "+")
 local toggleButton = Instance.new("TextButton", screenGui)
 toggleButton.Text = "+"
 toggleButton.Size = UDim2.new(0, 40, 0, 40)
-toggleButton.Position = UDim2.new(0, 10, 0, 10)
+toggleButton.Position = UDim2.new(1, -50, 0, 10) -- Di chuyển sang bên phải
 toggleButton.BackgroundColor3 = Color3.new(1, 1, 1)
-toggleButton.Visible = true
 
--- Nút Aimbot (chính)
+-- Nút chính "Aim"
 local mainButton = Instance.new("TextButton", screenGui)
 mainButton.Text = "Aimbot: OFF"
 mainButton.Size = UDim2.new(0, 100, 0, 50)
-mainButton.Position = UDim2.new(0, 10, 0, 60)
+mainButton.Position = UDim2.new(1, -120, 0, 60) -- Di chuyển sang bên phải dưới nút "+"
 mainButton.BackgroundColor3 = Color3.new(1, 0, 0)
 mainButton.Visible = false
 
@@ -35,25 +35,35 @@ local function scaleButton(button, scale)
     tween:Play()
 end
 
--- Sự kiện bấm nút "+"
+-- Chuyển trạng thái Aim
+local function toggleAimbot()
+    aimEnabled = not aimEnabled
+    mainButton.Text = aimEnabled and "Aimbot: ON" or "Aimbot: OFF"
+    mainButton.BackgroundColor3 = aimEnabled and Color3.new(0, 1, 0) or Color3.new(1, 0, 0)
+    if aimEnabled then
+        -- Chuyển sang camera 2
+        customCamera.CFrame = camera.CFrame
+        workspace.CurrentCamera = customCamera
+    else
+        -- Chuyển lại camera gốc
+        workspace.CurrentCamera = camera
+        target = nil -- Xóa mục tiêu khi tắt Aim
+    end
+end
+
 toggleButton.MouseButton1Click:Connect(function()
     mainButton.Visible = not mainButton.Visible
     if mainButton.Visible then
         toggleButton.Text = "-"
-        scaleButton(mainButton, 1.5) -- Phóng to
+        scaleButton(mainButton, 1.5) -- Phóng to khi hiển thị nút Aim
     else
-        scaleButton(mainButton, 0.5) -- Thu nhỏ
+        scaleButton(mainButton, 0.5) -- Thu nhỏ khi ẩn nút Aim
         wait(0.3)
         toggleButton.Text = "+"
     end
 end)
 
--- Bật/tắt Aimbot tự động
-local function toggleAimbot(state)
-    aimEnabled = state
-    mainButton.Text = aimEnabled and "Aimbot: ON" or "Aimbot: OFF"
-    mainButton.BackgroundColor3 = aimEnabled and Color3.new(0, 1, 0) or Color3.new(1, 0, 0)
-end
+mainButton.MouseButton1Click:Connect(toggleAimbot)
 
 -- Tìm mục tiêu trong bán kính
 local function findTarget()
@@ -66,10 +76,6 @@ local function findTarget()
             if distance < closestDistance and distance > closeRange then
                 closestDistance = distance
                 closestPlayer = otherPlayer
-            elseif distance <= closeRange then
-                -- Tắt Aimbot nếu player trong bán kính 45
-                toggleAimbot(false)
-                return nil
             end
         end
     end
@@ -77,26 +83,24 @@ local function findTarget()
     return closestPlayer
 end
 
--- Camera theo dõi mục tiêu
+-- Camera tự động theo dõi mục tiêu
 game:GetService("RunService").RenderStepped:Connect(function()
-    target = findTarget()
-
-    if target then
-        if not aimEnabled then
-            toggleAimbot(true) -- Bật Aimbot nếu có mục tiêu
+    if aimEnabled then
+        if not target or not target.Character or not target.Character:FindFirstChild("HumanoidRootPart") then
+            target = findTarget()
         end
 
-        -- Camera ghim vào mục tiêu
-        if target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
+        if target then
             local targetPosition = target.Character.HumanoidRootPart.Position
-            local direction = (targetPosition - camera.CFrame.Position).unit
-            camera.CFrame = CFrame.new(camera.CFrame.Position, camera.CFrame.Position + direction)
-        else
-            target = nil
-        end
-    else
-        if aimEnabled then
-            toggleAimbot(false) -- Tắt Aimbot nếu không có mục tiêu
+            local cameraPosition = customCamera.CFrame.Position
+
+            -- Mượt hóa chuyển động của camera
+            local smoothFactor = 0.15
+            local direction = (targetPosition - cameraPosition).unit
+            local newCFrame = CFrame.new(cameraPosition, cameraPosition + direction)
+
+            -- Giữ góc nhìn của người chơi tự nhiên
+            customCamera.CFrame = newCFrame
         end
     end
 end)
