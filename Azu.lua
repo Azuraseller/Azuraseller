@@ -4,7 +4,7 @@ local aimEnabled = false
 local target = nil
 local radius = 250
 local closeRange = 45
-local customCamera = Instance.new("Camera", workspace) -- Camera 2
+local customCamera = Instance.new("Camera", workspace) -- Tạo camera 2
 
 -- Tạo giao diện
 local screenGui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
@@ -14,14 +14,14 @@ screenGui.Name = "AimbotGui"
 local toggleButton = Instance.new("TextButton", screenGui)
 toggleButton.Text = "+"
 toggleButton.Size = UDim2.new(0, 40, 0, 40)
-toggleButton.Position = UDim2.new(1, -50, 0, 10) -- Di chuyển sang bên phải
+toggleButton.Position = UDim2.new(1, -50, 0, 10) -- Vị trí bên phải
 toggleButton.BackgroundColor3 = Color3.new(1, 1, 1)
 
 -- Nút chính "Aim"
 local mainButton = Instance.new("TextButton", screenGui)
 mainButton.Text = "Aimbot: OFF"
 mainButton.Size = UDim2.new(0, 100, 0, 50)
-mainButton.Position = UDim2.new(1, -120, 0, 60) -- Di chuyển sang bên phải dưới nút "+"
+mainButton.Position = UDim2.new(1, -120, 0, 60) -- Vị trí bên phải dưới nút "+"
 mainButton.BackgroundColor3 = Color3.new(1, 0, 0)
 mainButton.Visible = false
 
@@ -34,36 +34,6 @@ local function scaleButton(button, scale)
     local tween = TweenService:Create(button, tweenInfo, goal)
     tween:Play()
 end
-
--- Chuyển trạng thái Aim
-local function toggleAimbot()
-    aimEnabled = not aimEnabled
-    mainButton.Text = aimEnabled and "Aimbot: ON" or "Aimbot: OFF"
-    mainButton.BackgroundColor3 = aimEnabled and Color3.new(0, 1, 0) or Color3.new(1, 0, 0)
-    if aimEnabled then
-        -- Chuyển sang camera 2
-        customCamera.CFrame = camera.CFrame
-        workspace.CurrentCamera = customCamera
-    else
-        -- Chuyển lại camera gốc
-        workspace.CurrentCamera = camera
-        target = nil -- Xóa mục tiêu khi tắt Aim
-    end
-end
-
-toggleButton.MouseButton1Click:Connect(function()
-    mainButton.Visible = not mainButton.Visible
-    if mainButton.Visible then
-        toggleButton.Text = "-"
-        scaleButton(mainButton, 1.5) -- Phóng to khi hiển thị nút Aim
-    else
-        scaleButton(mainButton, 0.5) -- Thu nhỏ khi ẩn nút Aim
-        wait(0.3)
-        toggleButton.Text = "+"
-    end
-end)
-
-mainButton.MouseButton1Click:Connect(toggleAimbot)
 
 -- Tìm mục tiêu trong bán kính
 local function findTarget()
@@ -83,24 +53,60 @@ local function findTarget()
     return closestPlayer
 end
 
--- Camera tự động theo dõi mục tiêu
-game:GetService("RunService").RenderStepped:Connect(function()
-    if aimEnabled then
-        if not target or not target.Character or not target.Character:FindFirstChild("HumanoidRootPart") then
-            target = findTarget()
+-- Tự động bật/tắt Aim dựa trên khoảng cách
+local function autoToggleAimbot()
+    target = findTarget()
+    if target then
+        if not aimEnabled then
+            aimEnabled = true
+            mainButton.Text = "Aimbot: ON"
+            mainButton.BackgroundColor3 = Color3.new(0, 1, 0)
+            customCamera.CFrame = camera.CFrame -- Đồng bộ camera 2 với camera gốc
+            workspace.CurrentCamera = customCamera
         end
-
-        if target then
-            local targetPosition = target.Character.HumanoidRootPart.Position
-            local cameraPosition = customCamera.CFrame.Position
-
-            -- Mượt hóa chuyển động của camera
-            local smoothFactor = 0.15
-            local direction = (targetPosition - cameraPosition).unit
-            local newCFrame = CFrame.new(cameraPosition, cameraPosition + direction)
-
-            -- Giữ góc nhìn của người chơi tự nhiên
-            customCamera.CFrame = newCFrame
+    else
+        if aimEnabled then
+            aimEnabled = false
+            mainButton.Text = "Aimbot: OFF"
+            mainButton.BackgroundColor3 = Color3.new(1, 0, 0)
+            workspace.CurrentCamera = camera -- Trả về camera gốc
         end
     end
+end
+
+-- Camera 2 hoạt động độc lập
+local function updateCustomCamera()
+    if aimEnabled and target and target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
+        local targetPosition = target.Character.HumanoidRootPart.Position
+        local cameraPosition = customCamera.CFrame.Position
+
+        -- Mượt hóa chuyển động của camera
+        local smoothFactor = 0.15
+        local direction = (targetPosition - cameraPosition).unit
+        local newCFrame = CFrame.new(cameraPosition, cameraPosition + direction)
+
+        customCamera.CFrame = newCFrame
+    else
+        -- Giữ camera 2 không bị ảnh hưởng khi không có mục tiêu
+        customCamera.CFrame = camera.CFrame
+    end
+end
+
+-- Sự kiện bấm nút "+"
+toggleButton.MouseButton1Click:Connect(function()
+    mainButton.Visible = not mainButton.Visible
+    if mainButton.Visible then
+        toggleButton.Text = "-"
+        scaleButton(mainButton, 1.5) -- Phóng to khi hiển thị nút Aim
+    else
+        scaleButton(mainButton, 0.5) -- Thu nhỏ khi ẩn nút Aim
+        wait(0.3)
+        toggleButton.Text = "+"
+    end
+end)
+
+-- Vòng lặp kiểm tra và cập nhật Aim
+game:GetService("RunService").RenderStepped:Connect(function()
+    autoToggleAimbot() -- Tự động bật/tắt Aim
+    updateCustomCamera() -- Cập nhật camera 2
 end)
