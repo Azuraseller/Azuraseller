@@ -6,12 +6,13 @@ local Camera = workspace.CurrentCamera
 -- Tạo Camera phụ
 local Camera2 = Instance.new("Camera")
 Camera2.Parent = workspace
+Camera2.CameraType = Enum.CameraType.Scriptable
 
 -- Cấu hình các tham số
-local Prediction = 0.1
+local Prediction = 0.15
 local Radius = 200
 local CloseRadius = 25 -- Bán kính gần
-local SmoothFactor = 0.15
+local SmoothFactor = 0.2
 local SpeedThreshold = 20 -- Ngưỡng tốc độ để tăng tốc độ Aim
 local SpeedMultiplier = 2 -- Hệ số tăng tốc khi mục tiêu di chuyển nhanh
 local Locked = false
@@ -42,7 +43,6 @@ ToggleButton.MouseButton1Click:Connect(function()
         ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
         -- Chuyển sang Camera phụ
         Camera2.CFrame = Camera.CFrame
-        Camera2.CameraType = Enum.CameraType.Scriptable
         workspace.CurrentCamera = Camera2
     else
         ToggleButton.Text = "CamLock: OFF"
@@ -82,19 +82,18 @@ local function IsTargetValid(target)
     return false
 end
 
--- Nâng cấp thuật toán dự đoán vị trí mục tiêu
+-- Dự đoán vị trí mục tiêu
 local function PredictTargetPosition(target)
     local humanoidRootPart = target:FindFirstChild("HumanoidRootPart")
     if humanoidRootPart then
         local velocity = humanoidRootPart.Velocity
-        local acceleration = humanoidRootPart:FindFirstChild("Acceleration") and humanoidRootPart.Acceleration or Vector3.zero
-        local predictedPosition = humanoidRootPart.Position + velocity * Prediction + 0.5 * acceleration * Prediction^2
+        local predictedPosition = humanoidRootPart.Position + velocity * Prediction
         return predictedPosition
     end
     return humanoidRootPart.Position
 end
 
--- Nâng cấp ghim chính xác vào vị trí cụ thể trên cơ thể
+-- Ghim chính xác vào vị trí trên cơ thể
 local function GetAimPosition(target)
     local humanoidRootPart = target:FindFirstChild("HumanoidRootPart")
     if humanoidRootPart then
@@ -111,6 +110,9 @@ end
 -- Cập nhật camera
 RunService.RenderStepped:Connect(function()
     if AimActive then
+        -- Camera 2 theo dõi người chơi
+        Camera2.CFrame = Camera.CFrame
+
         -- Kiểm tra nếu mục tiêu hiện tại không hợp lệ
         if not IsTargetValid(CurrentTarget) then
             Locked = false
@@ -121,8 +123,8 @@ RunService.RenderStepped:Connect(function()
         if not Locked then
             local enemies = FindEnemiesInRadius()
             if #enemies > 0 then
+                CurrentTarget = enemies[1] -- Ưu tiên mục tiêu gần nhất
                 Locked = true
-                CurrentTarget = enemies[1]
             end
         end
 
@@ -130,10 +132,7 @@ RunService.RenderStepped:Connect(function()
         if CurrentTarget and Locked then
             local targetCharacter = CurrentTarget
             if targetCharacter and targetCharacter:FindFirstChild("HumanoidRootPart") then
-                local targetPosition = PredictTargetPosition(targetCharacter)
                 local aimPosition = GetAimPosition(targetCharacter)
-
-                -- Cập nhật camera chính để ghim mục tiêu chính xác hơn
                 if aimPosition then
                     Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, aimPosition), SmoothFactor)
                 end
