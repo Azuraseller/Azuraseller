@@ -1,5 +1,6 @@
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 
@@ -10,22 +11,22 @@ Camera2.CameraType = Enum.CameraType.Scriptable
 
 -- Cấu hình các tham số
 local Prediction = 0.15
-local Radius = 200
+local Radius = 250 -- Bán kính tự động bật/tắt Aim
 local CloseRadius = 25 -- Bán kính gần
 local SmoothFactor = 0.2
-local SpeedThreshold = 20 -- Ngưỡng tốc độ để tăng tốc độ Aim
-local SpeedMultiplier = 2 -- Hệ số tăng tốc khi mục tiêu di chuyển nhanh
 local Locked = false
 local CurrentTarget = nil
 local AimActive = false
+local AimVisible = true -- Trạng thái hiển thị Aim
 
 -- GUI
 local ScreenGui = Instance.new("ScreenGui")
 local ToggleButton = Instance.new("TextButton")
+local VisibilityButton = Instance.new("TextButton") -- Nút +
 
 ScreenGui.Parent = game:GetService("CoreGui")
 
--- Nút ON/OFF
+-- Nút ON/OFF Aim
 ToggleButton.Parent = ScreenGui
 ToggleButton.Size = UDim2.new(0, 100, 0, 50)
 ToggleButton.Position = UDim2.new(0.85, 0, 0.01, 0)
@@ -35,13 +36,30 @@ ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 ToggleButton.Font = Enum.Font.SourceSans
 ToggleButton.TextSize = 20
 
--- Nút ON/OFF để bật/tắt Aim thủ công
+-- Nút + để bật/tắt hiển thị Aim
+VisibilityButton.Parent = ScreenGui
+VisibilityButton.Size = UDim2.new(0, 50, 0, 50)
+VisibilityButton.Position = UDim2.new(0.85, 110, 0.01, 0)
+VisibilityButton.Text = "+"
+VisibilityButton.BackgroundColor3 = Color3.fromRGB(0, 0, 255)
+VisibilityButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+VisibilityButton.Font = Enum.Font.SourceSans
+VisibilityButton.TextSize = 20
+
+-- Hiệu ứng phóng to/thu nhỏ
+local function PlayScaleEffect(guiElement, isAppearing)
+    local goalSize = isAppearing and UDim2.new(0, 100, 0, 50) or UDim2.new(0, 0, 0, 0)
+    local tweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+    local tween = TweenService:Create(guiElement, tweenInfo, {Size = goalSize})
+    tween:Play()
+end
+
+-- Bật/Tắt Aim thủ công
 ToggleButton.MouseButton1Click:Connect(function()
     AimActive = not AimActive
     if AimActive then
         ToggleButton.Text = "CamLock: ON"
         ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
-        -- Chuyển sang Camera phụ
         Camera2.CFrame = Camera.CFrame
         workspace.CurrentCamera = Camera2
     else
@@ -49,20 +67,36 @@ ToggleButton.MouseButton1Click:Connect(function()
         ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
         Locked = false
         CurrentTarget = nil
-        -- Chuyển về Camera chính
         workspace.CurrentCamera = Camera
     end
 end)
 
+-- Bật/Tắt hiển thị Aim
+VisibilityButton.MouseButton1Click:Connect(function()
+    AimVisible = not AimVisible
+    if AimVisible then
+        VisibilityButton.Text = "+"
+        VisibilityButton.BackgroundColor3 = Color3.fromRGB(0, 0, 255)
+        ToggleButton.Visible = true
+        PlayScaleEffect(ToggleButton, true)
+    else
+        VisibilityButton.Text = "-"
+        VisibilityButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+        PlayScaleEffect(ToggleButton, false)
+        task.wait(0.3) -- Chờ hiệu ứng thu nhỏ xong
+        ToggleButton.Visible = false
+    end
+end)
+
 -- Tìm tất cả đối thủ trong phạm vi
-local function FindEnemiesInRadius()
+local function FindEnemiesInRadius(radius)
     local targets = {}
     for _, Player in ipairs(Players:GetPlayers()) do
         if Player ~= LocalPlayer then
             local Character = Player.Character
             if Character and Character:FindFirstChild("HumanoidRootPart") and Character:FindFirstChild("Humanoid") and Character.Humanoid.Health > 0 then
                 local Distance = (Character.HumanoidRootPart.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude
-                if Distance <= Radius then
+                if Distance <= radius then
                     table.insert(targets, Character)
                 end
             end
@@ -93,7 +127,7 @@ local function PredictTargetPosition(target)
     return humanoidRootPart.Position
 end
 
--- Ghim chính xác vào vị trí trên cơ thể
+-- Ghim chính xác vào mục tiêu
 local function GetAimPosition(target)
     local humanoidRootPart = target:FindFirstChild("HumanoidRootPart")
     if humanoidRootPart then
@@ -109,33 +143,40 @@ end
 
 -- Cập nhật camera
 RunService.RenderStepped:Connect(function()
-    if AimActive then
-        -- Camera 2 theo dõi người chơi
-        Camera2.CFrame = Camera.CFrame
+    if not AimVisible then return end -- Tắt Aim nếu không hiển thị
 
-        -- Kiểm tra nếu mục tiêu hiện tại không hợp lệ
+    local enemiesInRange = FindEnemiesInRadius(Radius)
+    if #enemiesInRange > 0 then
+        AimActive = true
+        ToggleButton.Text = "CamLock: ON"
+        ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+        workspace.CurrentCamera = Camera2
+    else
+        AimActive = false
+        ToggleButton.Text = "CamLock: OFF"
+        ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+        workspace.CurrentCamera = Camera
+        Locked = false
+        CurrentTarget = nil
+    end
+
+    if AimActive then
         if not IsTargetValid(CurrentTarget) then
             Locked = false
             CurrentTarget = nil
         end
 
-        -- Tìm mục tiêu mới nếu không có mục tiêu hiện tại
         if not Locked then
-            local enemies = FindEnemiesInRadius()
-            if #enemies > 0 then
-                CurrentTarget = enemies[1] -- Ưu tiên mục tiêu gần nhất
+            if #enemiesInRange > 0 then
+                CurrentTarget = enemiesInRange[1]
                 Locked = true
             end
         end
 
-        -- Theo dõi mục tiêu hiện tại
         if CurrentTarget and Locked then
-            local targetCharacter = CurrentTarget
-            if targetCharacter and targetCharacter:FindFirstChild("HumanoidRootPart") then
-                local aimPosition = GetAimPosition(targetCharacter)
-                if aimPosition then
-                    Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, aimPosition), SmoothFactor)
-                end
+            local aimPosition = GetAimPosition(CurrentTarget)
+            if aimPosition then
+                Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, aimPosition), SmoothFactor)
             end
         end
     end
