@@ -141,43 +141,12 @@ local function GetAimPosition(target)
     return nil
 end
 
--- Cập nhật camera
+-- Cập nhật camera theo người chơi
 RunService.RenderStepped:Connect(function()
-    if not AimVisible then return end -- Tắt Aim nếu không hiển thị
-
-    local enemiesInRange = FindEnemiesInRadius(Radius)
-    if #enemiesInRange > 0 then
-        AimActive = true
-        ToggleButton.Text = "CamLock: ON"
-        ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
-        workspace.CurrentCamera = Camera2
-    else
-        AimActive = false
-        ToggleButton.Text = "CamLock: OFF"
-        ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-        workspace.CurrentCamera = Camera
-        Locked = false
-        CurrentTarget = nil
-    end
-
     if AimActive then
-        if not IsTargetValid(CurrentTarget) then
-            Locked = false
-            CurrentTarget = nil
-        end
-
-        if not Locked then
-            if #enemiesInRange > 0 then
-                CurrentTarget = enemiesInRange[1]
-                Locked = true
-            end
-        end
-
-        if CurrentTarget and Locked then
-            local aimPosition = GetAimPosition(CurrentTarget)
-            if aimPosition then
-                Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, aimPosition), SmoothFactor)
-            end
+        local character = LocalPlayer.Character
+        if character and character:FindFirstChild("HumanoidRootPart") then
+            Camera2.CFrame = CFrame.new(character.HumanoidRootPart.Position + Vector3.new(0, 5, 0), character.HumanoidRootPart.Position)
         end
     end
 end)
