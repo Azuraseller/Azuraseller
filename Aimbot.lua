@@ -10,10 +10,10 @@ Camera2.Parent = workspace
 
 -- Cấu hình các tham số
 local Prediction = 0.1  -- Dự đoán vị trí mục tiêu
-local Radius = 200  -- Bán kính khóa mục tiêu
+local Radius = 230 -- Bán kính khóa mục tiêu
 local BaseSmoothFactor = 0.15  -- Mức độ mượt khi camera theo dõi (cơ bản)
 local MaxSmoothFactor = 0.5  -- Mức độ mượt tối đa
-local CameraRotationSpeed = 0.5  -- Tốc độ xoay camera khi ghim mục tiêu
+local CameraRotationSpeed = 0.3  -- Tốc độ xoay camera khi ghim mục tiêu
 local Locked = false
 local CurrentTarget = nil
 local AimActive = true -- Trạng thái aim (tự động bật/tắt)
@@ -101,17 +101,25 @@ local function AdjustCameraPosition(targetPosition)
     return targetPosition
 end
 
--- Dự đoán vị trí mục tiêu
+-- Dự đoán vị trí mục tiêu với gia tốc và tốc độ
 local function PredictTargetPosition(target)
-    local velocity = target.HumanoidRootPart.Velocity
-    local prediction = velocity * Prediction
-    return target.HumanoidRootPart.Position + prediction
+    local humanoid = target:FindFirstChild("Humanoid")
+    local humanoidRootPart = target:FindFirstChild("HumanoidRootPart")
+    if humanoid and humanoidRootPart then
+        local velocity = humanoidRootPart.Velocity
+        local direction = velocity.Unit
+        local speed = velocity.Magnitude
+        local predictedPosition = humanoidRootPart.Position + velocity * Prediction
+        return predictedPosition
+    end
+    return target.HumanoidRootPart.Position
 end
 
 -- Tính toán SmoothFactor dựa trên tốc độ mục tiêu
 local function CalculateSmoothFactor(target)
     local velocityMagnitude = target.HumanoidRootPart.Velocity.Magnitude
-    return math.clamp(BaseSmoothFactor + (velocityMagnitude / 100), BaseSmoothFactor, MaxSmoothFactor)
+    local smoothFactor = BaseSmoothFactor + (velocityMagnitude / 100)
+    return math.clamp(smoothFactor, BaseSmoothFactor, MaxSmoothFactor)
 end
 
 -- Cập nhật camera
