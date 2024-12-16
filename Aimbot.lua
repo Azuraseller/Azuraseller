@@ -14,6 +14,8 @@ local Radius = 230 -- Bán kính khóa mục tiêu
 local BaseSmoothFactor = 0.15  -- Mức độ mượt khi camera theo dõi (cơ bản)
 local MaxSmoothFactor = 0.5  -- Mức độ mượt tối đa
 local CameraRotationSpeed = 0.3  -- Tốc độ xoay camera khi ghim mục tiêu
+local TargetLockSpeed = 0.2 -- Tốc độ ghim mục tiêu
+local TargetSwitchSpeed = 0.1 -- Tốc độ chuyển mục tiêu
 local Locked = false
 local CurrentTarget = nil
 local AimActive = true -- Trạng thái aim (tự động bật/tắt)
@@ -88,6 +90,13 @@ local function FindEnemiesInRadius()
             end
         end
     end
+
+    -- Nếu có nhiều mục tiêu, chọn mục tiêu gần nhất với LocalPlayer
+    if #targets > 1 then
+        table.sort(targets, function(a, b)
+            return (a.HumanoidRootPart.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude < (b.HumanoidRootPart.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude
+        end)
+    end
     return targets
 end
 
@@ -159,14 +168,17 @@ RunService.RenderStepped:Connect(function()
                     -- Điều chỉnh vị trí camera
                     targetPosition = AdjustCameraPosition(targetPosition)
 
-                    -- Tăng tốc SmoothFactor dựa trên tốc độ mục tiêu
+                    -- Tính toán SmoothFactor
                     local SmoothFactor = CalculateSmoothFactor(targetCharacter)
 
+                    -- Sử dụng TargetLockSpeed để điều chỉnh tốc độ ghim
+                    local TargetPositionSmooth = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, targetPosition), TargetLockSpeed)
+
                     -- Cập nhật camera chính (Camera 1)
-                    Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, targetPosition), SmoothFactor)
+                    Camera.CFrame = TargetPositionSmooth
 
                     -- Cập nhật camera phụ (Camera 2)
-                    Camera2.CFrame = Camera2.CFrame:Lerp(CFrame.new(Camera2.CFrame.Position, targetPosition), SmoothFactor)
+                    Camera2.CFrame = TargetPositionSmooth
                 end
             end
         end
