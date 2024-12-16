@@ -1,122 +1,152 @@
 local Players = game:GetService("Players")
+local CoreGui = game:GetService("CoreGui")
 local LocalPlayer = Players.LocalPlayer
-local TweenService = game:GetService("TweenService")
+local ScreenGui = Instance.new("ScreenGui", CoreGui)
 
--- Tạo ScreenGui
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
-
--- Nút Menu
-local MenuButton = Instance.new("ImageButton")
-MenuButton.Size = UDim2.new(0, 100, 0, 50)
-MenuButton.Position = UDim2.new(0.8, 0, 0.01, 0)
-MenuButton.Image = "https://tr.rbxcdn.com/180DAY-487408766a264fb59c672611aefab053/150/150/Decal/Webp/noFilter"
-MenuButton.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+-- Tạo các nút Menu, Server Hop và Player List
+local MenuButton = Instance.new("TextButton")
 MenuButton.Parent = ScreenGui
+MenuButton.Size = UDim2.new(0, 30, 0, 30)
+MenuButton.Position = UDim2.new(0.74, 0, 0.01, 0)
+MenuButton.Text = "≡"
+MenuButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+MenuButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+MenuButton.Font = Enum.Font.SourceSans
+MenuButton.TextSize = 18
 
--- Nút Server
 local ServerButton = Instance.new("TextButton")
-ServerButton.Size = UDim2.new(0, 100, 0, 50)
-ServerButton.Position = UDim2.new(0.7, 0, 0.01, 0)
-ServerButton.Text = "Server"
-ServerButton.Visible = false
-ServerButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
 ServerButton.Parent = ScreenGui
+ServerButton.Size = UDim2.new(0, 30, 0, 30)
+ServerButton.Position = UDim2.new(0.69, 0, 0.01, 0)
+ServerButton.Text = "Server"
+ServerButton.BackgroundColor3 = Color3.fromRGB(0, 255, 255)
+ServerButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+ServerButton.Font = Enum.Font.SourceSans
+ServerButton.TextSize = 18
+ServerButton.Visible = false
 
--- Nút Player List
-local PlayerListButton = Instance.new("ImageButton")
-PlayerListButton.Size = UDim2.new(0, 100, 0, 50)
-PlayerListButton.Position = UDim2.new(0.6, 0, 0.01, 0)
-PlayerListButton.Image = "https://tr.rbxcdn.com/180DAY-1ab84aa5d75936fdc4979f5fe2552201/150/150/Decal/Webp/noFilter"
-PlayerListButton.Visible = false
-PlayerListButton.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+local PlayerListButton = Instance.new("TextButton")
 PlayerListButton.Parent = ScreenGui
+PlayerListButton.Size = UDim2.new(0, 30, 0, 30)
+PlayerListButton.Position = UDim2.new(0.64, 0, 0.01, 0)
+PlayerListButton.Text = "Players"
+PlayerListButton.BackgroundColor3 = Color3.fromRGB(0, 255, 255)
+PlayerListButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+PlayerListButton.Font = Enum.Font.SourceSans
+PlayerListButton.TextSize = 18
+PlayerListButton.Visible = false
 
--- Danh sách Player
-local PlayerListFrame = Instance.new("Frame")
-PlayerListFrame.Size = UDim2.new(0, 200, 0, 300)
-PlayerListFrame.Position = UDim2.new(0.6, 0, 0.1, 0)
-PlayerListFrame.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-PlayerListFrame.Visible = false
+local YesButton = Instance.new("TextButton")
+YesButton.Parent = ScreenGui
+YesButton.Size = UDim2.new(0, 50, 0, 30)
+YesButton.Position = UDim2.new(0.69, 0, 0.07, 0)
+YesButton.Text = "Yes"
+YesButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+YesButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+YesButton.Font = Enum.Font.SourceSans
+YesButton.TextSize = 18
+YesButton.Visible = false
+
+local NoButton = Instance.new("TextButton")
+NoButton.Parent = ScreenGui
+NoButton.Size = UDim2.new(0, 50, 0, 30)
+NoButton.Position = UDim2.new(0.69, 0, 0.13, 0)
+NoButton.Text = "No"
+NoButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+NoButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+NoButton.Font = Enum.Font.SourceSans
+NoButton.TextSize = 18
+NoButton.Visible = false
+
+local PlayerListFrame = Instance.new("ScrollingFrame")
 PlayerListFrame.Parent = ScreenGui
+PlayerListFrame.Size = UDim2.new(0, 200, 0, 400)
+PlayerListFrame.Position = UDim2.new(0.69, 0, 0.07, 0)
+PlayerListFrame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+PlayerListFrame.Visible = false
+PlayerListFrame.ScrollBarThickness = 10
 
--- Hàm cập nhật danh sách Player
-local function UpdatePlayerList()
-    PlayerListFrame:ClearAllChildren()
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer then
-            local PlayerButton = Instance.new("TextButton")
-            PlayerButton.Size = UDim2.new(1, 0, 0, 30)
-            PlayerButton.Text = player.Name
-            PlayerButton.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
-            PlayerButton.Parent = PlayerListFrame
+local function ToggleMenu()
+    -- Trượt các nút vào/ra
+    local serverButtonPos = ServerButton.Position
+    local playerListButtonPos = PlayerListButton.Position
+    local menuButtonPos = MenuButton.Position
 
-            -- Nút View và Tele
-            local ViewButton = Instance.new("ImageButton")
-            ViewButton.Size = UDim2.new(0, 30, 0, 30)
-            ViewButton.Position = UDim2.new(0.8, 0, 0, 0)
-            ViewButton.Image = "https://tr.rbxcdn.com/180DAY-627fcde344353147a79a01ce0c242710/150/150/Decal/Webp/noFilter"
-            ViewButton.Parent = PlayerButton
-
-            local TeleButton = Instance.new("ImageButton")
-            TeleButton.Size = UDim2.new(0, 30, 0, 30)
-            TeleButton.Position = UDim2.new(0.9, 0, 0, 0)
-            TeleButton.Image = "https://tr.rbxcdn.com/180DAY-d8afcf12ffb0e5cce3c7fa80e5bc610c/150/150/Decal/Webp/noFilter"
-            TeleButton.Parent = PlayerButton
-
-            -- Logic cho View và Tele
-            local isViewing = false
-            ViewButton.MouseButton1Click:Connect(function()
-                isViewing = not isViewing
-                if isViewing then
-                    ViewButton.Image = "https://tr.rbxcdn.com/180DAY-a47bbc253b252ca21d536740448961ff/150/150/Decal/Webp/noFilter"
-                    workspace.CurrentCamera.CameraSubject = player.Character.Humanoid
-                else
-                    ViewButton.Image = "https://tr.rbxcdn.com/180DAY-627fcde344353147a79a01ce0c242710/150/150/Decal/Webp/noFilter"
-                    workspace.CurrentCamera.CameraSubject = LocalPlayer.Character.Humanoid
-                end
-            end)
-
-            TeleButton.MouseButton1Click:Connect(function()
-                if isViewing then
-                    ViewButton.Image = "https://tr.rbxcdn.com/180DAY-627fcde344353147a79a01ce0c242710/150/150/Decal/Webp/noFilter"
-                    workspace.CurrentCamera.CameraSubject = LocalPlayer.Character.Humanoid
-                    isViewing = false
-                end
-                LocalPlayer.Character:MoveTo(player.Character.HumanoidRootPart.Position)
-            end)
-
-            -- Xóa nút nếu Player rời khỏi
-            player.AncestryChanged:Connect(function()
-                if not player:IsDescendantOf(game) then
-                    PlayerButton:Destroy()
-                end
-            end)
-        end
+    if ServerButton.Visible then
+        ServerButton.Visible = false
+        PlayerListButton.Visible = false
+    else
+        ServerButton.Visible = true
+        PlayerListButton.Visible = true
     end
 end
 
--- Hiển thị Menu
-local isMenuOpen = false
+-- Khi bấm nút Menu, hiển thị server hop và player list
 MenuButton.MouseButton1Click:Connect(function()
-    isMenuOpen = not isMenuOpen
-    ServerButton.Visible = isMenuOpen
-    PlayerListButton.Visible = isMenuOpen
+    ToggleMenu()
 end)
 
--- Hiển thị danh sách Player
-local isPlayerListOpen = false
+-- Chức năng chuyển server
+ServerButton.MouseButton1Click:Connect(function()
+    YesButton.Visible = true
+    NoButton.Visible = true
+
+    YesButton.MouseButton1Click:Connect(function()
+        -- Chuyển server
+        local server = game:GetService("TeleportService")
+        server:Teleport(game.PlaceId, LocalPlayer) -- Chuyển server
+    end)
+
+    NoButton.MouseButton1Click:Connect(function()
+        YesButton.Visible = false
+        NoButton.Visible = false
+    end)
+end)
+
+-- Hiển thị danh sách người chơi
 PlayerListButton.MouseButton1Click:Connect(function()
-    isPlayerListOpen = not isPlayerListOpen
-    PlayerListFrame.Visible = isPlayerListOpen
-    if isPlayerListOpen then
-        UpdatePlayerList()
+    if PlayerListFrame.Visible then
+        PlayerListFrame.Visible = false
+    else
+        PlayerListFrame.Visible = true
+        for _, player in ipairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer then
+                local playerNameLabel = Instance.new("TextLabel")
+                playerNameLabel.Text = player.Name
+                playerNameLabel.Size = UDim2.new(0, 200, 0, 50)
+                playerNameLabel.Parent = PlayerListFrame
+
+                local viewButton = Instance.new("TextButton")
+                viewButton.Text = "View"
+                viewButton.Size = UDim2.new(0, 50, 0, 30)
+                viewButton.Position = UDim2.new(0.5, 0, 0, 0)
+                viewButton.Parent = playerNameLabel
+
+                local teleButton = Instance.new("TextButton")
+                teleButton.Text = "Tele"
+                teleButton.Size = UDim2.new(0, 50, 0, 30)
+                teleButton.Position = UDim2.new(1, -50, 0, 0)
+                teleButton.Parent = playerNameLabel
+
+                viewButton.MouseButton1Click:Connect(function()
+                    -- Chức năng xem camera player
+                    Camera.CameraSubject = player.Character.Humanoid
+                end)
+
+                teleButton.MouseButton1Click:Connect(function()
+                    -- Dịch chuyển tới player
+                    LocalPlayer.Character:SetPrimaryPartCFrame(player.Character.HumanoidRootPart.CFrame)
+                end)
+            end
+        end
     end
 end)
 
--- Chuyển Server
-ServerButton.MouseButton1Click:Connect(function()
-    local TeleportService = game:GetService("TeleportService")
-    local placeId = game.PlaceId
-    TeleportService:Teleport(placeId)
+-- Xử lý khi player ra khỏi game
+Players.PlayerRemoving:Connect(function(player)
+    for _, playerNameLabel in ipairs(PlayerListFrame:GetChildren()) do
+        if playerNameLabel:IsA("TextLabel") and playerNameLabel.Text == player.Name then
+            playerNameLabel:Destroy()
+        end
+    end
 end)
