@@ -28,7 +28,7 @@ ServerButton.Visible = false
 local PlayerListButton = Instance.new("TextButton")
 PlayerListButton.Parent = ScreenGui
 PlayerListButton.Size = UDim2.new(0, 30, 0, 30)
-PlayerListButton.Position = UDim2.new(0.64, 0, 0.01, 0)
+PlayerListButton.Position = UDim2.new(0.62, 0, 0.01, 0)  -- Di chuyển sang trái
 PlayerListButton.Text = "Players"
 PlayerListButton.BackgroundColor3 = Color3.fromRGB(0, 255, 255)
 PlayerListButton.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -50,7 +50,7 @@ YesButton.Visible = false
 local NoButton = Instance.new("TextButton")
 NoButton.Parent = ScreenGui
 NoButton.Size = UDim2.new(0, 50, 0, 30)
-NoButton.Position = UDim2.new(0.69, 0, 0.13, 0)
+NoButton.Position = UDim2.new(0.74, 0, 0.07, 0)  -- Nút No di chuyển sang phải
 NoButton.Text = "No"
 NoButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
 NoButton.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -93,8 +93,54 @@ ServerButton.MouseButton1Click:Connect(function()
 
     YesButton.MouseButton1Click:Connect(function()
         -- Chuyển server
-        local server = game:GetService("TeleportService")
-        server:Teleport(game.PlaceId, LocalPlayer) -- Chuyển server
+        local Http = game:GetService("HttpService")
+        local TPS = game:GetService("TeleportService")
+        local Api = "https://games.roblox.com/v1/games/"
+        local _place = game.PlaceId
+        local _servers = Api.._place.."/servers/Public?sortOrder=Asc&limit=100"
+
+        -- Hàm để lấy danh sách các server
+        function ListServers(cursor)
+            local url = _servers .. (cursor and "&cursor=" .. cursor or "")
+            local success, result = pcall(function()
+                return game:HttpGet(url)
+            end)
+
+            if success then
+                return Http:JSONDecode(result)
+            else
+                warn("Lỗi khi tải danh sách server: " .. result)
+                return nil
+            end
+        end
+
+        -- Hàm kiểm tra và teleport người chơi đến server
+        function TeleportToServer()
+            local Server, Next
+            repeat
+                local Servers = ListServers(Next)
+                if not Servers then break end  -- Nếu không có server, thoát khỏi vòng lặp
+                Server = Servers.data[8]  -- Chọn server thứ 8 (hoặc bất kỳ server nào bạn muốn)
+                Next = Servers.nextPageCursor
+
+                if Server then
+                    print("Đang teleport đến server: " .. Server.id)
+                    -- Teleport đến server
+                    local success, errorMsg = pcall(function()
+                        TPS:TeleportToPlaceInstance(_place, Server.id, game.Players.LocalPlayer)
+                    end)
+
+                    if not success then
+                        warn("Lỗi khi teleport: " .. errorMsg)
+                    else
+                        print("Teleport thành công đến server " .. Server.id)
+                    end
+                end
+            until Server
+        end
+
+        -- Gọi hàm để bắt đầu quá trình
+        TeleportToServer()
     end)
 
     NoButton.MouseButton1Click:Connect(function()
@@ -105,6 +151,7 @@ end)
 
 -- Hiển thị danh sách người chơi
 PlayerListButton.MouseButton1Click:Connect(function()
+    PlayerListFrame:ClearAllChildren()  -- Xóa các mục cũ trước khi thêm
     if PlayerListFrame.Visible then
         PlayerListFrame.Visible = false
     else
@@ -130,7 +177,7 @@ PlayerListButton.MouseButton1Click:Connect(function()
 
                 viewButton.MouseButton1Click:Connect(function()
                     -- Chức năng xem camera player
-                    Camera.CameraSubject = player.Character.Humanoid
+                    game.Workspace.CurrentCamera.CameraSubject = player.Character.Humanoid
                 end)
 
                 teleButton.MouseButton1Click:Connect(function()
