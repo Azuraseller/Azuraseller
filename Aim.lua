@@ -37,6 +37,7 @@ ToggleButton.Image = "rbxassetid://133602550183849"
 ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
 ToggleButton.BackgroundTransparency = 1
 ToggleButton.ImageColor3 = Color3.fromRGB(255, 255, 255)
+ToggleButton.Visible = true -- Đảm bảo nút ON/OFF luôn hiển thị
 
 -- Nút X
 CloseButton.Parent = ScreenGui
@@ -50,7 +51,7 @@ CloseButton.TextSize = 18
 
 -- Nút cuộn
 DropdownButton.Parent = ScreenGui
-DropdownButton.Size = UDim2.new(0, 100, 0, 25) -- Chiều cao nhỏ hơn
+DropdownButton.Size = UDim2.new(0, 100, 0, 25)
 DropdownButton.Position = UDim2.new(0.85, 0, 0.07, 0)
 DropdownButton.Text = "↓"
 DropdownButton.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
@@ -59,8 +60,8 @@ DropdownButton.Visible = true
 
 -- Nút điều chỉnh bán kính
 RadiusButton.Parent = ScreenGui
-RadiusButton.Size = UDim2.new(0, 100, 0, 25) -- Giảm chiều cao
-RadiusButton.Position = UDim2.new(0.85, 0, 0.12, 0) -- Điều chỉnh khoảng cách
+RadiusButton.Size = UDim2.new(0, 100, 0, 25)
+RadiusButton.Position = UDim2.new(0.85, 0, 0.12, 0)
 RadiusButton.Text = "R: " .. Radius
 RadiusButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
 RadiusButton.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -68,8 +69,8 @@ RadiusButton.Visible = false
 
 -- Hộp nhập bán kính
 RadiusBox.Parent = ScreenGui
-RadiusBox.Size = UDim2.new(0, 100, 0, 25) -- Giảm chiều cao
-RadiusBox.Position = UDim2.new(0.85, 0, 0.17, 0) -- Điều chỉnh khoảng cách
+RadiusBox.Size = UDim2.new(0, 100, 0, 25)
+RadiusBox.Position = UDim2.new(0.85, 0, 0.17, 0)
 RadiusBox.PlaceholderText = "Nhập R"
 RadiusBox.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
 RadiusBox.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -77,8 +78,8 @@ RadiusBox.Visible = false
 
 -- Nút siêu tốc Aim
 SuperAimButton.Parent = ScreenGui
-SuperAimButton.Size = UDim2.new(0, 100, 0, 25) -- Giảm chiều cao
-SuperAimButton.Position = UDim2.new(0.85, 0, 0.22, 0) -- Điều chỉnh khoảng cách
+SuperAimButton.Size = UDim2.new(0, 100, 0, 25)
+SuperAimButton.Position = UDim2.new(0.85, 0, 0.22, 0)
 SuperAimButton.Text = "Siêu Aim"
 SuperAimButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
 SuperAimButton.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -117,7 +118,7 @@ end)
 -- Bật/tắt Aim qua nút X
 CloseButton.MouseButton1Click:Connect(function()
     AimActive = not AimActive
-    ToggleButton.Visible = AimActive
+    ToggleButton.Visible = AimActive -- Đảm bảo nút ON/OFF luôn hiển thị
     if not AimActive then
         ToggleButton.Image = "rbxassetid://133602550183849"
         ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
