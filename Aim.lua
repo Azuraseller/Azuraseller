@@ -9,23 +9,20 @@ local Camera2 = Instance.new("Camera")
 Camera2.Parent = workspace
 
 -- Cấu hình các tham số
-local Prediction = 0.1
-local Radius = 200
-local SmoothFactor = 0.15
-local CameraRotationSpeed = 0.5
+local Prediction = 0.1 -- Dự đoán vị trí mục tiêu
+local Radius = 200 -- Bán kính khóa mục tiêu
+local SmoothFactor = 0.15 -- Mức độ mượt khi camera theo dõi
+local CameraRotationSpeed = 0.5 -- Tốc độ xoay camera khi ghim mục tiêu
+local AimCorrectionSpeed = 0.2 -- Tốc độ điều chỉnh khi lệch mục tiêu
 local Locked = false
 local CurrentTarget = nil
-local AimActive = true
-local SuperAim = false
+local AimActive = true -- Trạng thái Aim
+local AutoAim = false -- Tự động kích hoạt khi có đối tượng trong bán kính
 
 -- GUI
 local ScreenGui = Instance.new("ScreenGui")
 local ToggleButton = Instance.new("ImageButton")
-local CloseButton = Instance.new("TextButton")
-local DropdownButton = Instance.new("TextButton")
-local RadiusButton = Instance.new("TextButton")
-local RadiusBox = Instance.new("TextBox")
-local SuperAimButton = Instance.new("TextButton")
+local CloseButton = Instance.new("TextButton") -- Nút X
 
 ScreenGui.Parent = game:GetService("CoreGui")
 
@@ -33,11 +30,11 @@ ScreenGui.Parent = game:GetService("CoreGui")
 ToggleButton.Parent = ScreenGui
 ToggleButton.Size = UDim2.new(0, 100, 0, 50)
 ToggleButton.Position = UDim2.new(0.85, 0, 0.01, 0)
-ToggleButton.Image = "rbxassetid://133602550183849"
+ToggleButton.Image = "rbxassetid://133602550183849" -- Thay đổi biểu tượng
 ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
 ToggleButton.BackgroundTransparency = 1
 ToggleButton.ImageColor3 = Color3.fromRGB(255, 255, 255)
-ToggleButton.Visible = true -- Đảm bảo nút ON/OFF luôn hiển thị
+ToggleButton.ImageTransparency = 0
 
 -- Nút X
 CloseButton.Parent = ScreenGui
@@ -49,84 +46,17 @@ CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 CloseButton.Font = Enum.Font.SourceSans
 CloseButton.TextSize = 18
 
--- Nút cuộn
-DropdownButton.Parent = ScreenGui
-DropdownButton.Size = UDim2.new(0, 100, 0, 25)
-DropdownButton.Position = UDim2.new(0.85, 0, 0.07, 0)
-DropdownButton.Text = "↓"
-DropdownButton.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-DropdownButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-DropdownButton.Visible = true
-
--- Nút điều chỉnh bán kính
-RadiusButton.Parent = ScreenGui
-RadiusButton.Size = UDim2.new(0, 100, 0, 25)
-RadiusButton.Position = UDim2.new(0.85, 0, 0.12, 0)
-RadiusButton.Text = "R: " .. Radius
-RadiusButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-RadiusButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-RadiusButton.Visible = false
-
--- Hộp nhập bán kính
-RadiusBox.Parent = ScreenGui
-RadiusBox.Size = UDim2.new(0, 100, 0, 25)
-RadiusBox.Position = UDim2.new(0.85, 0, 0.17, 0)
-RadiusBox.PlaceholderText = "Nhập R"
-RadiusBox.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-RadiusBox.TextColor3 = Color3.fromRGB(255, 255, 255)
-RadiusBox.Visible = false
-
--- Nút siêu tốc Aim
-SuperAimButton.Parent = ScreenGui
-SuperAimButton.Size = UDim2.new(0, 100, 0, 25)
-SuperAimButton.Position = UDim2.new(0.85, 0, 0.22, 0)
-SuperAimButton.Text = "Siêu Aim"
-SuperAimButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-SuperAimButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-SuperAimButton.Visible = false
-
--- Hàm bật/tắt dropdown
-local DropdownOpen = false
-DropdownButton.MouseButton1Click:Connect(function()
-    DropdownOpen = not DropdownOpen
-    RadiusButton.Visible = DropdownOpen
-    RadiusBox.Visible = DropdownOpen
-    SuperAimButton.Visible = DropdownOpen
-    DropdownButton.Text = DropdownOpen and "↑" or "↓"
-end)
-
--- Điều chỉnh bán kính
-RadiusBox.FocusLost:Connect(function(enterPressed)
-    if enterPressed then
-        local newRadius = tonumber(RadiusBox.Text)
-        if newRadius and newRadius >= 150 and newRadius <= 500 then
-            Radius = newRadius
-            RadiusButton.Text = "R: " .. Radius
-        else
-            RadiusBox.Text = ""
-            RadiusBox.PlaceholderText = "150-500"
-        end
-    end
-end)
-
--- Bật/tắt siêu tốc Aim
-SuperAimButton.MouseButton1Click:Connect(function()
-    SuperAim = not SuperAim
-    SuperAimButton.BackgroundColor3 = SuperAim and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(50, 50, 50)
-end)
-
--- Bật/tắt Aim qua nút X
+-- Hàm bật/tắt Aim qua nút X
 CloseButton.MouseButton1Click:Connect(function()
     AimActive = not AimActive
-    ToggleButton.Visible = AimActive -- Đảm bảo nút ON/OFF luôn hiển thị
-    if not AimActive then
-        ToggleButton.Image = "rbxassetid://133602550183849"
-        ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-        Locked = false
-        CurrentTarget = nil
-    else
+    if AimActive then
+        ToggleButton.Visible = true -- Hiển thị nút ON/OFF
         ToggleButton.Image = "rbxassetid://133602550183849"
         ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+    else
+        ToggleButton.Visible = false -- Ẩn nút ON/OFF
+        Locked = false
+        CurrentTarget = nil -- Ngừng ghim mục tiêu
     end
 end)
 
@@ -137,11 +67,11 @@ ToggleButton.MouseButton1Click:Connect(function()
         ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
     else
         ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-        CurrentTarget = nil
+        CurrentTarget = nil -- Hủy mục tiêu khi tắt CamLock
     end
 end)
 
--- Tìm kẻ thù gần nhất
+-- Tìm tất cả đối thủ trong phạm vi
 local function FindEnemiesInRadius()
     local targets = {}
     for _, Player in ipairs(Players:GetPlayers()) do
@@ -158,21 +88,75 @@ local function FindEnemiesInRadius()
     return targets
 end
 
+-- Dự đoán vị trí mục tiêu
+local function PredictTargetPosition(target)
+    local velocity = target.HumanoidRootPart.Velocity
+    local prediction = velocity * Prediction
+    return target.HumanoidRootPart.Position + prediction
+end
+
+-- Điều chỉnh camera để ghim chính xác mục tiêu
+local function AdjustCameraToTarget(targetPosition)
+    local currentCameraDirection = (Camera.CFrame.LookVector).Unit
+    local desiredDirection = (targetPosition - Camera.CFrame.Position).Unit
+    local adjustment = desiredDirection - currentCameraDirection
+
+    -- Điều chỉnh camera theo hướng mục tiêu với tốc độ giới hạn
+    if adjustment.Magnitude > 0.01 then
+        Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, targetPosition), AimCorrectionSpeed)
+    end
+end
+
+-- Hạn chế giật khi theo dõi mục tiêu
+local function LimitCameraJitter(targetPosition)
+    local maxAngleDeviation = math.rad(5) -- Giới hạn lệch góc tối đa (5 độ)
+    local cameraDirection = (Camera.CFrame.LookVector).Unit
+    local targetDirection = (targetPosition - Camera.CFrame.Position).Unit
+    local angle = math.acos(cameraDirection:Dot(targetDirection))
+
+    if angle > maxAngleDeviation then
+        local correctedDirection = cameraDirection:Lerp(targetDirection, maxAngleDeviation / angle)
+        Camera.CFrame = CFrame.new(Camera.CFrame.Position, Camera.CFrame.Position + correctedDirection)
+    end
+end
+
 -- Cập nhật camera
 RunService.RenderStepped:Connect(function()
-    if AimActive and Locked then
+    if AimActive then
+        -- Tìm kẻ thù gần nhất
         local enemies = FindEnemiesInRadius()
         if #enemies > 0 then
-            CurrentTarget = CurrentTarget or enemies[1]
+            if not Locked then
+                Locked = true
+                ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+            end
+            if not CurrentTarget then
+                CurrentTarget = enemies[1] -- Chọn mục tiêu đầu tiên
+            end
         else
-            CurrentTarget = nil
-            Locked = false
+            if Locked then
+                Locked = false
+                ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+                CurrentTarget = nil -- Ngừng ghim khi không còn mục tiêu
+            end
         end
 
-        if CurrentTarget then
-            local targetPosition = CurrentTarget.HumanoidRootPart.Position
-            local factor = SuperAim and 1 or SmoothFactor
-            Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, targetPosition), factor)
+        -- Theo dõi mục tiêu
+        if CurrentTarget and Locked then
+            local targetCharacter = CurrentTarget
+            if targetCharacter and targetCharacter:FindFirstChild("HumanoidRootPart") then
+                local targetPosition = PredictTargetPosition(targetCharacter)
+
+                -- Kiểm tra nếu mục tiêu không hợp lệ
+                local distance = (targetCharacter.HumanoidRootPart.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude
+                if targetCharacter.Humanoid.Health <= 0 or distance > Radius then
+                    CurrentTarget = nil
+                else
+                    -- Điều chỉnh vị trí camera để ghim chính xác
+                    AdjustCameraToTarget(targetPosition)
+                    LimitCameraJitter(targetPosition)
+                end
+            end
         end
     end
 end)
