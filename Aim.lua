@@ -9,14 +9,13 @@ local Camera2 = Instance.new("Camera")
 Camera2.Parent = workspace
 
 -- Cấu hình các tham số
-local Prediction = 0.1 -- Dự đoán vị trí mục tiêu
-local Radius = 200 -- Bán kính khóa mục tiêu
-local SmoothFactor = 0.15 -- Mức độ mượt khi camera theo dõi
-local CameraRotationSpeed = 0.5 -- Tốc độ xoay camera khi ghim mục tiêu
-local AimCorrectionSpeed = 0.2 -- Tốc độ điều chỉnh khi lệch mục tiêu
+local Prediction = 0.1  -- Dự đoán vị trí mục tiêu
+local Radius = 200  -- Bán kính khóa mục tiêu
+local SmoothFactor = 0.15  -- Mức độ mượt khi camera theo dõi
+local CameraRotationSpeed = 0.5  -- Tốc độ xoay camera khi ghim mục tiêu
 local Locked = false
 local CurrentTarget = nil
-local AimActive = true -- Trạng thái Aim
+local AimActive = true -- Trạng thái aim (tự động bật/tắt)
 local AutoAim = false -- Tự động kích hoạt khi có đối tượng trong bán kính
 
 -- GUI
@@ -31,10 +30,10 @@ ToggleButton.Parent = ScreenGui
 ToggleButton.Size = UDim2.new(0, 100, 0, 50)
 ToggleButton.Position = UDim2.new(0.85, 0, 0.01, 0)
 ToggleButton.Image = "rbxassetid://133602550183849" -- Thay đổi biểu tượng
-ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-ToggleButton.BackgroundTransparency = 1
-ToggleButton.ImageColor3 = Color3.fromRGB(255, 255, 255)
-ToggleButton.ImageTransparency = 0
+ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- Màu nền
+ToggleButton.BackgroundTransparency = 1 -- Không có nền
+ToggleButton.ImageColor3 = Color3.fromRGB(255, 255, 255) -- Màu của biểu tượng
+ToggleButton.ImageTransparency = 0 -- Độ trong suốt của biểu tượng
 
 -- Nút X
 CloseButton.Parent = ScreenGui
@@ -49,14 +48,15 @@ CloseButton.TextSize = 18
 -- Hàm bật/tắt Aim qua nút X
 CloseButton.MouseButton1Click:Connect(function()
     AimActive = not AimActive
-    if AimActive then
-        ToggleButton.Visible = true -- Hiển thị nút ON/OFF
-        ToggleButton.Image = "rbxassetid://133602550183849"
-        ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
-    else
-        ToggleButton.Visible = false -- Ẩn nút ON/OFF
+    ToggleButton.Visible = AimActive -- Ẩn/hiện nút ON/OFF theo trạng thái Aim
+    if not AimActive then
+        ToggleButton.Image = "rbxassetid://133602550183849" -- Biểu tượng khi tắt
+        ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
         Locked = false
         CurrentTarget = nil -- Ngừng ghim mục tiêu
+    else
+        ToggleButton.Image = "rbxassetid://133602550183849" -- Biểu tượng khi bật
+        ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
     end
 end)
 
@@ -88,38 +88,22 @@ local function FindEnemiesInRadius()
     return targets
 end
 
+-- Điều chỉnh camera tránh bị che khuất
+local function AdjustCameraPosition(targetPosition)
+    local ray = Ray.new(Camera.CFrame.Position, targetPosition - Camera.CFrame.Position)
+    local hitPart = workspace:FindPartOnRay(ray, LocalPlayer.Character)
+    if hitPart then
+        return Camera.CFrame.Position + (targetPosition - Camera.CFrame.Position).Unit * 5
+    end
+    return targetPosition
+end
+
 -- Dự đoán vị trí mục tiêu
 local function PredictTargetPosition(target)
     local velocity = target.HumanoidRootPart.Velocity
     local prediction = velocity * Prediction
     return target.HumanoidRootPart.Position + prediction
 end
-
--- Điều chỉnh camera để ghim chính xác mục tiêu
-local function AdjustCameraToTarget(targetPosition)
-    local currentCameraDirection = (Camera.CFrame.LookVector).Unit
-    local desiredDirection = (targetPosition - Camera.CFrame.Position).Unit
-    local adjustment = desiredDirection - currentCameraDirection
-
-    -- Điều chỉnh camera theo hướng mục tiêu với tốc độ giới hạn
-    if adjustment.Magnitude > 0.01 then
-        Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, targetPosition), AimCorrectionSpeed)
-    end
-end
-
--- Hạn chế giật khi theo dõi mục tiêu
-local function LimitCameraJitter(targetPosition)
-    local maxAngleDeviation = math.rad(5) -- Giới hạn lệch góc tối đa (5 độ)
-    local cameraDirection = (Camera.CFrame.LookVector).Unit
-    local targetDirection = (targetPosition - Camera.CFrame.Position).Unit
-    local angle = math.acos(cameraDirection:Dot(targetDirection))
-
-    if angle > maxAngleDeviation then
-        local correctedDirection = cameraDirection:Lerp(targetDirection, maxAngleDeviation / angle)
-        Camera.CFrame = CFrame.new(Camera.CFrame.Position, Camera.CFrame.Position + correctedDirection)
-    end
-end
-
 -- Cập nhật camera
 RunService.RenderStepped:Connect(function()
     if AimActive then
@@ -152,11 +136,38 @@ RunService.RenderStepped:Connect(function()
                 if targetCharacter.Humanoid.Health <= 0 or distance > Radius then
                     CurrentTarget = nil
                 else
-                    -- Điều chỉnh vị trí camera để ghim chính xác
-                    AdjustCameraToTarget(targetPosition)
-                    LimitCameraJitter(targetPosition)
+                    -- Điều chỉnh vị trí camera
+                    targetPosition = AdjustCameraPosition(targetPosition)
+
+                    -- Cập nhật camera chính (Camera 1)
+                    Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, targetPosition), SmoothFactor)
+
+                    -- Cập nhật camera phụ (Camera 2)
+                    Camera2.CFrame = Camera2.CFrame:Lerp(CFrame.new(Camera2.CFrame.Position, targetPosition), SmoothFactor)
                 end
             end
         end
     end
 end)
+-- Thêm hiệu ứng cho nút Aim
+local function ButtonEffect()
+    local tweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+    local goal = {Size = UDim2.new(0, 150, 0, 75), Transparency = 1}
+    local tween = TweenService:Create(ToggleButton, tweenInfo, goal)
+    tween:Play()
+    tween.Completed:Connect(function()
+        -- Sau khi hiệu ứng hoàn tất, thực hiện thay đổi lại
+        ToggleButton.Size = UDim2.new(0, 100, 0, 50)
+        ToggleButton.Transparency = 0
+    end)
+end
+-- Gọi hiệu ứng khi bấm nút
+ToggleButton.MouseButton1Click:Connect(function()
+    ButtonEffect()
+end)
+0 commit comments
+Comments
+0
+ (0)
+Comment
+You're receiving notifications because you're subscribed to this thread.
