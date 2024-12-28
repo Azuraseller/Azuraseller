@@ -25,73 +25,74 @@ local RAdjustButton = Instance.new("TextButton")
 local RAdjustInput = Instance.new("TextBox")
 local AimAdjustButton = Instance.new("TextButton")
 local AimAdjustGui = Instance.new("Frame")
+local AimXInput = Instance.new("TextBox")
+local AimYInput = Instance.new("TextBox")
+local AimZInput = Instance.new("TextBox")
 
 ScreenGui.Parent = game:GetService("CoreGui")
 
+-- Hàm tạo nút với góc bo tròn
+local function CreateRoundedButton(button, parent, size, position, text, bgColor, textColor)
+    button.Parent = parent
+    button.Size = size
+    button.Position = position
+    button.Text = text
+    button.BackgroundColor3 = bgColor
+    button.TextColor3 = textColor
+    button.Font = Enum.Font.SourceSans
+    button.TextSize = 18
+    button.BorderSizePixel = 0
+
+    -- Góc bo tròn
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 10)
+    corner.Parent = button
+end
+
 -- Nút ON/OFF
-ToggleButton.Parent = ScreenGui
-ToggleButton.Size = UDim2.new(0, 100, 0, 50)
-ToggleButton.Position = UDim2.new(0.85, 0, 0.01, 0)
-ToggleButton.Text = "CamLock: OFF"
-ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-ToggleButton.Font = Enum.Font.SourceSans
-ToggleButton.TextSize = 20
+CreateRoundedButton(ToggleButton, ScreenGui, UDim2.new(0, 100, 0, 50), UDim2.new(0.85, 0, 0.01, 0), "CamLock: OFF", Color3.fromRGB(255, 0, 0), Color3.fromRGB(255, 255, 255))
 
--- Nút X
-CloseButton.Parent = ScreenGui
-CloseButton.Size = UDim2.new(0, 30, 0, 30)
-CloseButton.Position = UDim2.new(0.79, 0, 0.01, 0)
-CloseButton.Text = "X"
-CloseButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-CloseButton.Font = Enum.Font.SourceSans
-CloseButton.TextSize = 18
+-- Nút ⚙️
+CreateRoundedButton(CloseButton, ScreenGui, UDim2.new(0, 30, 0, 30), UDim2.new(0.79, 0, 0.01, 0), "⚙️", Color3.fromRGB(200, 200, 200), Color3.fromRGB(0, 0, 0))
 
--- Nút Menu
-MenuButton.Parent = ScreenGui
-MenuButton.Size = UDim2.new(0, 30, 0, 30)
-MenuButton.Position = UDim2.new(0.74, 0, 0.01, 0)
-MenuButton.Text = "📄"
-MenuButton.BackgroundColor3 = Color3.fromRGB(200, 200, 200)
-MenuButton.TextColor3 = Color3.fromRGB(0, 0, 0)
-MenuButton.Font = Enum.Font.SourceSans
-MenuButton.TextSize = 18
+-- Nút Menu 📄
+CreateRoundedButton(MenuButton, ScreenGui, UDim2.new(0, 30, 0, 30), UDim2.new(0.74, 0, 0.01, 0), "📄", Color3.fromRGB(200, 200, 200), Color3.fromRGB(0, 0, 0))
 
--- Nút chỉnh R
-RAdjustButton.Parent = ScreenGui
-RAdjustButton.Size = UDim2.new(0, 30, 0, 30)
-RAdjustButton.Position = UDim2.new(0.7, 0, 0.01, 0)
-RAdjustButton.Text = "🌐"
-RAdjustButton.BackgroundColor3 = Color3.fromRGB(200, 200, 200)
-RAdjustButton.TextColor3 = Color3.fromRGB(0, 0, 0)
-RAdjustButton.Font = Enum.Font.SourceSans
-RAdjustButton.TextSize = 18
+-- Nút chỉnh R 🌐
+CreateRoundedButton(RAdjustButton, ScreenGui, UDim2.new(0, 30, 0, 30), UDim2.new(0.69, 0, 0.01, 0), "🌐", Color3.fromRGB(200, 200, 200), Color3.fromRGB(0, 0, 0))
 RAdjustButton.Visible = false
 
 RAdjustInput.Parent = ScreenGui
 RAdjustInput.Size = UDim2.new(0, 100, 0, 20)
-RAdjustInput.Position = UDim2.new(0.7, 0, 0.05, 0)
+RAdjustInput.Position = UDim2.new(0.69, 0, 0.05, 0)
 RAdjustInput.Text = tostring(Radius)
 RAdjustInput.BackgroundColor3 = Color3.fromRGB(240, 240, 240)
 RAdjustInput.Visible = false
 
--- Nút chỉnh Aim
-AimAdjustButton.Parent = ScreenGui
-AimAdjustButton.Size = UDim2.new(0, 30, 0, 30)
-AimAdjustButton.Position = UDim2.new(0.65, 0, 0.01, 0)
-AimAdjustButton.Text = "🎯"
-AimAdjustButton.BackgroundColor3 = Color3.fromRGB(200, 200, 200)
-AimAdjustButton.TextColor3 = Color3.fromRGB(0, 0, 0)
-AimAdjustButton.Font = Enum.Font.SourceSans
-AimAdjustButton.TextSize = 18
+-- Nút chỉnh Aim 🎯
+CreateRoundedButton(AimAdjustButton, ScreenGui, UDim2.new(0, 30, 0, 30), UDim2.new(0.64, 0, 0.01, 0), "🎯", Color3.fromRGB(200, 200, 200), Color3.fromRGB(0, 0, 0))
 AimAdjustButton.Visible = false
 
 AimAdjustGui.Parent = ScreenGui
-AimAdjustGui.Size = UDim2.new(0, 100, 0, 50)
-AimAdjustGui.Position = UDim2.new(0.65, 0, 0.05, 0)
+AimAdjustGui.Size = UDim2.new(0, 150, 0, 100)
+AimAdjustGui.Position = UDim2.new(0.64, 0, 0.05, 0)
 AimAdjustGui.BackgroundColor3 = Color3.fromRGB(240, 240, 240)
 AimAdjustGui.Visible = false
+
+-- Các TextBox chỉnh x, y, z
+local function CreateAimInput(input, parent, position, defaultText)
+    input.Parent = parent
+    input.Size = UDim2.new(0, 50, 0, 20)
+    input.Position = position
+    input.Text = defaultText
+    input.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    input.Font = Enum.Font.SourceSans
+    input.TextSize = 14
+end
+
+CreateAimInput(AimXInput, AimAdjustGui, UDim2.new(0, 0, 0, 10), "X: 1.0")
+CreateAimInput(AimYInput, AimAdjustGui, UDim2.new(0, 50, 0, 10), "Y: 1.0")
+CreateAimInput(AimZInput, AimAdjustGui, UDim2.new(0, 100, 0, 10), "Z: 1.0")
 
 -- Chức năng bật/tắt Aim
 CloseButton.MouseButton1Click:Connect(function()
@@ -137,6 +138,21 @@ end)
 -- Chỉnh Aim Center
 AimAdjustButton.MouseButton1Click:Connect(function()
     AimAdjustGui.Visible = not AimAdjustGui.Visible
+end)
+
+AimXInput.FocusLost:Connect(function()
+    local newValue = tonumber(AimXInput.Text:match("X: (%d+%.?%d*)"))
+    if newValue then AimCenter = Vector3.new(newValue, AimCenter.Y, AimCenter.Z) end
+end)
+
+AimYInput.FocusLost:Connect(function()
+    local newValue = tonumber(AimYInput.Text:match("Y: (%d+%.?%d*)"))
+    if newValue then AimCenter = Vector3.new(AimCenter.X, newValue, AimCenter.Z) end
+end)
+
+AimZInput.FocusLost:Connect(function()
+    local newValue = tonumber(AimZInput.Text:match("Z: (%d+%.?%d*)"))
+    if newValue then AimCenter = Vector3.new(AimCenter.X, AimCenter.Y, newValue) end
 end)
 
 -- Tìm mục tiêu
