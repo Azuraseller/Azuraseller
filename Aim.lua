@@ -10,7 +10,7 @@ Camera2.Parent = workspace
 
 -- Cấu hình các tham số
 local Prediction = 0.1  -- Dự đoán vị trí mục tiêu
-local Radius = 230 -- Bán kính khóa mục tiêu mặc định
+local Radius = 200 -- Bán kính khóa mục tiêu (mặc định)
 local BaseSmoothFactor = 0.15  -- Mức độ mượt khi camera theo dõi (cơ bản)
 local MaxSmoothFactor = 0.5  -- Mức độ mượt tối đa
 local CameraRotationSpeed = 0.3  -- Tốc độ xoay camera khi ghim mục tiêu
@@ -20,17 +20,17 @@ local Locked = false
 local CurrentTarget = nil
 local AimActive = true -- Trạng thái aim (tự động bật/tắt)
 local AutoAim = false -- Tự động kích hoạt khi có đối tượng trong bán kính
-local PriorityTarget = nil -- Mục tiêu ưu tiên
+local TargetPrioritize = nil -- Mục tiêu ưu tiên
 
 -- GUI
 local ScreenGui = Instance.new("ScreenGui")
 local ToggleButton = Instance.new("TextButton")
-local CloseButton = Instance.new("TextButton") -- Nút ⚙️
+local CloseButton = Instance.new("TextButton") -- Nút ⚙️ (Settings)
 local MenuButton = Instance.new("TextButton") -- Nút Menu
-local RSliderButton = Instance.new("TextButton") -- Nút chỉnh R
-local AimSliderButton = Instance.new("TextButton") -- Nút chỉnh tâm Aim
-local RInputField = Instance.new("TextBox") -- Ô nhập R
-local AimInputField = Instance.new("TextBox") -- Ô nhập tâm Aim
+local RadiusButton = Instance.new("TextButton") -- Nút chỉnh R
+local AimCenterButton = Instance.new("TextButton") -- Nút chỉnh tâm Aim
+local RadiusInput = Instance.new("TextBox") -- Input chỉnh R
+local AimCenterInput = Instance.new("TextBox") -- Input chỉnh tâm Aim
 
 ScreenGui.Parent = game:GetService("CoreGui")
 
@@ -43,10 +43,9 @@ ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- Màu nền khi tắ
 ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255) -- Màu chữ
 ToggleButton.Font = Enum.Font.SourceSans
 ToggleButton.TextSize = 18
-ToggleButton.AutoButtonColor = false
-ToggleButton.BorderRadius = UDim.new(0, 12) -- Làm tròn các góc
+ToggleButton.BorderRadius = UDim.new(0, 10) -- Round corners
 
--- Nút ⚙️ (thay thế nút X)
+-- Nút ⚙️ (Settings)
 CloseButton.Parent = ScreenGui
 CloseButton.Size = UDim2.new(0, 30, 0, 30)
 CloseButton.Position = UDim2.new(0.79, 0, 0.01, 0)
@@ -55,82 +54,58 @@ CloseButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
 CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 CloseButton.Font = Enum.Font.SourceSans
 CloseButton.TextSize = 18
-CloseButton.AutoButtonColor = false
-CloseButton.BorderRadius = UDim.new(0, 12) -- Làm tròn các góc
+CloseButton.BorderRadius = UDim.new(0, 10) -- Round corners
 
 -- Nút Menu
 MenuButton.Parent = ScreenGui
 MenuButton.Size = UDim2.new(0, 30, 0, 30)
 MenuButton.Position = UDim2.new(0.74, 0, 0.01, 0)
 MenuButton.Text = "📄"
-MenuButton.BackgroundColor3 = Color3.fromRGB(255, 255, 0)
-MenuButton.TextColor3 = Color3.fromRGB(0, 0, 0)
+MenuButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+MenuButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 MenuButton.Font = Enum.Font.SourceSans
 MenuButton.TextSize = 18
-MenuButton.AutoButtonColor = false
-MenuButton.BorderRadius = UDim.new(0, 12) -- Làm tròn các góc
+MenuButton.BorderRadius = UDim.new(0, 10) -- Round corners
 
 -- Nút chỉnh R
-RSliderButton.Parent = ScreenGui
-RSliderButton.Size = UDim2.new(0, 30, 0, 30)
-RSliderButton.Position = UDim2.new(0.69, 0, 0.01, 0)
-RSliderButton.Text = "🌐"
-RSliderButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
-RSliderButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-RSliderButton.Font = Enum.Font.SourceSans
-RSliderButton.TextSize = 18
-RSliderButton.AutoButtonColor = false
-RSliderButton.BorderRadius = UDim.new(0, 12) -- Làm tròn các góc
-RSliderButton.Visible = false
+RadiusButton.Parent = ScreenGui
+RadiusButton.Size = UDim2.new(0, 30, 0, 30)
+RadiusButton.Position = UDim2.new(0.64, 0, 0.01, 0)
+RadiusButton.Text = "🌐"
+RadiusButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+RadiusButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+RadiusButton.Font = Enum.Font.SourceSans
+RadiusButton.TextSize = 18
+RadiusButton.BorderRadius = UDim.new(0, 10) -- Round corners
 
 -- Nút chỉnh tâm Aim
-AimSliderButton.Parent = ScreenGui
-AimSliderButton.Size = UDim2.new(0, 30, 0, 30)
-AimSliderButton.Position = UDim2.new(0.64, 0, 0.01, 0)
-AimSliderButton.Text = "🎯"
-AimSliderButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
-AimSliderButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-AimSliderButton.Font = Enum.Font.SourceSans
-AimSliderButton.TextSize = 18
-AimSliderButton.AutoButtonColor = false
-AimSliderButton.BorderRadius = UDim.new(0, 12) -- Làm tròn các góc
-AimSliderButton.Visible = false
+AimCenterButton.Parent = ScreenGui
+AimCenterButton.Size = UDim2.new(0, 30, 0, 30)
+AimCenterButton.Position = UDim2.new(0.54, 0, 0.01, 0)
+AimCenterButton.Text = "🎯"
+AimCenterButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+AimCenterButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+AimCenterButton.Font = Enum.Font.SourceSans
+AimCenterButton.TextSize = 18
+AimCenterButton.BorderRadius = UDim.new(0, 10) -- Round corners
 
--- Ô nhập R
-RInputField.Parent = ScreenGui
-RInputField.Size = UDim2.new(0, 100, 0, 30)
-RInputField.Position = UDim2.new(0.69, 0, 0.07, 0)
-RInputField.Text = tostring(Radius)
-RInputField.Visible = false
-RInputField.TextChanged:Connect(function()
-    local newR = tonumber(RInputField.Text)
-    if newR then
-        Radius = math.clamp(newR, 100, 1000)
-    end
-end)
-RInputField.BorderRadius = UDim.new(0, 12) -- Làm tròn các góc
+-- Input chỉnh R
+RadiusInput.Parent = ScreenGui
+RadiusInput.Size = UDim2.new(0, 100, 0, 30)
+RadiusInput.Position = UDim2.new(0.64, 0, 0.07, 0) -- Đưa xuống một chút
+RadiusInput.Text = "200"
+RadiusInput.Visible = false
+RadiusInput.BorderRadius = UDim.new(0, 10) -- Round corners
 
--- Ô nhập tâm Aim
-AimInputField.Parent = ScreenGui
-AimInputField.Size = UDim2.new(0, 100, 0, 30)
-AimInputField.Position = UDim2.new(0.64, 0, 0.13, 0)
-AimInputField.Text = "1.0,1.0,1.0"
-AimInputField.Visible = false
-AimInputField.TextChanged:Connect(function()
-    local newAim = AimInputField.Text
-    local values = {}
-    for value in newAim:gmatch("([%d%.]+)") do
-        table.insert(values, tonumber(value))
-    end
-    if #values == 3 then
-        local x, y, z = values[1], values[2], values[3]
-        -- Cập nhật giá trị tâm Aim
-        -- Bạn có thể dùng các giá trị này để điều chỉnh camera
-    end
-end)
-AimInputField.BorderRadius = UDim.new(0, 12) -- Làm tròn các góc
+-- Input chỉnh tâm Aim
+AimCenterInput.Parent = ScreenGui
+AimCenterInput.Size = UDim2.new(0, 100, 0, 30)
+AimCenterInput.Position = UDim2.new(0.54, 0, 0.07, 0) -- Đưa xuống một chút
+AimCenterInput.Text = "1.0, 1.0, 1.0"
+AimCenterInput.Visible = false
+AimCenterInput.BorderRadius = UDim.new(0, 10) -- Round corners
 
--- Nút ON/OFF để bật/tắt Aim
+-- Hàm bật/tắt Aim qua nút ⚙️
 CloseButton.MouseButton1Click:Connect(function()
     AimActive = not AimActive
     ToggleButton.Visible = AimActive -- Ẩn/hiện nút ON/OFF theo trạng thái Aim
@@ -147,52 +122,94 @@ end)
 
 -- Nút Menu
 MenuButton.MouseButton1Click:Connect(function()
-    -- Xử lý trạng thái On/Off của nút Menu
-    if RSliderButton.Visible then
-        RSliderButton.Visible = false
-        AimSliderButton.Visible = false
-    else
-        RSliderButton.Visible = true
-        AimSliderButton.Visible = true
-    end
+    local isVisible = RadiusButton.Visible
+    RadiusButton.Visible = not isVisible
+    AimCenterButton.Visible = not isVisible
+    RadiusInput.Visible = not isVisible
+    AimCenterInput.Visible = not isVisible
 end)
 
 -- Nút chỉnh R
-RSliderButton.MouseButton1Click:Connect(function()
-    RInputField.Visible = not RInputField.Visible
-    if RInputField.Visible then
-        AimSliderButton.Visible = false
+RadiusButton.MouseButton1Click:Connect(function()
+    RadiusInput.Visible = not RadiusInput.Visible
+    if RadiusInput.Visible then
+        RadiusInput.Text = tostring(Radius) -- Show current radius value
     end
 end)
 
 -- Nút chỉnh tâm Aim
-AimSliderButton.MouseButton1Click:Connect(function()
-    AimInputField.Visible = not AimInputField.Visible
-    if AimInputField.Visible then
-        RInputField.Visible = false
+AimCenterButton.MouseButton1Click:Connect(function()
+    AimCenterInput.Visible = not AimCenterInput.Visible
+    if AimCenterInput.Visible then
+        AimCenterInput.Text = "1.0, 1.0, 1.0" -- Default Aim center
     end
 end)
 
--- Hàm dự đoán vị trí mục tiêu sẽ đi tới
-local function PredictTargetPosition(target)
-    local humanoidRootPart = target:FindFirstChild("HumanoidRootPart")
-    if humanoidRootPart then
-        local velocity = humanoidRootPart.Velocity
-        local direction = velocity.Unit
-        local speed = velocity.Magnitude
-        return humanoidRootPart.Position + velocity * Prediction
+-- Cập nhật giá trị bán kính và tâm Aim
+RadiusInput.FocusLost:Connect(function(enterPressed)
+    if enterPressed then
+        local newRadius = tonumber(RadiusInput.Text)
+        if newRadius and newRadius >= 100 and newRadius <= 1000 then
+            Radius = newRadius
+        end
+        RadiusInput.Visible = false
     end
-    return target.HumanoidRootPart.Position
+end)
+
+AimCenterInput.FocusLost:Connect(function(enterPressed)
+    if enterPressed then
+        local newCenter = AimCenterInput.Text:split(",")
+        if #newCenter == 3 then
+            local x, y, z = tonumber(newCenter[1]), tonumber(newCenter[2]), tonumber(newCenter[3])
+            if x and y and z then
+                -- Update the aim center values
+                -- For now, just print the new values
+                print("New Aim Center:", x, y, z)
+            end
+        end
+        AimCenterInput.Visible = false
+    end
+end)
+
+-- Tìm tất cả đối thủ trong phạm vi
+local function FindEnemiesInRadius()
+    local targets = {}
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer then
+            local character = player.Character
+            if character and character:FindFirstChild("HumanoidRootPart") then
+                local distance = (character.HumanoidRootPart.Position - Camera.CFrame.Position).Magnitude
+                if distance <= Radius then
+                    table.insert(targets, character)
+                end
+            end
+        end
+    end
+    return targets
 end
 
--- Cập nhật camera và các chức năng Aim
+-- Hàm dự đoán vị trí mục tiêu
+local function PredictTargetPosition(target, predictionTime)
+    local targetVelocity = target.HumanoidRootPart.Velocity
+    local predictedPosition = target.HumanoidRootPart.Position + targetVelocity * predictionTime
+    return predictedPosition
+end
+
+-- Hàm cập nhật camera và aim
+local function UpdateCamera()
+    local enemies = FindEnemiesInRadius()
+    if #enemies > 0 then
+        local target = enemies[1] -- Chọn mục tiêu đầu tiên trong danh sách
+        local predictedPosition = PredictTargetPosition(target, Prediction)
+        
+        -- Cập nhật camera theo vị trí mục tiêu
+        Camera.CFrame = CFrame.new(Camera.CFrame.Position, predictedPosition)
+    end
+end
+
+-- Chạy hàm UpdateCamera mỗi frame
 RunService.RenderStepped:Connect(function()
     if AimActive then
-        -- Tìm kẻ thù gần nhất
-        local enemies = FindEnemiesInRadius()
-        if #enemies > 0 then
-            if not Locked then
-                Locked = true
-                ToggleButton.Text = "ON"
-                ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
-            end
+        UpdateCamera()
+    end
+end)
