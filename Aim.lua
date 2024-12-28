@@ -10,9 +10,12 @@ Camera2.Parent = workspace
 
 -- Cấu hình các tham số
 local Prediction = 0.1  -- Dự đoán vị trí mục tiêu
-local Radius = 200  -- Bán kính khóa mục tiêu
-local SmoothFactor = 0.15  -- Mức độ mượt khi camera theo dõi
-local CameraRotationSpeed = 0.5  -- Tốc độ xoay camera khi ghim mục tiêu
+local Radius = 230 -- Bán kính khóa mục tiêu
+local BaseSmoothFactor = 0.15  -- Mức độ mượt khi camera theo dõi (cơ bản)
+local MaxSmoothFactor = 0.5  -- Mức độ mượt tối đa
+local CameraRotationSpeed = 0.3  -- Tốc độ xoay camera khi ghim mục tiêu
+local TargetLockSpeed = 0.2 -- Tốc độ ghim mục tiêu
+local TargetSwitchSpeed = 0.1 -- Tốc độ chuyển mục tiêu
 local Locked = false
 local CurrentTarget = nil
 local AimActive = true -- Trạng thái aim (tự động bật/tắt)
@@ -20,7 +23,7 @@ local AutoAim = false -- Tự động kích hoạt khi có đối tượng trong
 
 -- GUI
 local ScreenGui = Instance.new("ScreenGui")
-local ToggleButton = Instance.new("ImageButton")
+local ToggleButton = Instance.new("TextButton")
 local CloseButton = Instance.new("TextButton") -- Nút X
 
 ScreenGui.Parent = game:GetService("CoreGui")
@@ -29,11 +32,11 @@ ScreenGui.Parent = game:GetService("CoreGui")
 ToggleButton.Parent = ScreenGui
 ToggleButton.Size = UDim2.new(0, 100, 0, 50)
 ToggleButton.Position = UDim2.new(0.85, 0, 0.01, 0)
-ToggleButton.Image = "rbxassetid://133602550183849" -- Thay đổi biểu tượng
-ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- Màu nền
-ToggleButton.BackgroundTransparency = 1 -- Không có nền
-ToggleButton.ImageColor3 = Color3.fromRGB(255, 255, 255) -- Màu của biểu tượng
-ToggleButton.ImageTransparency = 0 -- Độ trong suốt của biểu tượng
+ToggleButton.Text = "OFF" -- Văn bản mặc định
+ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- Màu nền khi tắt
+ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255) -- Màu chữ
+ToggleButton.Font = Enum.Font.SourceSans
+ToggleButton.TextSize = 18
 
 -- Nút X
 CloseButton.Parent = ScreenGui
@@ -50,12 +53,12 @@ CloseButton.MouseButton1Click:Connect(function()
     AimActive = not AimActive
     ToggleButton.Visible = AimActive -- Ẩn/hiện nút ON/OFF theo trạng thái Aim
     if not AimActive then
-        ToggleButton.Image = "rbxassetid://133602550183849" -- Biểu tượng khi tắt
+        ToggleButton.Text = "OFF"
         ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
         Locked = false
         CurrentTarget = nil -- Ngừng ghim mục tiêu
     else
-        ToggleButton.Image = "rbxassetid://133602550183849" -- Biểu tượng khi bật
+        ToggleButton.Text = "ON"
         ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
     end
 end)
@@ -64,8 +67,10 @@ end)
 ToggleButton.MouseButton1Click:Connect(function()
     Locked = not Locked
     if Locked then
+        ToggleButton.Text = "ON"
         ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
     else
+        ToggleButton.Text = "OFF"
         ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
         CurrentTarget = nil -- Hủy mục tiêu khi tắt CamLock
     end
@@ -85,6 +90,12 @@ local function FindEnemiesInRadius()
             end
         end
     end
+    -- Nếu có nhiều mục tiêu, chọn mục tiêu gần nhất với LocalPlayer
+    if #targets > 1 then
+        table.sort(targets, function(a, b)
+            return (a.HumanoidRootPart.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude < (b.HumanoidRootPart.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude
+        end)
+    end
     return targets
 end
 
@@ -98,12 +109,27 @@ local function AdjustCameraPosition(targetPosition)
     return targetPosition
 end
 
--- Dự đoán vị trí mục tiêu
+-- Dự đoán vị trí mục tiêu với gia tốc và tốc độ
 local function PredictTargetPosition(target)
-    local velocity = target.HumanoidRootPart.Velocity
-    local prediction = velocity * Prediction
-    return target.HumanoidRootPart.Position + prediction
+    local humanoid = target:FindFirstChild("Humanoid")
+    local humanoidRootPart = target:FindFirstChild("HumanoidRootPart")
+    if humanoid and humanoidRootPart then
+        local velocity = humanoidRootPart.Velocity
+        local direction = velocity.Unit
+        local speed = velocity.Magnitude
+        local predictedPosition = humanoidRootPart.Position + velocity * Prediction
+        return predictedPosition
+    end
+    return target.HumanoidRootPart.Position
 end
+
+-- Tính toán SmoothFactor dựa trên tốc độ mục tiêu
+local function CalculateSmoothFactor(target)
+    local velocityMagnitude = target.HumanoidRootPart.Velocity.Magnitude
+    local smoothFactor = BaseSmoothFactor + (velocityMagnitude / 100)
+    return math.clamp(smoothFactor, BaseSmoothFactor, MaxSmoothFactor)
+end
+
 -- Cập nhật camera
 RunService.RenderStepped:Connect(function()
     if AimActive then
@@ -112,6 +138,7 @@ RunService.RenderStepped:Connect(function()
         if #enemies > 0 then
             if not Locked then
                 Locked = true
+                ToggleButton.Text = "ON"
                 ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
             end
             if not CurrentTarget then
@@ -120,6 +147,7 @@ RunService.RenderStepped:Connect(function()
         else
             if Locked then
                 Locked = false
+                ToggleButton.Text = "OFF"
                 ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
                 CurrentTarget = nil -- Ngừng ghim khi không còn mục tiêu
             end
@@ -139,29 +167,27 @@ RunService.RenderStepped:Connect(function()
                     -- Điều chỉnh vị trí camera
                     targetPosition = AdjustCameraPosition(targetPosition)
 
+                    -- Tính toán SmoothFactor
+                    local SmoothFactor = CalculateSmoothFactor(targetCharacter)
+
+                    -- Sử dụng TargetLockSpeed để điều chỉnh tốc độ ghim
+                    local TargetPositionSmooth = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, targetPosition), TargetLockSpeed)
                     -- Cập nhật camera chính (Camera 1)
-                    Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, targetPosition), SmoothFactor)
+                    Camera.CFrame = TargetPositionSmooth
 
                     -- Cập nhật camera phụ (Camera 2)
-                    Camera2.CFrame = Camera2.CFrame:Lerp(CFrame.new(Camera2.CFrame.Position, targetPosition), SmoothFactor)
+                    Camera2.CFrame = TargetPositionSmooth
                 end
             end
         end
     end
 end)
--- Thêm hiệu ứng cho nút Aim
-local function ButtonEffect()
-    local tweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
-    local goal = {Size = UDim2.new(0, 150, 0, 75), Transparency = 1}
-    local tween = TweenService:Create(ToggleButton, tweenInfo, goal)
-    tween:Play()
-    tween.Completed:Connect(function()
-        -- Sau khi hiệu ứng hoàn tất, thực hiện thay đổi lại
-        ToggleButton.Size = UDim2.new(0, 100, 0, 50)
-        ToggleButton.Transparency = 0
-    end)
-end
--- Gọi hiệu ứng khi bấm nút
-ToggleButton.MouseButton1Click:Connect(function()
-    ButtonEffect()
-end)
+
+-- Tự động bật script khi chuyển server
+Players.PlayerAdded:Connect(function(player)
+    if player == LocalPlayer then
+        AimActive = true
+        ToggleButton.Text = "ON"
+        ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+    end
+   end)
