@@ -13,7 +13,7 @@ local Radius = 200
 local SmoothFactor = 0.15
 local Locked = false
 local CurrentTarget = nil
-local AimActive = true
+local AimActive = false
 local AimOffset = Vector3.new(1, 1, 1) -- Tâm mặc định
 local PriorityTarget = nil -- Mục tiêu ưu tiên
 
@@ -50,14 +50,14 @@ local function CreateRoundedButton(button, parent, size, position, text, bgColor
     corner.Parent = button
 end
 
+-- Nút ⚙️
+CreateRoundedButton(CloseButton, ScreenGui, UDim2.new(0, 30, 0, 30), UDim2.new(0.79, 0, 0.01, 0), "⚙️", Color3.fromRGB(200, 200, 200), Color3.fromRGB(0, 0, 0))
+
 -- Nút Menu 📄
 CreateRoundedButton(MenuButton, ScreenGui, UDim2.new(0, 30, 0, 30), UDim2.new(0.73, 0, 0.01, 0), "📄", Color3.fromRGB(200, 200, 200), Color3.fromRGB(0, 0, 0))
 
 -- Nút ON/OFF
 CreateRoundedButton(ToggleButton, ScreenGui, UDim2.new(0, 100, 0, 50), UDim2.new(0.85, 0, 0.01, 0), "CamLock: OFF", Color3.fromRGB(255, 0, 0), Color3.fromRGB(255, 255, 255))
-
--- Nút ⚙️
-CreateRoundedButton(CloseButton, ScreenGui, UDim2.new(0, 30, 0, 30), UDim2.new(0.79, 0, 0.01, 0), "⚙️", Color3.fromRGB(200, 200, 200), Color3.fromRGB(0, 0, 0))
 
 -- Nút chỉnh R 🌐
 CreateRoundedButton(RAdjustButton, ScreenGui, UDim2.new(0, 30, 0, 30), UDim2.new(0.74, 0, 0.01, 0), "🌐", Color3.fromRGB(200, 200, 200), Color3.fromRGB(0, 0, 0))
@@ -153,6 +153,24 @@ MenuButton.MouseButton1Click:Connect(function()
     local isVisible = RAdjustButton.Visible
     RAdjustButton.Visible = not isVisible
     AimAdjustButton.Visible = not isVisible
+    if isVisible then
+        -- Ẩn các chức năng khi menu ẩn
+        ToggleButton.Visible = false
+        CloseButton.Visible = false
+    else
+        -- Hiển thị lại các chức năng khi menu mở
+        ToggleButton.Visible = true
+        CloseButton.Visible = true
+    end
+end)
+
+-- Hiển thị/ẩn nút ⚙️
+CloseButton.MouseButton1Click:Connect(function()
+    local isVisible = RAdjustButton.Visible
+    RAdjustButton.Visible = false
+    AimAdjustButton.Visible = false
+    ToggleButton.Visible = false
+    CloseButton.Visible = false
 end)
 
 -- Chỉnh R
