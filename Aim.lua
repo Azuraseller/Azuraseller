@@ -36,7 +36,8 @@ ToggleButton.TextSize = 18
 ToggleButton.BorderSizePixel = 0
 ToggleButton.TextScaled = true
 ToggleButton.ClipsDescendants = true
-ToggleButton.UICorner = Instance.new("UICorner", ToggleButton)
+local ToggleCorner = Instance.new("UICorner", ToggleButton)
+ToggleCorner.CornerRadius = UDim.new(0, 10)
 
 -- Nút ⚙️
 SettingsButton.Parent = ScreenGui
@@ -48,7 +49,8 @@ SettingsButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 SettingsButton.Font = Enum.Font.SourceSans
 SettingsButton.TextSize = 18
 SettingsButton.BorderSizePixel = 0
-SettingsButton.UICorner = Instance.new("UICorner", SettingsButton)
+local SettingsCorner = Instance.new("UICorner", SettingsButton)
+SettingsCorner.CornerRadius = UDim.new(0, 10)
 
 -- Nút 🌐
 AdjustRadiusButton.Parent = ScreenGui
@@ -61,7 +63,9 @@ AdjustRadiusButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 AdjustRadiusButton.Font = Enum.Font.SourceSans
 AdjustRadiusButton.TextSize = 18
 AdjustRadiusButton.BorderSizePixel = 0
-AdjustRadiusButton.UICorner = Instance.new("UICorner", AdjustRadiusButton)
+AdjustRadiusButton.Visible = true
+local AdjustCorner = Instance.new("UICorner", AdjustRadiusButton)
+AdjustCorner.CornerRadius = UDim.new(0, 10)
 
 -- TextBox để chỉnh R
 RadiusTextBox.Parent = ScreenGui
@@ -74,7 +78,8 @@ RadiusTextBox.Font = Enum.Font.SourceSans
 RadiusTextBox.TextSize = 18
 RadiusTextBox.BorderSizePixel = 0
 RadiusTextBox.Visible = false
-RadiusTextBox.UICorner = Instance.new("UICorner", RadiusTextBox)
+local RadiusCorner = Instance.new("UICorner", RadiusTextBox)
+RadiusCorner.CornerRadius = UDim.new(0, 10)
 
 -- Ẩn/hiện các nút khi bấm ⚙️
 SettingsButton.MouseButton1Click:Connect(function()
@@ -125,17 +130,6 @@ local function FindEnemiesInRadius()
     return targets
 end
 
--- Dự đoán vị trí phía trước mục tiêu
-local function PredictTargetPosition(target)
-    local humanoidRootPart = target:FindFirstChild("HumanoidRootPart")
-    if humanoidRootPart then
-        local velocity = humanoidRootPart.Velocity
-        local predictedPosition = humanoidRootPart.Position + velocity * Prediction
-        return predictedPosition
-    end
-    return target.HumanoidRootPart.Position
-end
-
 -- Theo dõi mục tiêu
 RunService.RenderStepped:Connect(function()
     if AimActive then
@@ -158,9 +152,9 @@ RunService.RenderStepped:Connect(function()
             end
         end
 
-        -- Theo dõi và ghim phía trước mục tiêu
+        -- Theo dõi mục tiêu
         if CurrentTarget and Locked then
-            local targetPosition = PredictTargetPosition(CurrentTarget)
+            local targetPosition = CurrentTarget.HumanoidRootPart.Position
             Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, targetPosition), BaseSmoothFactor)
         end
     end
