@@ -35,6 +35,11 @@ ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255) -- Màu chữ
 ToggleButton.Font = Enum.Font.SourceSans
 ToggleButton.TextSize = 18
 
+-- Thêm UICorner để bo tròn nút On/Off
+local ToggleButtonUICorner = Instance.new("UICorner")
+ToggleButtonUICorner.CornerRadius = UDim.new(0, 15) -- Bo tròn góc
+ToggleButtonUICorner.Parent = ToggleButton
+
 -- Nút X
 CloseButton.Parent = ScreenGui
 CloseButton.Size = UDim2.new(0, 30, 0, 30)
@@ -45,11 +50,18 @@ CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 CloseButton.Font = Enum.Font.SourceSans
 CloseButton.TextSize = 18
 
+-- Thêm UICorner để bo tròn nút X
+local CloseButtonUICorner = Instance.new("UICorner")
+CloseButtonUICorner.CornerRadius = UDim.new(0, 15) -- Bo tròn góc
+CloseButtonUICorner.Parent = CloseButton
+
 -- POV setup
 POV.Parent = ScreenGui
-POV.Size = UDim2.new(0, 30, 0, 30)
+POV.Size = UDim2.new(0, 30, 0, 30) -- Kích thước ban đầu của POV
 POV.Position = UDim2.new(0.5, -15, 0.5, -15) -- Căn giữa màn hình
 POV.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- Màu đỏ
+POV.BorderSizePixel = 3 -- Độ dày viền
+POV.BackgroundTransparency = 1 -- Không có màu nền (chỉ có viền)
 POV.Visible = false -- Ẩn POV khi Aim chưa bật
 
 -- Hàm bật/tắt Aim qua nút X
@@ -137,7 +149,7 @@ local function CalculateSmoothFactor(target)
     return math.clamp(smoothFactor, BaseSmoothFactor, MaxSmoothFactor)
 end
 
--- Cập nhật camera và xoay camera về phía mục tiêu
+-- Cập nhật camera và POV
 RunService.RenderStepped:Connect(function()
     if AimActive then
         -- Tìm kẻ thù gần nhất
@@ -186,10 +198,9 @@ RunService.RenderStepped:Connect(function()
                     -- Thay đổi FOV (Field of View) để tạo cảm giác POV
                     Camera.FieldOfView = 70 + (distance / Radius) * 20  -- Tăng FOV khi mục tiêu gần hơn
 
-                    -- Xoay camera về phía mục tiêu khi người chơi di chuyển
-                    local targetDirection = (targetPosition - Camera.CFrame.Position).Unit
-                    local cameraRotation = CFrame.new(Camera.CFrame.Position, targetPosition)
-                    Camera.CFrame = Camera.CFrame:Lerp(cameraRotation, CameraRotationSpeed)
+                    -- Cập nhật kích thước POV dựa trên khoảng cách
+                    local POVSize = math.clamp(30 + (1 - (distance / Radius)) * 50, 30, 80) -- Tính toán kích thước POV
+                    POV.Size = UDim2.new(0, POVSize, 0, POVSize) -- Cập nhật kích thước POV
                 end
             end
         end
