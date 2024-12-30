@@ -22,15 +22,12 @@ local CurrentTarget = nil
 local AimActive = true -- Trạng thái aim (tự động bật/tắt)
 local AutoAim = false -- Tự động kích hoạt khi có đối tượng trong bán kính
 local AIActive = false -- Trạng thái AI
-local GhostRecording = false -- Trạng thái AI Ghost
 
 -- GUI
 local ScreenGui = Instance.new("ScreenGui")
 local ToggleButton = Instance.new("TextButton")
 local CloseButton = Instance.new("TextButton") -- Nút X
 local AIButton = Instance.new("TextButton") -- Nút AI
-local GhostButton = Instance.new("TextButton") -- Nút AI Ghost
-local Circle = Instance.new("Frame") -- Vòng tròn trung tâm khi Aim On
 
 ScreenGui.Parent = game:GetService("CoreGui")
 
@@ -43,8 +40,6 @@ ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- Màu nền khi tắ
 ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255) -- Màu chữ
 ToggleButton.Font = Enum.Font.SourceSans
 ToggleButton.TextSize = 18
-ToggleButton.AutoButtonColor = false
-ToggleButton.AnchorPoint = Vector2.new(0.5, 0.5)
 ToggleButton.BorderRadius = UDim.new(0, 12) -- Bo tròn nút
 
 -- Nút X
@@ -56,8 +51,6 @@ CloseButton.BackgroundColor3 = Color3.fromRGB(200, 200, 200) -- Màu xám trong 
 CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 CloseButton.Font = Enum.Font.SourceSans
 CloseButton.TextSize = 18
-CloseButton.AutoButtonColor = false
-CloseButton.AnchorPoint = Vector2.new(0.5, 0.5)
 CloseButton.BorderRadius = UDim.new(0, 12) -- Bo tròn nút
 
 -- Nút AI
@@ -69,32 +62,7 @@ AIButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- Màu nền khi tắt
 AIButton.TextColor3 = Color3.fromRGB(255, 255, 255) -- Màu chữ
 AIButton.Font = Enum.Font.SourceSans
 AIButton.TextSize = 18
-AIButton.AutoButtonColor = false
-AIButton.AnchorPoint = Vector2.new(0.5, 0.5)
 AIButton.BorderRadius = UDim.new(0, 12) -- Bo tròn nút
-
--- Nút AI Ghost
-GhostButton.Parent = ScreenGui
-GhostButton.Size = UDim2.new(0, 100, 0, 50)
-GhostButton.Position = UDim2.new(0.75, 0, 0.08, 0)
-GhostButton.Text = "Ghost OFF" -- Văn bản mặc định
-GhostButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- Màu nền khi tắt
-GhostButton.TextColor3 = Color3.fromRGB(255, 255, 255) -- Màu chữ
-GhostButton.Font = Enum.Font.SourceSans
-GhostButton.TextSize = 18
-GhostButton.AutoButtonColor = false
-GhostButton.AnchorPoint = Vector2.new(0.5, 0.5)
-GhostButton.BorderRadius = UDim.new(0, 12) -- Bo tròn nút
-
--- Vòng tròn Aim
-Circle.Parent = ScreenGui
-Circle.Size = UDim2.new(0, 50, 0, 50)
-Circle.Position = UDim2.new(0.5, -25, 0.5, -25)
-Circle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-Circle.BorderSizePixel = 0
-Circle.Visible = false
-Circle.AnchorPoint = Vector2.new(0.5, 0.5)
-Circle.Shape = Enum.UIStroke.Round
 
 -- Hàm bật/tắt Aim qua nút X
 CloseButton.MouseButton1Click:Connect(function()
@@ -105,11 +73,9 @@ CloseButton.MouseButton1Click:Connect(function()
         ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
         Locked = false
         CurrentTarget = nil -- Ngừng ghim mục tiêu
-        Circle.Visible = false -- Ẩn vòng tròn khi Aim off
     else
         ToggleButton.Text = "ON"
         ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
-        Circle.Visible = true -- Hiển thị vòng tròn khi Aim on
     end
 end)
 
@@ -135,20 +101,6 @@ AIButton.MouseButton1Click:Connect(function()
     else
         AIButton.Text = "AI OFF"
         AIButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-    end
-end)
-
--- Nút AI Ghost ON/OFF
-GhostButton.MouseButton1Click:Connect(function()
-    GhostRecording = not GhostRecording
-    if GhostRecording then
-        GhostButton.Text = "Ghost ON"
-        GhostButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
-        -- Start recording player and target behavior
-    else
-        GhostButton.Text = "Ghost OFF"
-        GhostButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-        -- Stop recording
     end
 end)
 
@@ -205,21 +157,6 @@ local function CalculateSmoothFactor(target)
     local velocityMagnitude = target.HumanoidRootPart.Velocity.Magnitude
     local smoothFactor = BaseSmoothFactor + (velocityMagnitude / 100)
     return math.clamp(smoothFactor, BaseSmoothFactor, MaxSmoothFactor)
-end
-
--- AI Ghost: Ghi lại hành vi người chơi
-local AIBehavior = {}
-
-local function RecordPlayerBehavior()
-    local behavior = {}
-    -- Ghi lại hành vi người chơi như di chuyển, tốc độ, tần suất thay đổi hướng, v.v.
-    -- Phần này cần phát triển thêm
-    return behavior
-end
-
-local function ImitatePlayerBehavior(behavior)
-    -- Mô phỏng hành vi đã ghi lại khi người chơi không điều khiển
-    -- Phần này cần phát triển thêm
 end
 
 -- Cập nhật camera
