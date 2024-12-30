@@ -3,31 +3,29 @@ local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 local TweenService = game:GetService("TweenService")
-local Debris = game:GetService("Debris")
-
--- Tạo Camera phụ
-local Camera2 = Instance.new("Camera")
-Camera2.Parent = workspace
 
 -- Cấu hình các tham số
-local Prediction = 0.15  -- Dự đoán vị trí mục tiêu
-local Radius = 250 -- Bán kính khóa mục tiêu
-local BaseSmoothFactor = 0.2  -- Mức độ mượt khi camera theo dõi (cơ bản)
-local MaxSmoothFactor = 0.6  -- Mức độ mượt tối đa
-local CameraRotationSpeed = 0.25  -- Tốc độ xoay camera khi ghim mục tiêu
-local TargetLockSpeed = 0.15 -- Tốc độ ghim mục tiêu
+local Prediction = 0.1  -- Dự đoán vị trí mục tiêu
+local Radius = 230 -- Bán kính khóa mục tiêu
+local BaseSmoothFactor = 0.15  -- Mức độ mượt khi camera theo dõi (cơ bản)
+local MaxSmoothFactor = 0.5  -- Mức độ mượt tối đa
+local CameraRotationSpeed = 0.3  -- Tốc độ xoay camera khi ghim mục tiêu
+local TargetLockSpeed = 0.2 -- Tốc độ ghim mục tiêu
 local TargetSwitchSpeed = 0.1 -- Tốc độ chuyển mục tiêu
 local Locked = false
 local CurrentTarget = nil
 local AimActive = true -- Trạng thái aim (tự động bật/tắt)
 local AutoAim = false -- Tự động kích hoạt khi có đối tượng trong bán kính
 local AIActive = false -- Trạng thái AI
+local AIGhostActive = false -- Trạng thái AI Ghost
 
 -- GUI
 local ScreenGui = Instance.new("ScreenGui")
 local ToggleButton = Instance.new("TextButton")
 local CloseButton = Instance.new("TextButton") -- Nút X
 local AIButton = Instance.new("TextButton") -- Nút AI
+local AIGhostButton = Instance.new("TextButton") -- Nút AI Ghost
+local FOVCircle = Instance.new("Frame")
 
 ScreenGui.Parent = game:GetService("CoreGui")
 
@@ -40,6 +38,8 @@ ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- Màu nền khi tắ
 ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255) -- Màu chữ
 ToggleButton.Font = Enum.Font.SourceSans
 ToggleButton.TextSize = 18
+ToggleButton.AutoButtonColor = false
+ToggleButton.BorderRadius = UDim.new(0, 12) -- Bo tròn nút
 
 -- Nút X
 CloseButton.Parent = ScreenGui
@@ -50,6 +50,8 @@ CloseButton.BackgroundColor3 = Color3.fromRGB(200, 200, 200) -- Màu xám trong 
 CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 CloseButton.Font = Enum.Font.SourceSans
 CloseButton.TextSize = 18
+CloseButton.AutoButtonColor = false
+CloseButton.BorderRadius = UDim.new(0, 12) -- Bo tròn nút
 
 -- Nút AI
 AIButton.Parent = ScreenGui
@@ -60,6 +62,28 @@ AIButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- Màu nền khi tắt
 AIButton.TextColor3 = Color3.fromRGB(255, 255, 255) -- Màu chữ
 AIButton.Font = Enum.Font.SourceSans
 AIButton.TextSize = 18
+AIButton.AutoButtonColor = false
+AIButton.BorderRadius = UDim.new(0, 12) -- Bo tròn nút
+
+-- Nút AI Ghost
+AIGhostButton.Parent = ScreenGui
+AIGhostButton.Size = UDim2.new(0, 100, 0, 50)
+AIGhostButton.Position = UDim2.new(0.79, 0, 0.08, 0)
+AIGhostButton.Text = "AI Ghost OFF" -- Văn bản mặc định
+AIGhostButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- Màu nền khi tắt
+AIGhostButton.TextColor3 = Color3.fromRGB(255, 255, 255) -- Màu chữ
+AIGhostButton.Font = Enum.Font.SourceSans
+AIGhostButton.TextSize = 18
+AIGhostButton.AutoButtonColor = false
+AIGhostButton.BorderRadius = UDim.new(0, 12) -- Bo tròn nút
+
+-- Vòng tròn FOV
+FOVCircle.Parent = ScreenGui
+FOVCircle.Size = UDim2.new(0, 200, 0, 200)
+FOVCircle.Position = UDim2.new(0.5, -100, 0.5, -100)
+FOVCircle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+FOVCircle.BackgroundTransparency = 0.5
+FOVCircle.Visible = false -- Ẩn vòng tròn khi Aim tắt
 
 -- Hàm bật/tắt Aim qua nút X
 CloseButton.MouseButton1Click:Connect(function()
@@ -70,9 +94,11 @@ CloseButton.MouseButton1Click:Connect(function()
         ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
         Locked = false
         CurrentTarget = nil -- Ngừng ghim mục tiêu
+        FOVCircle.Visible = false -- Ẩn vòng tròn FOV khi Aim tắt
     else
         ToggleButton.Text = "ON"
         ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+        FOVCircle.Visible = true -- Hiển thị vòng tròn FOV khi Aim bật
     end
 end)
 
@@ -100,6 +126,37 @@ AIButton.MouseButton1Click:Connect(function()
         AIButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
     end
 end)
+
+-- Nút AI Ghost ON/OFF
+AIGhostButton.MouseButton1Click:Connect(function()
+    AIGhostActive = not AIGhostActive
+    if AIGhostActive then
+        AIGhostButton.Text = "AI Ghost ON"
+        AIGhostButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+        -- Bắt đầu ghi lại hành động của người chơi và mục tiêu
+        StartRecording()
+    else
+        AIGhostButton.Text = "AI Ghost OFF"
+        AIGhostButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+        -- Dừng ghi lại hành động
+        StopRecording()
+    end
+end)
+
+-- Ghi lại hành động của người chơi và mục tiêu
+local function StartRecording()
+    -- Ghi lại hành động của người chơi và mục tiêu tại đây
+end
+
+-- Dừng ghi lại hành động
+local function StopRecording()
+    -- Dừng ghi lại hành động tại đây
+end
+
+-- Tái hiện hành động đã ghi lại
+local function ReplayRecordedActions()
+    -- Tái hiện hành động đã ghi lại tại đây
+end
 
 -- Tìm tất cả đối thủ trong phạm vi
 local function FindEnemiesInRadius()
@@ -156,21 +213,6 @@ local function CalculateSmoothFactor(target)
     return math.clamp(smoothFactor, BaseSmoothFactor, MaxSmoothFactor)
 end
 
--- AI Ghost: Ghi lại hành vi người chơi
-local AIBehavior = {}
-
-local function RecordPlayerBehavior()
-    local behavior = {}
-    -- Ghi lại hành vi người chơi như di chuyển, tốc độ, tần suất thay đổi hướng, v.v.
-    -- Phần này cần phát triển thêm
-    return behavior
-end
-
-local function ImitatePlayerBehavior(behavior)
-    -- Mô phỏng hành vi đã ghi lại khi người chơi không điều khiển
-    -- Phần này cần phát triển thêm
-end
-
 -- Cập nhật camera
 RunService.RenderStepped:Connect(function()
     if AimActive then
@@ -216,9 +258,6 @@ RunService.RenderStepped:Connect(function()
 
                     -- Cập nhật camera chính (Camera 1)
                     Camera.CFrame = TargetPositionSmooth
-
-                    -- Cập nhật camera phụ (Camera 2)
-                    Camera2.CFrame = TargetPositionSmooth
                 end
             end
         end
