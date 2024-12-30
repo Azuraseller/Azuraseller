@@ -3,29 +3,28 @@ local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 local TweenService = game:GetService("TweenService")
+local Debris = game:GetService("Debris")
 
 -- Cấu hình các tham số
-local Prediction = 0.1  -- Dự đoán vị trí mục tiêu
-local Radius = 230 -- Bán kính khóa mục tiêu
-local BaseSmoothFactor = 0.15  -- Mức độ mượt khi camera theo dõi (cơ bản)
-local MaxSmoothFactor = 0.5  -- Mức độ mượt tối đa
-local CameraRotationSpeed = 0.3  -- Tốc độ xoay camera khi ghim mục tiêu
-local TargetLockSpeed = 0.2 -- Tốc độ ghim mục tiêu
+local Prediction = 0.15  -- Dự đoán vị trí mục tiêu
+local Radius = 250 -- Bán kính khóa mục tiêu
+local BaseSmoothFactor = 0.2  -- Mức độ mượt khi camera theo dõi (cơ bản)
+local MaxSmoothFactor = 0.6  -- Mức độ mượt tối đa
+local CameraRotationSpeed = 0.25  -- Tốc độ xoay camera khi ghim mục tiêu
+local TargetLockSpeed = 0.15 -- Tốc độ ghim mục tiêu
 local TargetSwitchSpeed = 0.1 -- Tốc độ chuyển mục tiêu
 local Locked = false
 local CurrentTarget = nil
 local AimActive = true -- Trạng thái aim (tự động bật/tắt)
 local AutoAim = false -- Tự động kích hoạt khi có đối tượng trong bán kính
 local AIActive = false -- Trạng thái AI
-local AIGhostActive = false -- Trạng thái AI Ghost
 
 -- GUI
 local ScreenGui = Instance.new("ScreenGui")
 local ToggleButton = Instance.new("TextButton")
 local CloseButton = Instance.new("TextButton") -- Nút X
 local AIButton = Instance.new("TextButton") -- Nút AI
-local AIGhostButton = Instance.new("TextButton") -- Nút AI Ghost
-local FOVCircle = Instance.new("Frame")
+local AimCircle = Instance.new("Frame") -- Vòng tròn khi Aim
 
 ScreenGui.Parent = game:GetService("CoreGui")
 
@@ -38,7 +37,6 @@ ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- Màu nền khi tắ
 ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255) -- Màu chữ
 ToggleButton.Font = Enum.Font.SourceSans
 ToggleButton.TextSize = 18
-ToggleButton.AutoButtonColor = false
 ToggleButton.BorderRadius = UDim.new(0, 12) -- Bo tròn nút
 
 -- Nút X
@@ -50,40 +48,28 @@ CloseButton.BackgroundColor3 = Color3.fromRGB(200, 200, 200) -- Màu xám trong 
 CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 CloseButton.Font = Enum.Font.SourceSans
 CloseButton.TextSize = 18
-CloseButton.AutoButtonColor = false
 CloseButton.BorderRadius = UDim.new(0, 12) -- Bo tròn nút
 
 -- Nút AI
 AIButton.Parent = ScreenGui
 AIButton.Size = UDim2.new(0, 100, 0, 50)
-AIButton.Position = UDim2.new(0.85, 0, 0.08, 0)
+AIButton.Position = UDim2.new(0.75, 0, 0.01, 0)
 AIButton.Text = "AI OFF" -- Văn bản mặc định
 AIButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- Màu nền khi tắt
 AIButton.TextColor3 = Color3.fromRGB(255, 255, 255) -- Màu chữ
 AIButton.Font = Enum.Font.SourceSans
 AIButton.TextSize = 18
-AIButton.AutoButtonColor = false
 AIButton.BorderRadius = UDim.new(0, 12) -- Bo tròn nút
 
--- Nút AI Ghost
-AIGhostButton.Parent = ScreenGui
-AIGhostButton.Size = UDim2.new(0, 100, 0, 50)
-AIGhostButton.Position = UDim2.new(0.79, 0, 0.08, 0)
-AIGhostButton.Text = "AI Ghost OFF" -- Văn bản mặc định
-AIGhostButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- Màu nền khi tắt
-AIGhostButton.TextColor3 = Color3.fromRGB(255, 255, 255) -- Màu chữ
-AIGhostButton.Font = Enum.Font.SourceSans
-AIGhostButton.TextSize = 18
-AIGhostButton.AutoButtonColor = false
-AIGhostButton.BorderRadius = UDim.new(0, 12) -- Bo tròn nút
-
--- Vòng tròn FOV
-FOVCircle.Parent = ScreenGui
-FOVCircle.Size = UDim2.new(0, 200, 0, 200)
-FOVCircle.Position = UDim2.new(0.5, -100, 0.5, -100)
-FOVCircle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-FOVCircle.BackgroundTransparency = 0.5
-FOVCircle.Visible = false -- Ẩn vòng tròn khi Aim tắt
+-- Vòng tròn Aim
+AimCircle.Parent = ScreenGui
+AimCircle.Size = UDim2.new(0, 50, 0, 50)
+AimCircle.Position = UDim2.new(0.5, -25, 0.5, -25)
+AimCircle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+AimCircle.BorderSizePixel = 2
+AimCircle.BorderColor3 = Color3.fromRGB(255, 255, 255)
+AimCircle.Visible = false
+AimCircle.AnchorPoint = Vector2.new(0.5, 0.5)
 
 -- Hàm bật/tắt Aim qua nút X
 CloseButton.MouseButton1Click:Connect(function()
@@ -94,11 +80,11 @@ CloseButton.MouseButton1Click:Connect(function()
         ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
         Locked = false
         CurrentTarget = nil -- Ngừng ghim mục tiêu
-        FOVCircle.Visible = false -- Ẩn vòng tròn FOV khi Aim tắt
+        AimCircle.Visible = false -- Ẩn vòng tròn khi Aim tắt
     else
         ToggleButton.Text = "ON"
         ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
-        FOVCircle.Visible = true -- Hiển thị vòng tròn FOV khi Aim bật
+        AimCircle.Visible = true -- Hiện vòng tròn khi Aim bật
     end
 end)
 
@@ -127,90 +113,44 @@ AIButton.MouseButton1Click:Connect(function()
     end
 end)
 
--- Nút AI Ghost ON/OFF
-AIGhostButton.MouseButton1Click:Connect(function()
-    AIGhostActive = not AIGhostActive
-    if AIGhostActive then
-        AIGhostButton.Text = "AI Ghost ON"
-        AIGhostButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
-        -- Bắt đầu ghi lại hành động của người chơi và mục tiêu
-        StartRecording()
-    else
-        AIGhostButton.Text = "AI Ghost OFF"
-        AIGhostButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-        -- Dừng ghi lại hành động
-        StopRecording()
+-- AI Ghost: Ghi lại hành vi người chơi và mục tiêu
+local AIBehavior = {
+    playerActions = {},
+    targetActions = {}
+}
+
+local function RecordPlayerBehavior()
+    -- Ghi lại hành vi người chơi như di chuyển, tốc độ, tần suất thay đổi hướng, v.v.
+    local behavior = {
+        position = LocalPlayer.Character.HumanoidRootPart.Position,
+        velocity = LocalPlayer.Character.HumanoidRootPart.Velocity
+    }
+    table.insert(AIBehavior.playerActions, behavior)
+end
+
+local function RecordTargetBehavior(target)
+    -- Ghi lại hành vi mục tiêu
+    if target and target:FindFirstChild("HumanoidRootPart") then
+        local behavior = {
+            position = target.HumanoidRootPart.Position,
+            velocity = target.HumanoidRootPart.Velocity
+        }
+        table.insert(AIBehavior.targetActions, behavior)
     end
-end)
-
--- Ghi lại hành động của người chơi và mục tiêu
-local function StartRecording()
-    -- Ghi lại hành động của người chơi và mục tiêu tại đây
 end
 
--- Dừng ghi lại hành động
-local function StopRecording()
-    -- Dừng ghi lại hành động tại đây
-end
-
--- Tái hiện hành động đã ghi lại
-local function ReplayRecordedActions()
-    -- Tái hiện hành động đã ghi lại tại đây
-end
-
--- Tìm tất cả đối thủ trong phạm vi
-local function FindEnemiesInRadius()
-    local targets = {}
-    for _, Player in ipairs(Players:GetPlayers()) do
-        if Player ~= LocalPlayer then
-            local Character = Player.Character
-            if Character and Character:FindFirstChild("HumanoidRootPart") and Character:FindFirstChild("Humanoid") and Character.Humanoid.Health > 0 then
-                local Distance = (Character.HumanoidRootPart.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude
-                if Distance <= Radius then
-                    table.insert(targets, Character)
-                end
-            end
-        end
+local function ImitatePlayerBehavior()
+    -- Mô phỏng hành vi đã ghi lại khi người chơi không điều khiển
+    for _, action in ipairs(AIBehavior.playerActions) do
+        -- Thực hiện hành động của người chơi (di chuyển, tốc độ, v.v.)
     end
-
-    -- Nếu có nhiều mục tiêu, chọn mục tiêu gần nhất với LocalPlayer
-    if #targets > 1 then
-        table.sort(targets, function(a, b)
-            return (a.HumanoidRootPart.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude < (b.HumanoidRootPart.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude
-        end)
-    end
-    return targets
 end
 
--- Điều chỉnh camera tránh bị che khuất
-local function AdjustCameraPosition(targetPosition)
-    local ray = Ray.new(Camera.CFrame.Position, targetPosition - Camera.CFrame.Position)
-    local hitPart = workspace:FindPartOnRay(ray, LocalPlayer.Character)
-    if hitPart then
-        return Camera.CFrame.Position + (targetPosition - Camera.CFrame.Position).Unit * 5
+local function ImitateTargetBehavior()
+    -- Mô phỏng hành vi của mục tiêu
+    for _, action in ipairs(AIBehavior.targetActions) do
+        -- Thực hiện hành động của mục tiêu (di chuyển, tốc độ, v.v.)
     end
-    return targetPosition
-end
-
--- Dự đoán vị trí mục tiêu với gia tốc và tốc độ
-local function PredictTargetPosition(target)
-    local humanoid = target:FindFirstChild("Humanoid")
-    local humanoidRootPart = target:FindFirstChild("HumanoidRootPart")
-    if humanoid and humanoidRootPart then
-        local velocity = humanoidRootPart.Velocity
-        local direction = velocity.Unit
-        local speed = velocity.Magnitude
-        local predictedPosition = humanoidRootPart.Position + velocity * Prediction
-        return predictedPosition
-    end
-    return target.HumanoidRootPart.Position
-end
-
--- Tính toán SmoothFactor dựa trên tốc độ mục tiêu
-local function CalculateSmoothFactor(target)
-    local velocityMagnitude = target.HumanoidRootPart.Velocity.Magnitude
-    local smoothFactor = BaseSmoothFactor + (velocityMagnitude / 100)
-    return math.clamp(smoothFactor, BaseSmoothFactor, MaxSmoothFactor)
 end
 
 -- Cập nhật camera
@@ -256,7 +196,7 @@ RunService.RenderStepped:Connect(function()
                     -- Sử dụng TargetLockSpeed để điều chỉnh tốc độ ghim
                     local TargetPositionSmooth = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, targetPosition), TargetLockSpeed)
 
-                    -- Cập nhật camera chính (Camera 1)
+                    -- Cập nhật camera chính
                     Camera.CFrame = TargetPositionSmooth
                 end
             end
