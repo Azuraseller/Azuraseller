@@ -21,6 +21,7 @@ local CurrentTarget = nil
 local AimActive = true -- Trạng thái aim (tự động bật/tắt)
 local AutoAim = false -- Tự động kích hoạt khi có đối tượng trong bán kính
 local AIActive = false -- Trạng thái AI
+local FOVAdjustment = 70 -- FOV mặc định
 
 -- GUI
 local ScreenGui = Instance.new("ScreenGui")
@@ -39,6 +40,7 @@ ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- Màu nền khi tắ
 ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255) -- Màu chữ
 ToggleButton.Font = Enum.Font.SourceSans
 ToggleButton.TextSize = 18
+ToggleButton.AnchorPoint = Vector2.new(0.5, 0.5)  -- Căn giữa nút
 
 -- Nút X
 CloseButton.Parent = ScreenGui
@@ -49,16 +51,22 @@ CloseButton.BackgroundColor3 = Color3.fromRGB(200, 200, 200) -- Màu xám trong 
 CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 CloseButton.Font = Enum.Font.SourceSans
 CloseButton.TextSize = 18
+CloseButton.AnchorPoint = Vector2.new(0.5, 0.5)  -- Căn giữa nút
+CloseButton.BackgroundTransparency = 0.5
+CloseButton.BorderRadius = UDim.new(0, 15) -- Bo tròn nút
 
 -- Nút AI
 AIButton.Parent = ScreenGui
-AIButton.Size = UDim2.new(0, 100, 0, 50)
-AIButton.Position = UDim2.new(0.85, 0, 0.08, 0)
-AIButton.Text = "AI OFF" -- Văn bản mặc định
-AIButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- Màu nền khi tắt
+AIButton.Size = UDim2.new(0, 30, 0, 30)  -- Kích thước giống nút ⚙️
+AIButton.Position = UDim2.new(0.79, 0, 0.08, 0)  -- Nằm dưới nút ⚙️
+AIButton.Text = "AI"
+AIButton.BackgroundColor3 = Color3.fromRGB(200, 200, 200) -- Màu nền khi tắt
 AIButton.TextColor3 = Color3.fromRGB(255, 255, 255) -- Màu chữ
 AIButton.Font = Enum.Font.SourceSans
 AIButton.TextSize = 18
+AIButton.AnchorPoint = Vector2.new(0.5, 0.5)  -- Căn giữa nút
+AIButton.BackgroundTransparency = 0.5
+AIButton.BorderRadius = UDim.new(0, 15) -- Bo tròn nút
 
 -- Hàm bật/tắt Aim qua nút X
 CloseButton.MouseButton1Click:Connect(function()
@@ -124,6 +132,44 @@ local function FindEnemiesInRadius()
     return targets
 end
 
+-- Đánh giá mức độ đe dọa của mục tiêu
+local function EvaluateThreatLevel(target)
+    local humanoid = target:FindFirstChild("Humanoid")
+    local weapon = target:FindFirstChild("Weapon") -- Giả sử đối tượng có vũ khí
+    local health = humanoid and humanoid.Health or 0
+    local distance = (target.HumanoidRootPart.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude
+
+    local threatLevel = 0
+    if weapon then
+        threatLevel = threatLevel + 2 -- Nếu có vũ khí, tăng mức độ đe dọa
+    end
+    if health < 50 then
+        threatLevel = threatLevel + 1 -- Nếu sức khỏe thấp, tăng mức độ đe dọa
+    end
+    if distance < 50 then
+        threatLevel = threatLevel + 1 -- Nếu ở gần, tăng mức độ đe dọa
+    end
+
+    return threatLevel
+end
+
+-- Chọn mục tiêu ưu tiên dựa trên mức độ đe dọa
+local function SelectTarget()
+    local targets = FindEnemiesInRadius()
+    local bestTarget = nil
+    local highestThreat = -1
+
+    for _, target in ipairs(targets) do
+        local threat = EvaluateThreatLevel(target)
+        if threat > highestThreat then
+            highestThreat = threat
+            bestTarget = target
+        end
+    end
+
+    return bestTarget
+end
+
 -- Điều chỉnh camera tránh bị che khuất
 local function AdjustCameraPosition(targetPosition)
     local ray = Ray.new(Camera.CFrame.Position, targetPosition - Camera.CFrame.Position)
@@ -148,63 +194,23 @@ local function PredictTargetPosition(target)
     return target.HumanoidRootPart.Position
 end
 
--- Tính toán SmoothFactor dựa trên tốc độ mục tiêu
-local function CalculateSmoothFactor(target)
-    local velocityMagnitude = target.HumanoidRootPart.Velocity.Magnitude
-    local smoothFactor = BaseSmoothFactor + (velocityMagnitude / 100)
-    return math.clamp(smoothFactor, BaseSmoothFactor, MaxSmoothFactor)
-end
-
 -- Cập nhật camera
 RunService.RenderStepped:Connect(function()
     if AimActive then
-        -- Tìm kẻ thù gần nhất
-        local enemies = FindEnemiesInRadius()
-        if #enemies > 0 then
-            if not Locked then
-                Locked = true
-                ToggleButton.Text = "ON"
-                ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
-            end
-            if not CurrentTarget then
-                CurrentTarget = enemies[1] -- Chọn mục tiêu đầu tiên
-            end
-        else
-            if Locked then
-                Locked = false
-                ToggleButton.Text = "OFF"
-                ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-                CurrentTarget = nil -- Ngừng ghim khi không còn mục tiêu
-            end
-        end
+        -- Chọn mục tiêu ưu tiên
+        local target = SelectTarget()
+        if target then
+            CurrentTarget = target
+            local targetPosition = PredictTargetPosition(CurrentTarget)
+            targetPosition = AdjustCameraPosition(targetPosition)
 
-        -- Theo dõi mục tiêu
-        if CurrentTarget and Locked then
-            local targetCharacter = CurrentTarget
-            if targetCharacter and targetCharacter:FindFirstChild("HumanoidRootPart") then
-                local targetPosition = PredictTargetPosition(targetCharacter)
+            -- Tính toán SmoothFactor
+            local SmoothFactor = BaseSmoothFactor + (CurrentTarget.HumanoidRootPart.Velocity.Magnitude / 100)
+            SmoothFactor = math.clamp(SmoothFactor, BaseSmoothFactor, MaxSmoothFactor)
 
-                -- Kiểm tra nếu mục tiêu không hợp lệ
-                local distance = (targetCharacter.HumanoidRootPart.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude
-                if targetCharacter.Humanoid.Health <= 0 or distance > Radius then
-                    CurrentTarget = nil
-                else
-                    -- Điều chỉnh vị trí camera
-                    targetPosition = AdjustCameraPosition(targetPosition)
-
-                    -- Tính toán SmoothFactor
-                    local SmoothFactor = CalculateSmoothFactor(targetCharacter)
-
-                    -- Sử dụng TargetLockSpeed để điều chỉnh tốc độ ghim
-                    local TargetPositionSmooth = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, targetPosition), TargetLockSpeed)
-
-                    -- Cập nhật camera chính (Camera 1)
-                    Camera.CFrame = TargetPositionSmooth
-
-                    -- Cập nhật camera phụ (Camera 2)
-                    Camera2.CFrame = TargetPositionSmooth
-                end
-            end
+            -- Điều chỉnh camera
+            local TargetPositionSmooth = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, targetPosition), TargetLockSpeed)
+            Camera.CFrame = TargetPositionSmooth
         end
     end
 end)
