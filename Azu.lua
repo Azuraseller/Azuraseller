@@ -39,7 +39,6 @@ ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- Màu nền khi tắ
 ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255) -- Màu chữ
 ToggleButton.Font = Enum.Font.SourceSans
 ToggleButton.TextSize = 18
-ToggleButton.AnchorPoint = Vector2.new(0.5, 0.5)  -- Căn giữa nút
 
 -- Nút X
 CloseButton.Parent = ScreenGui
@@ -50,22 +49,16 @@ CloseButton.BackgroundColor3 = Color3.fromRGB(200, 200, 200) -- Màu xám trong 
 CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 CloseButton.Font = Enum.Font.SourceSans
 CloseButton.TextSize = 18
-CloseButton.AnchorPoint = Vector2.new(0.5, 0.5)  -- Căn giữa nút
-CloseButton.BackgroundTransparency = 0.5
-CloseButton.BorderRadius = UDim.new(0, 15) -- Bo tròn nút
 
 -- Nút AI
 AIButton.Parent = ScreenGui
-AIButton.Size = UDim2.new(0, 30, 0, 30)  -- Kích thước giống nút ⚙️
-AIButton.Position = UDim2.new(0.79, 0, 0.08, 0)  -- Nằm dưới nút ⚙️
-AIButton.Text = "AI"
-AIButton.BackgroundColor3 = Color3.fromRGB(200, 200, 200) -- Màu nền khi tắt
+AIButton.Size = UDim2.new(0, 100, 0, 50)
+AIButton.Position = UDim2.new(0.85, 0, 0.08, 0)
+AIButton.Text = "AI OFF" -- Văn bản mặc định
+AIButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- Màu nền khi tắt
 AIButton.TextColor3 = Color3.fromRGB(255, 255, 255) -- Màu chữ
 AIButton.Font = Enum.Font.SourceSans
 AIButton.TextSize = 18
-AIButton.AnchorPoint = Vector2.new(0.5, 0.5)  -- Căn giữa nút
-AIButton.BackgroundTransparency = 0.5
-AIButton.BorderRadius = UDim.new(0, 15) -- Bo tròn nút
 
 -- Hàm bật/tắt Aim qua nút X
 CloseButton.MouseButton1Click:Connect(function()
