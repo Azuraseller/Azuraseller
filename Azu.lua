@@ -5,7 +5,7 @@ local Camera = workspace.CurrentCamera
 local TweenService = game:GetService("TweenService")
 
 -- Cấu hình các tham số
-local Prediction = 1.5  -- Dự đoán vị trí mục tiêu (s)
+local Prediction = 0.1  -- Dự đoán vị trí mục tiêu
 local Radius = 230 -- Bán kính khóa mục tiêu
 local BaseSmoothFactor = 0.15  -- Mức độ mượt khi camera theo dõi (cơ bản)
 local MaxSmoothFactor = 0.5  -- Mức độ mượt tối đa
@@ -14,7 +14,7 @@ local TargetLockSpeed = 0.2 -- Tốc độ ghim mục tiêu
 local TargetSwitchSpeed = 0.1 -- Tốc độ chuyển mục tiêu
 local Locked = false
 local CurrentTarget = nil
-local AimActive = false -- Trạng thái aim (tự động bật/tắt)
+local AimActive = true -- Trạng thái aim (tự động bật/tắt)
 local AutoAim = false -- Tự động kích hoạt khi có đối tượng trong bán kính
 
 -- GUI
@@ -55,14 +55,14 @@ local CloseButtonUICorner = Instance.new("UICorner")
 CloseButtonUICorner.CornerRadius = UDim.new(0, 15) -- Bo tròn góc
 CloseButtonUICorner.Parent = CloseButton
 
--- POV setup
-POV.Parent = ScreenGui
-POV.Size = UDim2.new(0, 30, 0, 30) -- Kích thước ban đầu của POV
-POV.Position = UDim2.new(0.5, -15, 0.5, -15) -- Căn giữa màn hình
-POV.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- Màu đỏ
-POV.BorderSizePixel = 3 -- Độ dày viền
-POV.BackgroundTransparency = 1 -- Không có màu nền (chỉ có viền)
-POV.Visible = false -- Ẩn POV khi Aim chưa bật
+-- POV setup (Vòng tròn POV)
+local POVCircle = Instance.new("ImageLabel")
+POVCircle.Parent = ScreenGui
+POVCircle.Size = UDim2.new(0, 30, 0, 30) -- Kích thước ban đầu của POV
+POVCircle.Position = UDim2.new(0.5, -15, 0.5, -15) -- Căn giữa màn hình
+POVCircle.BackgroundTransparency = 1 -- Không có nền
+POVCircle.Image = "⊙"  -- Thay thế bằng ID của hình ảnh vòng tròn bạn muốn
+POVCircle.Visible = false -- Ẩn POV khi Aim chưa bật
 
 -- Hàm bật/tắt Aim qua nút X
 CloseButton.MouseButton1Click:Connect(function()
@@ -73,11 +73,11 @@ CloseButton.MouseButton1Click:Connect(function()
         ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
         Locked = false
         CurrentTarget = nil -- Ngừng ghim mục tiêu
-        POV.Visible = false -- Ẩn POV khi Aim tắt
+        POVCircle.Visible = false -- Ẩn POV khi Aim tắt
     else
         ToggleButton.Text = "ON"
         ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
-        POV.Visible = true -- Hiển thị POV khi Aim bật
+        POVCircle.Visible = true -- Hiển thị POV khi Aim bật
     end
 end)
 
@@ -142,6 +142,20 @@ local function PredictTargetPosition(target)
     return target.HumanoidRootPart.Position
 end
 
+-- Tính toán tốc độ ghim mục tiêu dựa trên hành vi
+local function calculateLockSpeed(target)
+    local targetSpeed = target.HumanoidRootPart.Velocity.Magnitude
+    local distance = (target.HumanoidRootPart.Position - Camera.CFrame.Position).Magnitude
+    return math.clamp(targetSpeed / distance, 0.1, 1)
+end
+
+-- Hàm làm mượt chuyển động camera
+local function smoothRotation(currentRotation, targetRotation, speed)
+    local rotationDifference = (targetRotation - currentRotation).Magnitude
+    local smoothingFactor = math.clamp(rotationDifference / speed, 0.1, 1)
+    return currentRotation + (targetRotation - currentRotation) * smoothingFactor
+end
+
 -- Cập nhật camera và POV
 RunService.RenderStepped:Connect(function()
     if AimActive then
@@ -179,34 +193,18 @@ RunService.RenderStepped:Connect(function()
                     -- Điều chỉnh vị trí camera
                     targetPosition = AdjustCameraPosition(targetPosition)
 
-                    -- Tính toán SmoothFactor
-                    local SmoothFactor = BaseSmoothFactor + (targetCharacter.HumanoidRootPart.Velocity.Magnitude / 100)
-                    SmoothFactor = math.clamp(SmoothFactor, BaseSmoothFactor, MaxSmoothFactor)
-
-                    -- Sử dụng TargetLockSpeed để điều chỉnh tốc độ ghim
-                    local TargetPositionSmooth = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, targetPosition), TargetLockSpeed)
-
                     -- Cập nhật camera chính (Camera 1)
-                    Camera.CFrame = TargetPositionSmooth
+                    Camera.CFrame = CFrame.new(Camera.CFrame.Position, targetPosition)
 
                     -- Thay đổi FOV (Field of View) để tạo cảm giác POV
                     Camera.FieldOfView = 70 + (distance / Radius) * 20  -- Tăng FOV khi mục tiêu gần hơn
 
                     -- Cập nhật kích thước POV dựa trên khoảng cách
-                    local POVSize = math.clamp(30 + (1 - (distance / Radius)) * 50, 30, 80) -- Tính toán kích thước POV
-                    POV.Size = UDim2.new(0, POVSize, 0, POVSize) -- Cập nhật kích thước POV
+                    local POVSize = math.clamp(30 + (1 - (distance / Radius)) * 50, 30, 60)
+                    POVCircle.Size = UDim2.new(0, POVSize, 0, POVSize)
+                    POVCircle.Position = UDim2.new(0.5, -POVCircle.Size.X.Offset / 2, 0.5, -POVCircle.Size.Y.Offset / 2) -- Căn giữa màn hình
                 end
             end
         end
-    end
-end)
-
--- Tự động bật script khi chuyển server
-Players.PlayerAdded:Connect(function(player)
-    if player == LocalPlayer then
-        AimActive = true
-        ToggleButton.Text = "ON"
-        ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
-        POV.Visible = true -- Hiển thị POV khi chuyển server
     end
 end)
