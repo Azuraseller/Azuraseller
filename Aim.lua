@@ -4,10 +4,6 @@ local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 local TweenService = game:GetService("TweenService")
 
--- Tạo Camera phụ
-local Camera2 = Instance.new("Camera")
-Camera2.Parent = workspace
-
 -- Cấu hình các tham số
 local Prediction = 0.1  -- Dự đoán vị trí mục tiêu
 local Radius = 230 -- Bán kính khóa mục tiêu
@@ -25,6 +21,7 @@ local AutoAim = false -- Tự động kích hoạt khi có đối tượng trong
 local ScreenGui = Instance.new("ScreenGui")
 local ToggleButton = Instance.new("TextButton")
 local CloseButton = Instance.new("TextButton") -- Nút X
+local POV = Instance.new("Frame") -- POV frame
 
 ScreenGui.Parent = game:GetService("CoreGui")
 
@@ -48,6 +45,13 @@ CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 CloseButton.Font = Enum.Font.SourceSans
 CloseButton.TextSize = 18
 
+-- POV setup
+POV.Parent = ScreenGui
+POV.Size = UDim2.new(0, 30, 0, 30)
+POV.Position = UDim2.new(0.5, -15, 0.5, -15) -- Căn giữa màn hình
+POV.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- Màu đỏ
+POV.Visible = false -- Ẩn POV khi Aim chưa bật
+
 -- Hàm bật/tắt Aim qua nút X
 CloseButton.MouseButton1Click:Connect(function()
     AimActive = not AimActive
@@ -57,9 +61,11 @@ CloseButton.MouseButton1Click:Connect(function()
         ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
         Locked = false
         CurrentTarget = nil -- Ngừng ghim mục tiêu
+        POV.Visible = false -- Ẩn POV khi Aim tắt
     else
         ToggleButton.Text = "ON"
         ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+        POV.Visible = true -- Hiển thị POV khi Aim bật
     end
 end)
 
@@ -131,7 +137,7 @@ local function CalculateSmoothFactor(target)
     return math.clamp(smoothFactor, BaseSmoothFactor, MaxSmoothFactor)
 end
 
--- Cập nhật camera
+-- Cập nhật camera và xoay camera về phía mục tiêu
 RunService.RenderStepped:Connect(function()
     if AimActive then
         -- Tìm kẻ thù gần nhất
@@ -177,8 +183,13 @@ RunService.RenderStepped:Connect(function()
                     -- Cập nhật camera chính (Camera 1)
                     Camera.CFrame = TargetPositionSmooth
 
-                    -- Cập nhật camera phụ (Camera 2)
-                    Camera2.CFrame = TargetPositionSmooth
+                    -- Thay đổi FOV (Field of View) để tạo cảm giác POV
+                    Camera.FieldOfView = 70 + (distance / Radius) * 20  -- Tăng FOV khi mục tiêu gần hơn
+
+                    -- Xoay camera về phía mục tiêu khi người chơi di chuyển
+                    local targetDirection = (targetPosition - Camera.CFrame.Position).Unit
+                    local cameraRotation = CFrame.new(Camera.CFrame.Position, targetPosition)
+                    Camera.CFrame = Camera.CFrame:Lerp(cameraRotation, CameraRotationSpeed)
                 end
             end
         end
@@ -191,5 +202,6 @@ Players.PlayerAdded:Connect(function(player)
         AimActive = true
         ToggleButton.Text = "ON"
         ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+        POV.Visible = true -- Hiển thị POV khi chuyển server
     end
 end)
