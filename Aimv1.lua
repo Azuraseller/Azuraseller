@@ -4,10 +4,6 @@ local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 local TweenService = game:GetService("TweenService")
 
--- Tạo Camera phụ
-local Camera2 = Instance.new("Camera")
-Camera2.Parent = workspace
-
 -- Cấu hình các tham số
 local Prediction = 0.1  -- Dự đoán vị trí mục tiêu
 local Radius = 230 -- Bán kính khóa mục tiêu
@@ -177,8 +173,8 @@ RunService.RenderStepped:Connect(function()
                     -- Cập nhật camera chính (Camera 1)
                     Camera.CFrame = TargetPositionSmooth
 
-                    -- Cập nhật camera phụ (Camera 2)
-                    Camera2.CFrame = TargetPositionSmooth
+                    -- Thay đổi FOV (Field of View) để tạo cảm giác POV
+                    Camera.FieldOfView = 70 + (distance / Radius) * 20  -- Tăng FOV khi mục tiêu gần hơn
                 end
             end
         end
