@@ -3,31 +3,28 @@ local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 local TweenService = game:GetService("TweenService")
-local Debris = game:GetService("Debris")
 
 -- Tạo Camera phụ
 local Camera2 = Instance.new("Camera")
 Camera2.Parent = workspace
 
 -- Cấu hình các tham số
-local Prediction = 0.15  -- Dự đoán vị trí mục tiêu
-local Radius = 250 -- Bán kính khóa mục tiêu
-local BaseSmoothFactor = 0.2  -- Mức độ mượt khi camera theo dõi (cơ bản)
-local MaxSmoothFactor = 0.6  -- Mức độ mượt tối đa
-local CameraRotationSpeed = 0.25  -- Tốc độ xoay camera khi ghim mục tiêu
-local TargetLockSpeed = 0.15 -- Tốc độ ghim mục tiêu
+local Prediction = 0.1  -- Dự đoán vị trí mục tiêu
+local Radius = 230 -- Bán kính khóa mục tiêu
+local BaseSmoothFactor = 0.15  -- Mức độ mượt khi camera theo dõi (cơ bản)
+local MaxSmoothFactor = 0.5  -- Mức độ mượt tối đa
+local CameraRotationSpeed = 0.3  -- Tốc độ xoay camera khi ghim mục tiêu
+local TargetLockSpeed = 0.2 -- Tốc độ ghim mục tiêu
 local TargetSwitchSpeed = 0.1 -- Tốc độ chuyển mục tiêu
 local Locked = false
 local CurrentTarget = nil
 local AimActive = true -- Trạng thái aim (tự động bật/tắt)
 local AutoAim = false -- Tự động kích hoạt khi có đối tượng trong bán kính
-local AIActive = false -- Trạng thái AI
 
 -- GUI
 local ScreenGui = Instance.new("ScreenGui")
 local ToggleButton = Instance.new("TextButton")
 local CloseButton = Instance.new("TextButton") -- Nút X
-local AIButton = Instance.new("TextButton") -- Nút AI
 
 ScreenGui.Parent = game:GetService("CoreGui")
 
@@ -40,7 +37,6 @@ ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- Màu nền khi tắ
 ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255) -- Màu chữ
 ToggleButton.Font = Enum.Font.SourceSans
 ToggleButton.TextSize = 18
-ToggleButton.BorderRadius = UDim.new(0, 12) -- Bo tròn nút
 
 -- Nút X
 CloseButton.Parent = ScreenGui
@@ -51,18 +47,6 @@ CloseButton.BackgroundColor3 = Color3.fromRGB(200, 200, 200) -- Màu xám trong 
 CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 CloseButton.Font = Enum.Font.SourceSans
 CloseButton.TextSize = 18
-CloseButton.BorderRadius = UDim.new(0, 12) -- Bo tròn nút
-
--- Nút AI
-AIButton.Parent = ScreenGui
-AIButton.Size = UDim2.new(0, 100, 0, 50)
-AIButton.Position = UDim2.new(0.85, 0, 0.08, 0)
-AIButton.Text = "AI OFF" -- Văn bản mặc định
-AIButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- Màu nền khi tắt
-AIButton.TextColor3 = Color3.fromRGB(255, 255, 255) -- Màu chữ
-AIButton.Font = Enum.Font.SourceSans
-AIButton.TextSize = 18
-AIButton.BorderRadius = UDim.new(0, 12) -- Bo tròn nút
 
 -- Hàm bật/tắt Aim qua nút X
 CloseButton.MouseButton1Click:Connect(function()
@@ -89,18 +73,6 @@ ToggleButton.MouseButton1Click:Connect(function()
         ToggleButton.Text = "OFF"
         ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
         CurrentTarget = nil -- Hủy mục tiêu khi tắt CamLock
-    end
-end)
-
--- Nút AI ON/OFF
-AIButton.MouseButton1Click:Connect(function()
-    AIActive = not AIActive
-    if AIActive then
-        AIButton.Text = "AI ON"
-        AIButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
-    else
-        AIButton.Text = "AI OFF"
-        AIButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
     end
 end)
 
