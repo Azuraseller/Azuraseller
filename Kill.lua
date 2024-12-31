@@ -100,6 +100,19 @@ local function updateFOVRing()
     end
 end
 
+local function rotateCharacterTowardsTarget(target)
+    if target and target.Character and target.Character:FindFirstChild(targetPart) then
+        local part = target.Character:FindFirstChild(targetPart)
+        local targetPosition = predictTargetPosition(part)
+        local direction = (targetPosition - Cam.CFrame.Position).unit
+        local humanoid = Players.LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+        if humanoid then
+            humanoid:MoveTo(targetPosition)
+            humanoid:LookAt(targetPosition)
+        end
+    end
+end
+
 local function onKeyDown(input)
     if input.KeyCode == Enum.KeyCode.F then
         aimMode = not aimMode
@@ -142,6 +155,11 @@ RunService.RenderStepped:Connect(function()
                 else
                     Reticle.Visible = false
                 end
+            end
+
+            -- Hướng nhân vật về mục tiêu
+            if lockOnEnabled then
+                rotateCharacterTowardsTarget(closest)
             end
         else
             Reticle.Visible = false
