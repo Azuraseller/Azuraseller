@@ -6,7 +6,7 @@ local Cam = workspace.CurrentCamera
 -- Cài đặt
 local fov = 100
 local maxDistance = 500
-local aimSensitivity = 0.15
+local aimSensitivity = 0.2
 local targetPart = "Head"
 local aimMode = false
 local autoAimEnabled = true
@@ -14,6 +14,8 @@ local predictionEnabled = true
 local dynamicLockOn = true
 local zoomEnabled = true
 local zoomFactor = 1.2
+local fovAdaptive = true -- FOV thông minh
+local skillMode = false -- Chế độ kỹ năng
 
 -- Vòng FOV
 local FOVring = Drawing.new("Circle")
@@ -92,6 +94,20 @@ local function displayTargetInfo(target)
     end
 end
 
+-- Thay đổi kích thước vòng FOV
+local function updateFOVRing()
+    if fovAdaptive then
+        local closest = getClosestPlayer()
+        if closest and closest.Character and closest.Character:FindFirstChild(targetPart) then
+            local part = closest.Character:FindFirstChild(targetPart)
+            local distance = (Cam.CFrame.Position - part.Position).Magnitude
+            FOVring.Radius = math.clamp(fov * (1 - (distance / maxDistance)), 20, fov)
+        else
+            FOVring.Radius = fov
+        end
+    end
+end
+
 -- Phím tắt
 local function onKeyDown(input)
     if input.KeyCode == Enum.KeyCode.F then
@@ -102,6 +118,8 @@ local function onKeyDown(input)
         predictionEnabled = not predictionEnabled
     elseif input.KeyCode == Enum.KeyCode.L then
         dynamicLockOn = not dynamicLockOn
+    elseif input.KeyCode == Enum.KeyCode.K then
+        skillMode = not skillMode
     end
 end
 
@@ -113,6 +131,7 @@ RunService.RenderStepped:Connect(function()
     if closest then
         aimAtTarget(closest)
         displayTargetInfo(closest)
+        updateFOVRing()
 
         -- Cập nhật Reticle
         local part = closest.Character:FindFirstChild(targetPart)
