@@ -43,17 +43,17 @@ CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 CloseButton.Font = Enum.Font.SourceSans
 CloseButton.TextSize = 18
 
--- Focus Mode Button
+-- Focus Mode Button (được chỉnh sửa lại kích thước)
 FocusButton.Parent = ScreenGui
-FocusButton.Size = UDim2.new(0, 30, 0, 30)
+FocusButton.Size = UDim2.new(0, 120, 0, 30)  -- Đã mở rộng kích thước
 FocusButton.Position = UDim2.new(0.79, 0, 0.07, 0)
-FocusButton.Text = "🌀"
+FocusButton.Text = "🌀 OFF"
 FocusButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
 FocusButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 FocusButton.Font = Enum.Font.SourceSans
 FocusButton.TextSize = 18
 
--- Aim Circle
+-- Aim Circle (Sửa lại thành hình tròn)
 AimCircle.Parent = ScreenGui
 AimCircle.Size = UDim2.new(0, 100, 0, 100)
 AimCircle.Position = UDim2.new(0.5, -50, 0.5, -50)
@@ -72,6 +72,11 @@ end
 addUICorner(ToggleButton)
 addUICorner(CloseButton)
 addUICorner(FocusButton)
+
+-- Thêm UICorner cho AimCircle để tạo hình tròn
+local UICornerAim = Instance.new("UICorner")
+UICornerAim.CornerRadius = UDim.new(0.5, 0)  -- Tạo hình tròn cho AimCircle
+UICornerAim.Parent = AimCircle
 
 -- Hàm bật/tắt Aim qua nút X
 CloseButton.MouseButton1Click:Connect(function()
@@ -155,12 +160,13 @@ local function handleFreeLook()
     end
 end
 
--- Tìm mục tiêu gần nhất
+-- Camera luôn theo nhân vật khi di chuyển
 game:GetService("RunService").RenderStepped:Connect(function()
-    if AimActive then
-        -- Tìm mục tiêu gần nhất
-        target = findClosestEnemy()
-        if target and target:FindFirstChild("HumanoidRootPart") then
+    if AimActive and character:FindFirstChild("HumanoidRootPart") then
+        -- Cập nhật camera theo nhân vật
+        camera.CFrame = CFrame.new(character.HumanoidRootPart.Position + Vector3.new(0, 5, 10), character.HumanoidRootPart.Position)
+        
+        if target then
             updateCameraAndAim(target.HumanoidRootPart.Position)
         end
     end
