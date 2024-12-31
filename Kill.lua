@@ -1,56 +1,33 @@
-local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
 local Players = game:GetService("Players")
-local Cam = workspace.CurrentCamera
-local UIS = game:GetService("UserInputService")
-
--- Cài đặt cơ bản
-local fov = 100
-local maxDistance = 1000
-local aimSensitivity = 0.1
-local targetPart = "Head"
-local aimMode = false
-local autoAimEnabled = true
-local dynamicFOV = true
-local zoomEnabled = true
-local skillMode = false
-local lockOnEnabled = false
-local smartAimEnabled = false
-local lastUpdate = tick()
-local updateInterval = 0.05 -- Cập nhật mỗi 50ms trên thiết bị di động
-local maxUpdateInterval = 0.02 -- Cập nhật mỗi 20ms trên PC
--- Các đối tượng vẽ
-local FOVring = Drawing.new("Circle")
-FOVring.Visible = true
-FOVring.Thickness = 2
-FOVring.Filled = false
-FOVring.Position = Cam.ViewportSize / 2
-FOVring.Color = Color3.fromRGB(0, 255, 0)
-
-local Reticle = Drawing.new("Circle")
-Reticle.Visible = false
-Reticle.Thickness = 2
-Reticle.Color = Color3.fromRGB(255, 0, 0)
-Reticle.Filled = true
-Reticle.Radius = 10
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
 
 -- Cấu hình các tham số
-local Prediction = 0.1  -- Dự đoán vị trí mục tiêu
-local Radius = 230 -- Bán kính khóa mục tiêu
-local BaseSmoothFactor = 0.15  -- Mức độ mượt khi camera theo dõi (cơ bản)
-local MaxSmoothFactor = 0.5  -- Mức độ mượt tối đa
-local CameraRotationSpeed = 0.3  -- Tốc độ xoay camera khi ghim mục tiêu
-local TargetLockSpeed = 0.2 -- Tốc độ ghim mục tiêu
-local TargetSwitchSpeed = 0.1 -- Tốc độ chuyển mục tiêu
+local Prediction = 0.1
+local Radius = 230
+local BaseSmoothFactor = 0.15
+local MaxSmoothFactor = 0.5
+local CameraRotationSpeed = 0.3
+local TargetLockSpeed = 0.2
+local TargetSwitchSpeed = 0.1
 local Locked = false
 local CurrentTarget = nil
-local AimActive = true -- Trạng thái aim (tự động bật/tắt)
-local AutoAim = false -- Tự động kích hoạt khi có đối tượng trong bán kính
+local AimActive = true
+local AutoAim = false
+local FocusMode = false
+local CameraZoom = 70
+local FOVAdjustment = false
+local CameraShakeEnabled = false
 
 -- GUI
 local ScreenGui = Instance.new("ScreenGui")
 local ToggleButton = Instance.new("TextButton")
-local CloseButton = Instance.new("TextButton") -- Nút X
+local CloseButton = Instance.new("TextButton")
+local AimCircle = Instance.new("Frame")
+local FocusButton = Instance.new("TextButton")
 
 ScreenGui.Parent = game:GetService("CoreGui")
 
@@ -58,44 +35,88 @@ ScreenGui.Parent = game:GetService("CoreGui")
 ToggleButton.Parent = ScreenGui
 ToggleButton.Size = UDim2.new(0, 100, 0, 50)
 ToggleButton.Position = UDim2.new(0.85, 0, 0.01, 0)
-ToggleButton.Text = "OFF" -- Văn bản mặc định
-ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- Màu nền khi tắt
-ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255) -- Màu chữ
+ToggleButton.Text = "OFF"
+ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 ToggleButton.Font = Enum.Font.SourceSans
 ToggleButton.TextSize = 18
-
--- Thêm UICorner để bo tròn nút On/Off
-local ToggleButtonUICorner = Instance.new("UICorner")
-ToggleButtonUICorner.CornerRadius = UDim.new(0, 15) -- Bo tròn góc
-ToggleButtonUICorner.Parent = ToggleButton
 
 -- Nút X
 CloseButton.Parent = ScreenGui
 CloseButton.Size = UDim2.new(0, 30, 0, 30)
 CloseButton.Position = UDim2.new(0.79, 0, 0.01, 0)
 CloseButton.Text = "⚙️"
-CloseButton.BackgroundColor3 = Color3.fromRGB(200, 200, 200) -- Màu xám trong suốt
+CloseButton.BackgroundColor3 = Color3.fromRGB(200, 200, 200)
 CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 CloseButton.Font = Enum.Font.SourceSans
 CloseButton.TextSize = 18
 
--- Thêm UICorner để bo tròn nút X
-local CloseButtonUICorner = Instance.new("UICorner")
-CloseButtonUICorner.CornerRadius = UDim.new(0, 15) -- Bo tròn góc
-CloseButtonUICorner.Parent = CloseButton
+-- Focus Mode Button
+FocusButton.Parent = ScreenGui
+FocusButton.Size = UDim2.new(0, 100, 0, 50)
+FocusButton.Position = UDim2.new(0.85, 0, 0.07, 0)
+FocusButton.Text = "Focus"
+FocusButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+FocusButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+FocusButton.Font = Enum.Font.SourceSans
+FocusButton.TextSize = 18
+
+-- Aim Circle
+AimCircle.Parent = ScreenGui
+AimCircle.Size = UDim2.new(0, 100, 0, 100)
+AimCircle.Position = UDim2.new(0.5, -50, 0.5, -50)
+AimCircle.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+AimCircle.BackgroundTransparency = 0.5
+AimCircle.AnchorPoint = Vector2.new(0.5, 0.5)
+
+-- Thêm UICorner để bo tròn các nút
+local function addUICorner(button)
+    local UICorner = Instance.new("UICorner")
+    UICorner.CornerRadius = UDim.new(0, 15)
+    UICorner.Parent = button
+end
+
+addUICorner(ToggleButton)
+addUICorner(CloseButton)
+addUICorner(FocusButton)
 
 -- Hàm bật/tắt Aim qua nút X
 CloseButton.MouseButton1Click:Connect(function()
     AimActive = not AimActive
-    ToggleButton.Visible = AimActive -- Ẩn/hiện nút ON/OFF theo trạng thái Aim
+    ToggleButton.Visible = AimActive
     if not AimActive then
         ToggleButton.Text = "OFF"
         ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
         Locked = false
-        CurrentTarget = nil -- Ngừng ghim mục tiêu
+        CurrentTarget = nil
     else
         ToggleButton.Text = "ON"
         ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+    end
+end)
+
+-- Nút Focus Mode
+FocusButton.MouseButton1Click:Connect(function()
+    FocusMode = not FocusMode
+    if FocusMode then
+        FocusButton.Text = "Focus ON"
+        FocusButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+    else
+        FocusButton.Text = "Focus OFF"
+        FocusButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+    end
+end)
+
+-- Nút ON/OFF để bật/tắt ghim mục tiêu
+ToggleButton.MouseButton1Click:Connect(function()
+    Locked = not Locked
+    if Locked then
+        ToggleButton.Text = "ON"
+        ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+    else
+        ToggleButton.Text = "OFF"
+        ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+        CurrentTarget = nil
     end
 end)
 
@@ -114,7 +135,6 @@ local function FindEnemiesInRadius()
         end
     end
 
-    -- Nếu có nhiều mục tiêu, chọn mục tiêu gần nhất với LocalPlayer
     if #targets > 1 then
         table.sort(targets, function(a, b)
             return (a.HumanoidRootPart.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude < (b.HumanoidRootPart.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude
@@ -125,54 +145,31 @@ end
 
 -- Điều chỉnh camera tránh bị che khuất
 local function AdjustCameraPosition(targetPosition)
-    local ray = Ray.new(Camera.CFrame.Position, targetPosition - Camera.CFrame.Position)
-    local hitPart = workspace:FindPartOnRay(ray, LocalPlayer.Character)
-    if hitPart then
+    if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then return targetPosition end
+    local raycastParams = RaycastParams.new()
+    raycastParams.FilterDescendantsInstances = {LocalPlayer.Character}
+    raycastParams.FilterType = Enum.RaycastFilterType.Exclude
+    local raycastResult = workspace:Raycast(Camera.CFrame.Position, targetPosition - Camera.CFrame.Position, raycastParams)
+    
+    if raycastResult then
         return Camera.CFrame.Position + (targetPosition - Camera.CFrame.Position).Unit * 5
     end
     return targetPosition
 end
 
--- Dự đoán vị trí mục tiêu với gia tốc và tốc độ
+-- Dự đoán vị trí mục tiêu
 local function PredictTargetPosition(target)
-    local humanoid = target:FindFirstChild("Humanoid")
     local humanoidRootPart = target:FindFirstChild("HumanoidRootPart")
-    if humanoid and humanoidRootPart then
+    if humanoidRootPart then
         local velocity = humanoidRootPart.Velocity
-        local direction = velocity.Unit
-        local speed = velocity.Magnitude
-        local predictedPosition = humanoidRootPart.Position + velocity * Prediction
-        return predictedPosition
+        return humanoidRootPart.Position + velocity * Prediction
     end
     return target.HumanoidRootPart.Position
 end
 
--- Cập nhật FOV ring
-local function updateFOVRing()
-    if dynamicFOV then
-        local closest = getClosestPlayer()
-        if closest and closest.Character and closest.Character:FindFirstChild(targetPart) then
-            local part = closest.Character:FindFirstChild(targetPart)
-            local distance = (Cam.CFrame.Position - part.Position).Magnitude
-            -- Thay đổi kích thước vòng tròn POV dựa trên khoảng cách
-            FOVring.Radius = math.clamp(fov * (1 - (distance / maxDistance)), 20, fov)
-        else
-            FOVring.Radius = fov
-        end
-    end
-end
-
--- Tính toán SmoothFactor dựa trên tốc độ mục tiêu
-local function CalculateSmoothFactor(target)
-    local velocityMagnitude = target.HumanoidRootPart.Velocity.Magnitude
-    local smoothFactor = BaseSmoothFactor + (velocityMagnitude / 100)
-    return math.clamp(smoothFactor, BaseSmoothFactor, MaxSmoothFactor)
-end
-
--- Cập nhật camera và FOV
+-- Cập nhật camera
 RunService.RenderStepped:Connect(function()
     if AimActive then
-        -- Tìm kẻ thù gần nhất
         local enemies = FindEnemiesInRadius()
         if #enemies > 0 then
             if not Locked then
@@ -181,59 +178,54 @@ RunService.RenderStepped:Connect(function()
                 ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
             end
             if not CurrentTarget then
-                CurrentTarget = enemies[1] -- Chọn mục tiêu đầu tiên
+                CurrentTarget = enemies[1]
             end
         else
             if Locked then
                 Locked = false
                 ToggleButton.Text = "OFF"
                 ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-                CurrentTarget = nil -- Ngừng ghim khi không còn mục tiêu
+                CurrentTarget = nil
             end
         end
 
-        -- Theo dõi mục tiêu
         if CurrentTarget and Locked then
             local targetCharacter = CurrentTarget
             if targetCharacter and targetCharacter:FindFirstChild("HumanoidRootPart") then
                 local targetPosition = PredictTargetPosition(targetCharacter)
 
-                -- Kiểm tra nếu mục tiêu không hợp lệ
-                local distance = (targetCharacter.HumanoidRootPart.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude
-                if targetCharacter.Humanoid.Health <= 0 or distance > Radius then
-                    CurrentTarget = nil
-                else
-                    -- Điều chỉnh vị trí camera
-                    targetPosition = AdjustCameraPosition(targetPosition)
+                -- Điều chỉnh camera
+                targetPosition = AdjustCameraPosition(targetPosition)
 
-                    -- Tính toán SmoothFactor
-                    local SmoothFactor = CalculateSmoothFactor(targetCharacter)
+                -- Cập nhật camera chính
+                Camera.CFrame = CFrame.new(Camera.CFrame.Position, targetPosition)
 
-                    -- Sử dụng TargetLockSpeed để điều chỉnh tốc độ ghim
-                    local TargetPositionSmooth = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, targetPosition), TargetLockSpeed)
-
-                    -- Cập nhật camera chính (Camera 1)
-                    Camera.CFrame = TargetPositionSmooth
-
-                    -- Thay đổi FOV (Field of View) để tạo cảm giác POV
-                    Camera.FieldOfView = 70 + (distance / Radius) * 20  -- Tăng FOV khi mục tiêu gần hơn
-
-                    -- Cập nhật kích thước POV dựa trên khoảng cách
-                    updateFOVRing()
-
-                    -- Cập nhật Reticle
-                    local part = closest.Character:FindFirstChild(targetPart)
-                    if part then
-                        local screenPos, isVisible = Cam:WorldToViewportPoint(part.Position)
-                        if isVisible then
-                            Reticle.Visible = true
-                            Reticle.Position = Vector2.new(screenPos.X, screenPos.Y)
-                        else
-                            Reticle.Visible = false
-                        end
-                    end
+                -- Thay đổi FOV
+                if FOVAdjustment then
+                    Camera.FieldOfView = 70 + (targetPosition - Camera.CFrame.Position).Magnitude / Radius * 20
                 end
             end
         end
+
+        -- Camera Shake
+        if CameraShakeEnabled then
+            local shakeMagnitude = math.random(1, 5)
+            Camera.CFrame = Camera.CFrame * CFrame.new(Vector3.new(math.random(-shakeMagnitude, shakeMagnitude), math.random(-shakeMagnitude, shakeMagnitude), math.random(-shakeMagnitude, shakeMagnitude)))
+        end
+
+        -- Focus Mode (Cập nhật liên tục)
+        if FocusMode then
+            Camera.CFrame = Camera.CFrame * CFrame.new(0, 0, -5)
+        end
+    end
+end)
+
+-- Chức năng bổ sung (Zoom, Camera Shake, v.v.)
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+
+    if input.UserInputType == Enum.UserInputType.MouseWheel then
+        CameraZoom = math.clamp(CameraZoom + input.Position.Z, 50, 120)
+        Camera.FieldOfView = CameraZoom
     end
 end)
