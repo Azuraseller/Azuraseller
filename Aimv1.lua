@@ -1,33 +1,25 @@
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local LocalPlayer = Players.LocalPlayer
-local Camera = workspace.CurrentCamera
-local TweenService = game:GetService("TweenService")
-local UserInputService = game:GetService("UserInputService")
-
--- Cấu hình các tham số
-local Prediction = 0.1
-local Radius = 230
-local BaseSmoothFactor = 0.15
-local MaxSmoothFactor = 0.5
+-- Các biến cấu hình
+local player = game.Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local humanoid = character:WaitForChild("Humanoid")
+local camera = game.Workspace.CurrentCamera
+local aimbotEnabled = true
+local freeLookEnabled = false
+local target = nil
 local CameraRotationSpeed = 0.3
-local TargetLockSpeed = 0.2
-local TargetSwitchSpeed = 0.1
-local Locked = false
-local CurrentTarget = nil
-local AimActive = true
-local AutoAim = false
-local FocusMode = false
-local CameraZoom = 70
+local Radius = 230
 local FOVAdjustment = false
-local CameraShakeEnabled = false
+local CameraZoom = 70
+local AimActive = true
+local Locked = false
+local FocusMode = false
 
 -- GUI
 local ScreenGui = Instance.new("ScreenGui")
 local ToggleButton = Instance.new("TextButton")
 local CloseButton = Instance.new("TextButton")
-local AimCircle = Instance.new("Frame")
 local FocusButton = Instance.new("TextButton")
+local AimCircle = Instance.new("Frame")
 
 ScreenGui.Parent = game:GetService("CoreGui")
 
@@ -90,7 +82,7 @@ CloseButton.MouseButton1Click:Connect(function()
         ToggleButton.Text = "OFF"
         ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
         Locked = false
-        CurrentTarget = nil
+        target = nil
         AimCircle.Visible = false
     else
         ToggleButton.Text = "ON"
@@ -111,125 +103,82 @@ FocusButton.MouseButton1Click:Connect(function()
     end
 end)
 
--- Nút ON/OFF để bật/tắt ghim mục tiêu
-ToggleButton.MouseButton1Click:Connect(function()
-    Locked = not Locked
-    if Locked then
-        ToggleButton.Text = "ON"
-        ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+-- Tìm mục tiêu gần nhất
+local function findClosestEnemy()
+    local closestTarget = nil
+    local closestDistance = math.huge  -- Bắt đầu với khoảng cách rất lớn
+
+    for _, potentialTarget in pairs(game.Players:GetPlayers()) do
+        if potentialTarget ~= player and potentialTarget.Character and potentialTarget.Character:FindFirstChild("HumanoidRootPart") then
+            local targetPosition = potentialTarget.Character.HumanoidRootPart.Position
+            local distance = (camera.CFrame.Position - targetPosition).Magnitude
+            if distance < closestDistance then
+                closestDistance = distance
+                closestTarget = potentialTarget.Character
+            end
+        end
+    end
+
+    return closestTarget
+end
+
+-- Cập nhật camera và aim
+local function updateCameraAndAim(targetPosition)
+    if not aimbotEnabled or not targetPosition then return end
+
+    -- Cập nhật FOV và tốc độ camera dựa trên khoảng cách đến mục tiêu
+    local distance = (camera.CFrame.Position - targetPosition).Magnitude
+    local fov = math.clamp(distance / 10, 70, 120)  -- Điều chỉnh phạm vi FOV
+    camera.FieldOfView = fov
+    local cameraSpeed = math.clamp(distance / 10, 5, 20)  -- Điều chỉnh phạm vi tốc độ camera
+
+    -- Aim vào vị trí mục tiêu
+    local targetDirection = (targetPosition - camera.CFrame.Position).unit
+    camera.CFrame = CFrame.lookAt(camera.CFrame.Position, targetPosition)
+
+    -- Điều chỉnh hướng của nhân vật (nếu Free Look không được bật)
+    if not freeLookEnabled and character:FindFirstChild("HumanoidRootPart") then
+        local characterDirection = (targetPosition - character.HumanoidRootPart.Position).unit
+        character:SetPrimaryPartCFrame(CFrame.lookAt(character.HumanoidRootPart.Position, targetPosition))
+    end
+end
+
+-- Điều khiển Free Look
+local function handleFreeLook()
+    if freeLookEnabled then
+        -- Cho phép di chuyển camera tự do
+        -- Tắt aimbot khi Free Look được kích hoạt
+        aimbotEnabled = false
     else
-        ToggleButton.Text = "OFF"
-        ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-        CurrentTarget = nil
+        -- Bật lại aimbot khi Free Look bị tắt
+        aimbotEnabled = true
     end
-end)
-
--- Tìm tất cả đối thủ trong phạm vi
-local function FindEnemiesInRadius()
-    local targets = {}
-    for _, Player in ipairs(Players:GetPlayers()) do
-        if Player ~= LocalPlayer then
-            local Character = Player.Character
-            if Character and Character:FindFirstChild("HumanoidRootPart") and Character:FindFirstChild("Humanoid") and Character.Humanoid.Health > 0 then
-                local Distance = (Character.HumanoidRootPart.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude
-                if Distance <= Radius then
-                    table.insert(targets, Character)
-                end
-            end
-        end
-    end
-
-    if #targets > 1 then
-        table.sort(targets, function(a, b)
-            return (a.HumanoidRootPart.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude < (b.HumanoidRootPart.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude
-        end)
-    end
-    return targets
 end
 
--- Điều chỉnh camera tránh bị che khuất
-local function AdjustCameraPosition(targetPosition)
-    if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then return targetPosition end
-    local raycastParams = RaycastParams.new()
-    raycastParams.FilterDescendantsInstances = {LocalPlayer.Character}
-    raycastParams.FilterType = Enum.RaycastFilterType.Exclude
-    local raycastResult = workspace:Raycast(Camera.CFrame.Position, targetPosition - Camera.CFrame.Position, raycastParams)
-    
-    if raycastResult then
-        return Camera.CFrame.Position + (targetPosition - Camera.CFrame.Position).Unit * 5
-    end
-    return targetPosition
-end
-
--- Dự đoán vị trí mục tiêu
-local function PredictTargetPosition(target)
-    local humanoidRootPart = target:FindFirstChild("HumanoidRootPart")
-    if humanoidRootPart then
-        local velocity = humanoidRootPart.Velocity
-        return humanoidRootPart.Position + velocity * Prediction
-    end
-    return target.HumanoidRootPart.Position
-end
-
--- Cập nhật camera
-RunService.RenderStepped:Connect(function()
+-- Tìm mục tiêu gần nhất
+game:GetService("RunService").RenderStepped:Connect(function()
     if AimActive then
-        local enemies = FindEnemiesInRadius()
-        if #enemies > 0 then
-            if not Locked then
-                Locked = true
-                ToggleButton.Text = "ON"
-                ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
-            end
-            if not CurrentTarget then
-                CurrentTarget = enemies[1]
-            end
-        else
-            if Locked then
-                Locked = false
-                ToggleButton.Text = "OFF"
-                ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-                CurrentTarget = nil
-            end
-        end
-
-        if CurrentTarget and Locked then
-            local targetCharacter = CurrentTarget
-            if targetCharacter and targetCharacter:FindFirstChild("HumanoidRootPart") then
-                local targetPosition = PredictTargetPosition(targetCharacter)
-
-                -- Điều chỉnh camera
-                targetPosition = AdjustCameraPosition(targetPosition)
-
-                -- Cập nhật camera chính
-                Camera.CFrame = CFrame.new(Camera.CFrame.Position, targetPosition)
-
-                -- Thay đổi FOV
-                if FOVAdjustment then
-                    Camera.FieldOfView = 70 + (targetPosition - Camera.CFrame.Position).Magnitude / Radius * 20
-                end
-            end
-        end
-
-        -- Camera Shake
-        if CameraShakeEnabled then
-            local shakeMagnitude = math.random(1, 5)
-            Camera.CFrame = Camera.CFrame * CFrame.new(Vector3.new(math.random(-shakeMagnitude, shakeMagnitude), math.random(-shakeMagnitude, shakeMagnitude), math.random(-shakeMagnitude, shakeMagnitude)))
-        end
-
-        -- Focus Mode (Cập nhật liên tục)
-        if FocusMode then
-            Camera.CFrame = Camera.CFrame * CFrame.new(0, 0, -5)
+        -- Tìm mục tiêu gần nhất
+        target = findClosestEnemy()
+        if target and target:FindFirstChild("HumanoidRootPart") then
+            updateCameraAndAim(target.HumanoidRootPart.Position)
         end
     end
 end)
 
--- Chức năng bổ sung (Zoom, Camera Shake, v.v.)
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
+-- Toggle Free Look
+game:GetService("UserInputService").InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
+    if input.KeyCode == Enum.KeyCode.F then
+        freeLookEnabled = not freeLookEnabled
+        handleFreeLook()
+    end
+end)
 
-    if input.UserInputType == Enum.UserInputType.MouseWheel then
-        CameraZoom = math.clamp(CameraZoom + input.Position.Z, 50, 120)
-        Camera.FieldOfView = CameraZoom
+-- Cập nhật camera khi AimBot đang hoạt động
+game:GetService("RunService").RenderStepped:Connect(function()
+    if AimActive and target then
+        local targetPosition = target.HumanoidRootPart.Position
+        updateCameraAndAim(targetPosition)
     end
 end)
