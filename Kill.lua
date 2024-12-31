@@ -5,24 +5,23 @@ local Cam = workspace.CurrentCamera
 
 -- Cài đặt
 local fov = 100
-local aimMode = false
-local lockOnMode = false
-local softLock = true
-local transitionSpeed = 0.15
-local highlightColor = Color3.fromRGB(255, 0, 0)
-local reticleSize = 10
-local dynamicFOV = true
-local autoAim = true
+local maxDistance = 500
+local aimSensitivity = 0.15
 local targetPart = "Head"
+local aimMode = false
+local autoAimEnabled = true
+local predictionEnabled = true
+local dynamicLockOn = true
+local zoomEnabled = true
+local zoomFactor = 1.2
 
 -- Vòng FOV
 local FOVring = Drawing.new("Circle")
 FOVring.Visible = true
 FOVring.Thickness = 2
-FOVring.Color = Color3.fromRGB(128, 0, 128)
 FOVring.Filled = false
-FOVring.Radius = fov
 FOVring.Position = Cam.ViewportSize / 2
+FOVring.Color = Color3.fromRGB(128, 0, 128)
 
 -- Tâm hướng
 local Reticle = Drawing.new("Circle")
@@ -30,54 +29,33 @@ Reticle.Visible = false
 Reticle.Thickness = 2
 Reticle.Color = Color3.fromRGB(255, 255, 0)
 Reticle.Filled = true
-Reticle.Radius = reticleSize
+Reticle.Radius = 10
 
--- Highlight mục tiêu
-local highlight = Instance.new("Highlight")
-highlight.Enabled = false
-highlight.FillTransparency = 0.5
-highlight.FillColor = highlightColor
-highlight.OutlineTransparency = 1
-highlight.Parent = workspace
-
--- GUI
-local ScreenGui = Instance.new("ScreenGui", Players.LocalPlayer.PlayerGui)
-local FOVLabel = Instance.new("TextLabel", ScreenGui)
-FOVLabel.Size = UDim2.new(0, 200, 0, 50)
-FOVLabel.Position = UDim2.new(0, 10, 0, 10)
-FOVLabel.TextColor3 = Color3.new(1, 1, 1)
-FOVLabel.BackgroundTransparency = 0.5
-FOVLabel.Text = "FOV: " .. fov
-FOVLabel.Visible = true
-
--- Cập nhật vòng FOV
-local function updateDrawings()
-    local camViewportSize = Cam.ViewportSize
-    FOVring.Position = camViewportSize / 2
-    FOVring.Radius = fov
-end
-
--- Camera di chuyển mượt mà
-local function smoothLookAt(targetPosition)
-    local currentCFrame = Cam.CFrame
-    local targetCFrame = CFrame.new(Cam.CFrame.Position, targetPosition)
-    Cam.CFrame = currentCFrame:Lerp(targetCFrame, transitionSpeed)
+-- Dự đoán chuyển động mục tiêu
+local function predictTargetPosition(targetPart)
+    if targetPart and targetPart.Parent then
+        local target = targetPart.Parent
+        local velocity = target:FindFirstChild("HumanoidRootPart") and target.HumanoidRootPart.Velocity or Vector3.zero
+        local prediction = targetPart.Position + velocity * 0.2 -- Dự đoán vị trí sau 0.2 giây
+        return prediction
+    end
+    return targetPart.Position
 end
 
 -- Tìm mục tiêu gần nhất
-local function getClosestPlayerInFOV()
+local function getClosestPlayer()
     local nearest = nil
-    local last = math.huge
+    local lastDistance = math.huge
     local playerMousePos = Cam.ViewportSize / 2
 
     for _, player in ipairs(Players:GetPlayers()) do
         if player ~= Players.LocalPlayer and player.Character and player.Character:FindFirstChild(targetPart) then
             local part = player.Character:FindFirstChild(targetPart)
-            local ePos, isVisible = Cam:WorldToViewportPoint(part.Position)
-            local distance = (Vector2.new(ePos.X, ePos.Y) - playerMousePos).Magnitude
+            local screenPos, isVisible = Cam:WorldToViewportPoint(part.Position)
+            local distance = (Vector2.new(screenPos.X, screenPos.Y) - playerMousePos).Magnitude
 
-            if distance < last and isVisible and distance < fov then
-                last = distance
+            if distance < lastDistance and isVisible and distance < fov then
+                lastDistance = distance
                 nearest = player
             end
         end
@@ -86,55 +64,44 @@ local function getClosestPlayerInFOV()
     return nearest
 end
 
--- Hiển thị tâm hướng
-local function updateReticle(target)
-    if target and target.Character and target.Character:FindFirstChild(targetPart) then
-        local part = target.Character:FindFirstChild(targetPart)
-        local screenPos, isVisible = Cam:WorldToViewportPoint(part.Position)
-
-        if isVisible then
-            Reticle.Visible = true
-            Reticle.Position = Vector2.new(screenPos.X, screenPos.Y)
-        else
-            Reticle.Visible = false
-        end
-    else
-        Reticle.Visible = false
-    end
-end
-
--- Camera và Aim
+-- Nhắm mục tiêu
 local function aimAtTarget(target)
     if aimMode and target and target.Character and target.Character:FindFirstChild(targetPart) then
         local part = target.Character:FindFirstChild(targetPart)
-        smoothLookAt(part.Position)
+        local targetPosition = predictionEnabled and predictTargetPosition(part) or part.Position
+        local currentCFrame = Cam.CFrame
+        local targetCFrame = CFrame.new(Cam.CFrame.Position, targetPosition)
+        Cam.CFrame = currentCFrame:Lerp(targetCFrame, aimSensitivity)
 
-        if lockOnMode then
-            highlight.Enabled = true
-            highlight.Adornee = target.Character
-        else
-            highlight.Enabled = false
+        -- Zoom động
+        if zoomEnabled then
+            local distance = (Cam.CFrame.Position - targetPosition).Magnitude
+            local zoomLevel = math.clamp(distance / maxDistance, 0.5, 1.5) * zoomFactor
+            Cam.FieldOfView = 70 / zoomLevel
         end
+    else
+        Cam.FieldOfView = 70 -- Reset zoom nếu không Aim
+    end
+end
+
+-- Hiển thị thông tin mục tiêu
+local function displayTargetInfo(target)
+    if target and target.Character then
+        local distance = (Cam.CFrame.Position - target.Character[targetPart].Position).Magnitude
+        print("Mục tiêu:", target.Name, "Khoảng cách:", math.floor(distance))
     end
 end
 
 -- Phím tắt
 local function onKeyDown(input)
-    if input.KeyCode == Enum.KeyCode.Delete then
-        RunService:UnbindFromRenderStep("FOVUpdate")
-        FOVring:Remove()
-        Reticle.Visible = false
-        highlight:Destroy()
-    elseif input.KeyCode == Enum.KeyCode.F then
+    if input.KeyCode == Enum.KeyCode.F then
         aimMode = not aimMode
+    elseif input.KeyCode == Enum.KeyCode.G then
+        autoAimEnabled = not autoAimEnabled
+    elseif input.KeyCode == Enum.KeyCode.P then
+        predictionEnabled = not predictionEnabled
     elseif input.KeyCode == Enum.KeyCode.L then
-        lockOnMode = not lockOnMode
-    elseif input.KeyCode == Enum.KeyCode.Plus then
-        fov = math.min(fov + 10, 150)
-        FOVLabel.Text = "FOV: " .. fov
-    elseif input.KeyCode == Enum.KeyCode.Minus then
-        fov = math.max(fov - 10, 50)
-        FOVLabel.Text = "FOV: " .. fov
+        dynamicLockOn = not dynamicLockOn
     end
 end
 
@@ -142,13 +109,23 @@ UserInputService.InputBegan:Connect(onKeyDown)
 
 -- Vòng lặp chính
 RunService.RenderStepped:Connect(function()
-    updateDrawings()
-    local closest = getClosestPlayerInFOV()
+    local closest = getClosestPlayer()
     if closest then
         aimAtTarget(closest)
-        updateReticle(closest)
+        displayTargetInfo(closest)
+
+        -- Cập nhật Reticle
+        local part = closest.Character:FindFirstChild(targetPart)
+        if part then
+            local screenPos, isVisible = Cam:WorldToViewportPoint(part.Position)
+            if isVisible then
+                Reticle.Visible = true
+                Reticle.Position = Vector2.new(screenPos.X, screenPos.Y)
+            else
+                Reticle.Visible = false
+            end
+        end
     else
-        highlight.Enabled = false
         Reticle.Visible = false
     end
 end)
