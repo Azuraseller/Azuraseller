@@ -21,8 +21,8 @@ local FocusMode = false
 local CameraZoom = 70
 local FOVAdjustment = false
 local CameraShakeEnabled = false
-local FreeLookMode = false  -- Thêm biến này để theo dõi chế độ Free Look
-local POVMode = false       -- Thêm biến này để theo dõi chế độ POV
+local FreeLookEnabled = false  -- Free Look flag
+local AimbotEnabled = true  -- Aimbot flag
 
 -- GUI
 local ScreenGui = Instance.new("ScreenGui")
@@ -30,7 +30,6 @@ local ToggleButton = Instance.new("TextButton")
 local CloseButton = Instance.new("TextButton")
 local AimCircle = Instance.new("Frame")
 local FocusButton = Instance.new("TextButton")
-local FreeLookButton = Instance.new("TextButton") -- Nút Free Look
 
 ScreenGui.Parent = game:GetService("CoreGui")
 
@@ -54,33 +53,24 @@ CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 CloseButton.Font = Enum.Font.SourceSans
 CloseButton.TextSize = 18
 
--- Focus Mode Button
+-- Focus Mode Button (Now same size as Close button and positioned below it)
 FocusButton.Parent = ScreenGui
-FocusButton.Size = UDim2.new(0, 100, 0, 50)
-FocusButton.Position = UDim2.new(0.85, 0, 0.07, 0)
+FocusButton.Size = UDim2.new(0, 30, 0, 30)
+FocusButton.Position = UDim2.new(0.79, 0, 0.07, 0)
 FocusButton.Text = "Focus"
 FocusButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
 FocusButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 FocusButton.Font = Enum.Font.SourceSans
 FocusButton.TextSize = 18
 
--- Free Look Button
-FreeLookButton.Parent = ScreenGui
-FreeLookButton.Size = UDim2.new(0, 100, 0, 50)
-FreeLookButton.Position = UDim2.new(0.85, 0, 0.13, 0)
-FreeLookButton.Text = "Free Look"
-FreeLookButton.BackgroundColor3 = Color3.fromRGB(0, 0, 255)
-FreeLookButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-FreeLookButton.Font = Enum.Font.SourceSans
-FreeLookButton.TextSize = 18
-
--- Aim Circle
+-- Aim Circle (Centered in the screen with a circular shape)
 AimCircle.Parent = ScreenGui
 AimCircle.Size = UDim2.new(0, 100, 0, 100)
 AimCircle.Position = UDim2.new(0.5, -50, 0.5, -50)
 AimCircle.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
 AimCircle.BackgroundTransparency = 0.5
 AimCircle.AnchorPoint = Vector2.new(0.5, 0.5)
+AimCircle.BorderRadius = UDim.new(0, 50)  -- Make it circular
 
 -- Thêm UICorner để bo tròn các nút
 local function addUICorner(button)
@@ -92,12 +82,12 @@ end
 addUICorner(ToggleButton)
 addUICorner(CloseButton)
 addUICorner(FocusButton)
-addUICorner(FreeLookButton)
 
 -- Hàm bật/tắt Aim qua nút X
 CloseButton.MouseButton1Click:Connect(function()
     AimActive = not AimActive
     ToggleButton.Visible = AimActive
+    FocusButton.Visible = AimActive
     if not AimActive then
         ToggleButton.Text = "OFF"
         ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
@@ -121,15 +111,16 @@ FocusButton.MouseButton1Click:Connect(function()
     end
 end)
 
--- Nút Free Look
-FreeLookButton.MouseButton1Click:Connect(function()
-    FreeLookMode = not FreeLookMode
-    if FreeLookMode then
-        FreeLookButton.Text = "Free Look ON"
-        FreeLookButton.BackgroundColor3 = Color3.fromRGB(0, 0, 255)
+-- Nút ON/OFF để bật/tắt ghim mục tiêu
+ToggleButton.MouseButton1Click:Connect(function()
+    Locked = not Locked
+    if Locked then
+        ToggleButton.Text = "ON"
+        ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
     else
-        FreeLookButton.Text = "Free Look OFF"
-        FreeLookButton.BackgroundColor3 = Color3.fromRGB(0, 255, 255)
+        ToggleButton.Text = "OFF"
+        ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+        CurrentTarget = nil
     end
 end)
 
@@ -156,21 +147,44 @@ local function FindEnemiesInRadius()
     return targets
 end
 
--- Điều chỉnh camera tránh bị che khuất
-local function AdjustCameraPosition(targetPosition)
-    if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then return targetPosition end
-    local raycastParams = RaycastParams.new()
-    raycastParams.FilterDescendantsInstances = {LocalPlayer.Character}
-    raycastParams.FilterType = Enum.RaycastFilterType.Exclude
-    local raycastResult = workspace:Raycast(Camera.CFrame.Position, targetPosition - Camera.CFrame.Position, raycastParams)
-    
-    if raycastResult then
-        return Camera.CFrame.Position + (targetPosition - Camera.CFrame.Position).Unit * 5
+-- Cập nhật camera và aim
+local function updateCameraAndAim(targetPosition)
+    if not AimbotEnabled then return end
+
+    -- Cập nhật FOV và tốc độ camera dựa trên khoảng cách đến mục tiêu
+    local distance = (Camera.CFrame.Position - targetPosition).Magnitude
+    local fov = math.clamp(distance / 10, 70, 120)  -- Điều chỉnh phạm vi FOV
+    Camera.FieldOfView = fov
+    local cameraSpeed = math.clamp(distance / 10, 5, 20)  -- Điều chỉnh tốc độ camera
+
+    -- Hướng camera về mục tiêu
+    local targetDirection = (targetPosition - Camera.CFrame.Position).unit
+    Camera.CFrame = CFrame.lookAt(Camera.CFrame.Position, targetPosition)
+
+    -- Điều chỉnh hướng nhân vật nếu không sử dụng Free Look
+    if not FreeLookEnabled then
+        local characterDirection = (targetPosition - LocalPlayer.Character.HumanoidRootPart.Position).unit
+        LocalPlayer.Character:SetPrimaryPartCFrame(CFrame.lookAt(LocalPlayer.Character.HumanoidRootPart.Position, targetPosition))
     end
-    return targetPosition
 end
 
--- Cập nhật camera
+-- Theo dõi mục tiêu
+local function trackTarget(target)
+    if target and target:FindFirstChild("HumanoidRootPart") then
+        updateCameraAndAim(target.HumanoidRootPart.Position)
+    end
+end
+
+-- Free Look Toggle
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    if input.KeyCode == Enum.KeyCode.F then
+        FreeLookEnabled = not FreeLookEnabled
+        AimbotEnabled = not FreeLookEnabled  -- Tắt Aimbot khi Free Look được bật
+    end
+end)
+
+-- Cập nhật liên tục
 RunService.RenderStepped:Connect(function()
     if AimActive then
         local enemies = FindEnemiesInRadius()
@@ -193,39 +207,28 @@ RunService.RenderStepped:Connect(function()
         end
 
         if CurrentTarget and Locked then
-            local targetCharacter = CurrentTarget
-            if targetCharacter and targetCharacter:FindFirstChild("HumanoidRootPart") then
-                local targetPosition = targetCharacter.HumanoidRootPart.Position
-
-                -- Điều chỉnh camera nếu Free Look không bật
-                if not FreeLookMode then
-                    targetPosition = AdjustCameraPosition(targetPosition)
-                    Camera.CFrame = CFrame.new(Camera.CFrame.Position, targetPosition)
-                end
-
-                -- Thay đổi FOV
-                if FOVAdjustment then
-                    Camera.FieldOfView = 70 + (targetPosition - Camera.CFrame.Position).Magnitude / Radius * 20
-                end
-            end
+            trackTarget(CurrentTarget)
         end
 
--- Camera Shake
+        -- Camera Shake
         if CameraShakeEnabled then
             local shakeMagnitude = math.random(1, 5)
             Camera.CFrame = Camera.CFrame * CFrame.new(Vector3.new(math.random(-shakeMagnitude, shakeMagnitude), math.random(-shakeMagnitude, shakeMagnitude), math.random(-shakeMagnitude, shakeMagnitude)))
         end
-    end
 
-    -- Free Look mode: Cập nhật camera để di chuyển tự do khi Free Look được bật
-    if FreeLookMode then
-        local mouseDelta = UserInputService:GetMouseDelta()
-        Camera.CFrame = Camera.CFrame * CFrame.Angles(0, -mouseDelta.X * CameraRotationSpeed, 0)
-        Camera.CFrame = Camera.CFrame * CFrame.Angles(mouseDelta.Y * CameraRotationSpeed, 0, 0)
+        -- Focus Mode
+        if FocusMode then
+            Camera.CFrame = Camera.CFrame * CFrame.new(0, 0, -5)
+        end
     end
+end)
 
-    -- Điều chỉnh FOV khi POV mode được bật
-    if POVMode then
+-- Zoom Function
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+
+    if input.UserInputType == Enum.UserInputType.MouseWheel then
+        CameraZoom = math.clamp(CameraZoom + input.Position.Z, 50, 120)
         Camera.FieldOfView = CameraZoom
     end
 end)
