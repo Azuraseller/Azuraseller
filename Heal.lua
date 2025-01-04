@@ -1,13 +1,14 @@
 local player = game.Players.LocalPlayer
 local character = player.Character or player.CharacterAdded:Wait()
 local humanoid = character:WaitForChild("Humanoid")
+local RunService = game:GetService("RunService")
 
-local maxHealth = humanoid.MaxHealth -- Lấy giá trị máu tối đa
-local previousHealth = humanoid.Health -- Lưu lượng máu hiện tại làm mốc
+local maxHealth = humanoid.MaxHealth -- Lấy máu tối đa
+local previousHealth = humanoid.Health -- Lưu mốc máu ban đầu
 
 function GodMode()
-    humanoid:GetPropertyChangedSignal("Health"):Connect(function()
-        if previousHealth - humanoid.Health >= 100 then
+    RunService.Heartbeat:Connect(function()
+        if humanoid.Health < previousHealth - 100 then
             humanoid.Health = maxHealth -- Hồi đầy máu
             previousHealth = maxHealth -- Cập nhật mốc mới là đầy máu
         else
