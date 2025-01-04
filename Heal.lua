@@ -3,7 +3,7 @@ local character = player.Character
  
 function GodMode()
     character.Humanoid:GetPropertyChangedSignal("Health"):Connect(function()
-        if character.Humanoid.Health < 100 then
+        if character.Humanoid.Health < 283000 then
             character.Humanoid.Health = 100
         end
     end)
