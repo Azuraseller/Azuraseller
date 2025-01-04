@@ -1,16 +1,15 @@
 local player = game.Players.LocalPlayer
 local character = player.Character or player.CharacterAdded:Wait()
+local humanoid = character:WaitForChild("Humanoid")
+
+local previousHealth = humanoid.Health -- Lưu lượng máu hiện tại làm mốc
 
 function GodMode()
-    -- Đặt MaxHealth thành giá trị rất lớn để máu vô hạn
-    character.Humanoid.MaxHealth = math.huge
-    character.Humanoid.Health = math.huge
-
-    -- Tự động hồi máu nếu máu giảm
-    character.Humanoid:GetPropertyChangedSignal("Health"):Connect(function()
-        if character.Humanoid.Health < math.huge then
-            character.Humanoid.Health = math.huge
+    humanoid:GetPropertyChangedSignal("Health"):Connect(function()
+        if humanoid.Health < previousHealth then
+            humanoid.Health = previousHealth -- Hồi lại lượng máu trước đó
         end
+        previousHealth = humanoid.Health -- Cập nhật mốc mới
     end)
 end
 
