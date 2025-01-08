@@ -1,5 +1,5 @@
--- Script Tối Ưu Hoá Cao Cấp Cho Blox Fruits
--- Bao gồm: AutoSkill, AutoSwitchWeapon, AutoDodge, AutoHaki, MaintainFPS, Lưu/Áp dụng Combo với GUI hiện đại.
+-- Script Tối Ưu Hoá Cho Mobile
+-- Bao gồm: AutoSkill, AutoSwitchWeapon, AutoDodge, AutoHaki, MaintainFPS, Lưu/Áp dụng Combo với GUI nhỏ gọn.
 
 -- Biến cấu hình
 local autoSkill = false          -- Tự động sử dụng skill
@@ -29,16 +29,14 @@ local FPSToggleButton = Instance.new("TextButton")
 
 ScreenGui.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
 
--- Main Frame
+-- Main Frame (Giảm kích thước cho phù hợp với mobile)
 MainFrame.Parent = ScreenGui
-MainFrame.Size = UDim2.new(0, 450, 0, 600)
-MainFrame.Position = UDim2.new(0.3, 0, 0.2, 0)
+MainFrame.Size = UDim2.new(0, 300, 0, 450)  -- Kích thước nhỏ hơn
+MainFrame.Position = UDim2.new(0.5, -150, 0.5, -225)  -- Căn giữa màn hình
 MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
 MainFrame.BorderSizePixel = 0
 MainFrame.BackgroundTransparency = 0.1
 MainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
-MainFrame.Draggable = true
-MainFrame.Active = true
 MainFrame.ClipsDescendants = true
 MainFrame.ZIndex = 2
 
@@ -51,7 +49,7 @@ TitleLabel.Parent = MainFrame
 TitleLabel.Size = UDim2.new(1, 0, 0.1, 0)
 TitleLabel.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
 TitleLabel.BorderSizePixel = 0
-TitleLabel.Text = "⚔️ Script Tối Ưu Hoá Blox Fruits"
+TitleLabel.Text = "⚔️ Blox Fruits"
 TitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 TitleLabel.Font = Enum.Font.GothamBold
 TitleLabel.TextScaled = true
@@ -61,8 +59,8 @@ UICornerTitle.CornerRadius = UDim.new(0, 10)
 
 -- Combo Frame
 ComboFrame.Parent = MainFrame
-ComboFrame.Size = UDim2.new(1, 0, 0.5, 0)
-ComboFrame.Position = UDim2.new(0, 0, 0.5, 0)
+ComboFrame.Size = UDim2.new(1, 0, 0.5, 0)  -- Giảm kích thước ComboFrame
+ComboFrame.Position = UDim2.new(0, 0, 0.2, 0)  -- Đặt ComboFrame lên phía trên
 ComboFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 ComboFrame.BorderSizePixel = 0
 
@@ -71,7 +69,7 @@ UICornerCombo.CornerRadius = UDim.new(0, 10)
 
 -- Danh sách Combo
 ComboList.Parent = ComboFrame
-ComboList.Size = UDim2.new(1, -20, 0.8, 0)
+ComboList.Size = UDim2.new(1, -20, 0.6, 0)  -- Giảm kích thước ComboList
 ComboList.Position = UDim2.new(0, 10, 0, 10)
 ComboList.CanvasSize = UDim2.new(0, 0, 1, 0)
 ComboList.ScrollBarThickness = 10
@@ -83,8 +81,8 @@ UICornerList.CornerRadius = UDim.new(0, 10)
 
 -- Ô nhập Combo
 ComboInputBox.Parent = ComboFrame
-ComboInputBox.Size = UDim2.new(0.7, 0, 0.15, 0)
-ComboInputBox.Position = UDim2.new(0.05, 0, 0.85, 0)
+ComboInputBox.Size = UDim2.new(0.7, 0, 0.2, 0)  -- Giảm kích thước ô nhập
+ComboInputBox.Position = UDim2.new(0.05, 0, 0.75, 0)  -- Đặt ô nhập gần cuối
 ComboInputBox.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
 ComboInputBox.Text = "Nhập Combo (vd: 3-x,2-c,1-z)"
 ComboInputBox.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -96,8 +94,8 @@ UICornerInput.CornerRadius = UDim.new(0, 10)
 
 -- Nút thêm Combo
 AddComboButton.Parent = ComboFrame
-AddComboButton.Size = UDim2.new(0.2, 0, 0.15, 0)
-AddComboButton.Position = UDim2.new(0.8, 0, 0.85, 0)
+AddComboButton.Size = UDim2.new(0.2, 0, 0.2, 0)  -- Giảm kích thước nút thêm
+AddComboButton.Position = UDim2.new(0.8, 0, 0.75, 0)  -- Đặt nút thêm gần cuối
 AddComboButton.BackgroundColor3 = Color3.fromRGB(70, 130, 180)
 AddComboButton.Text = "📜 Thêm"
 AddComboButton.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -110,7 +108,7 @@ UICornerAdd.CornerRadius = UDim.new(0, 10)
 -- Nút bật/tắt Auto Skill
 ToggleSkillButton.Parent = MainFrame
 ToggleSkillButton.Size = UDim2.new(0.8, 0, 0.1, 0)
-ToggleSkillButton.Position = UDim2.new(0.1, 0, 0.15, 0)
+ToggleSkillButton.Position = UDim2.new(0.1, 0, 0.75, 0)
 ToggleSkillButton.BackgroundColor3 = Color3.fromRGB(100, 149, 237)
 ToggleSkillButton.Text = "Bật Auto Skill"
 ToggleSkillButton.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -123,7 +121,7 @@ UICornerSkill.CornerRadius = UDim.new(0, 10)
 -- Nút bật/tắt Auto Dodge
 ToggleDodgeButton.Parent = MainFrame
 ToggleDodgeButton.Size = UDim2.new(0.8, 0, 0.1, 0)
-ToggleDodgeButton.Position = UDim2.new(0.1, 0, 0.25, 0)
+ToggleDodgeButton.Position = UDim2.new(0.1, 0, 0.85, 0)
 ToggleDodgeButton.BackgroundColor3 = Color3.fromRGB(100, 149, 237)
 ToggleDodgeButton.Text = "Bật Auto Dodge"
 ToggleDodgeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
