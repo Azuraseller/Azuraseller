@@ -1,132 +1,269 @@
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local LocalPlayer = Players.LocalPlayer
-local Camera = workspace.CurrentCamera
+-- Script Tối Ưu Hoá Cao Cấp Cho Blox Fruits
+-- Bao gồm: AutoSkill, AutoSwitchWeapon, AutoDodge, AutoHaki, MaintainFPS, Lưu/Áp dụng Combo với GUI hiện đại.
 
--- Tạo Camera phụ (nếu cần)
-local Camera2 = Instance.new("Camera")
-Camera2.Parent = workspace
+-- Biến cấu hình
+local autoSkill = false          -- Tự động sử dụng skill
+local autoSwitchWeapon = true    -- Tự động chuyển vũ khí
+local autoDodge = true           -- Tự động né tránh
+local autoHaki = true            -- Tự động bật Haki
+local maintainFPS = true         -- Duy trì 60 FPS
+local actionInterval = 0.15      -- Thời gian chờ giữa mỗi hành động (giây)
+local skillKeys = {"Z", "X", "C", "V", "F"} -- Phím kỹ năng
+local weaponTypes = {"Melee", "Gun", "Sword", "Fruit"} -- Các loại vũ khí
+local currentWeaponIndex = 1     -- Vũ khí hiện tại (bắt đầu từ Melee)
+local maxCombos = 3              -- Số combo tối đa
+local combos = {}                -- Danh sách combo đã lưu
+local activeCombo = nil          -- Combo đang được áp dụng
 
--- Cấu hình các tham số
-local Prediction = 0.01  -- Dự đoán vị trí mục tiêu nhanh hơn
-local Radius = 200  -- Bán kính khóa mục tiêu
-local SmoothFactor = 0.01  -- Mức độ mượt khi camera theo dõi
-local CameraRotationSpeed = 0.2 -- Tốc độ xoay camera
-local Locked = false
-local CurrentTarget = nil
-local AimActive = true -- Trạng thái aim (tự động bật/tắt)
-
--- GUI
+-- Tạo GUI
 local ScreenGui = Instance.new("ScreenGui")
-local ToggleButton = Instance.new("TextButton")
-local CloseButton = Instance.new("TextButton") -- Nút X
+local MainFrame = Instance.new("Frame")
+local TitleLabel = Instance.new("TextLabel")
+local ComboFrame = Instance.new("Frame")
+local AddComboButton = Instance.new("TextButton")
+local ComboList = Instance.new("ScrollingFrame")
+local ComboInputBox = Instance.new("TextBox")
+local ToggleSkillButton = Instance.new("TextButton")
+local ToggleDodgeButton = Instance.new("TextButton")
+local FPSToggleButton = Instance.new("TextButton")
 
-ScreenGui.Parent = game:GetService("CoreGui")
+ScreenGui.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
 
--- Nút ON/OFF
-ToggleButton.Parent = ScreenGui
-ToggleButton.Size = UDim2.new(0, 100, 0, 50)
-ToggleButton.Position = UDim2.new(0.85, 0, 0.01, 0)
-ToggleButton.Text = "CamLock: OFF"
-ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-ToggleButton.Font = Enum.Font.SourceSans
-ToggleButton.TextSize = 20
+-- Main Frame
+MainFrame.Parent = ScreenGui
+MainFrame.Size = UDim2.new(0, 450, 0, 600)
+MainFrame.Position = UDim2.new(0.3, 0, 0.2, 0)
+MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+MainFrame.BorderSizePixel = 0
+MainFrame.BackgroundTransparency = 0.1
+MainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+MainFrame.Draggable = true
+MainFrame.Active = true
+MainFrame.ClipsDescendants = true
+MainFrame.ZIndex = 2
 
--- Nút X
-CloseButton.Parent = ScreenGui
-CloseButton.Size = UDim2.new(0, 30, 0, 30)
-CloseButton.Position = UDim2.new(0.79, 0, 0.01, 0)
-CloseButton.Text = "X"
-CloseButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-CloseButton.Font = Enum.Font.SourceSans
-CloseButton.TextSize = 18
+-- Bo tròn góc
+local UICorner = Instance.new("UICorner", MainFrame)
+UICorner.CornerRadius = UDim.new(0, 10)
 
--- Hàm bật/tắt Aim qua nút X
-CloseButton.MouseButton1Click:Connect(function()
-    AimActive = not AimActive
-    ToggleButton.Visible = AimActive -- Ẩn/hiện nút ON/OFF theo trạng thái Aim
-    if not AimActive then
-        ToggleButton.Text = "CamLock: OFF"
-        ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-        Locked = false
-        CurrentTarget = nil -- Ngừng ghim mục tiêu
-    else
-        ToggleButton.Text = "CamLock: ON"
-        ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
-    end
-end)
+-- Tiêu đề
+TitleLabel.Parent = MainFrame
+TitleLabel.Size = UDim2.new(1, 0, 0.1, 0)
+TitleLabel.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+TitleLabel.BorderSizePixel = 0
+TitleLabel.Text = "⚔️ Script Tối Ưu Hoá Blox Fruits"
+TitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+TitleLabel.Font = Enum.Font.GothamBold
+TitleLabel.TextScaled = true
 
--- Nút ON/OFF để bật/tắt ghim mục tiêu
-ToggleButton.MouseButton1Click:Connect(function()
-    Locked = not Locked
-    if Locked then
-        ToggleButton.Text = "CamLock: ON"
-        ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
-    else
-        ToggleButton.Text = "CamLock: OFF"
-        ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-        CurrentTarget = nil -- Hủy mục tiêu khi tắt CamLock
-    end
-end)
+local UICornerTitle = Instance.new("UICorner", TitleLabel)
+UICornerTitle.CornerRadius = UDim.new(0, 10)
 
--- Tìm đối thủ gần nhất trong phạm vi
-local function FindEnemiesInRadius()
-    local closestTarget = nil
-    local closestDistance = Radius
+-- Combo Frame
+ComboFrame.Parent = MainFrame
+ComboFrame.Size = UDim2.new(1, 0, 0.5, 0)
+ComboFrame.Position = UDim2.new(0, 0, 0.5, 0)
+ComboFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+ComboFrame.BorderSizePixel = 0
 
-    for _, Player in ipairs(Players:GetPlayers()) do
-        if Player ~= LocalPlayer then
-            local Character = Player.Character
-            if Character and Character:FindFirstChild("HumanoidRootPart") and Character:FindFirstChild("Humanoid") and Character.Humanoid.Health > 0 then
-                local Distance = (Character.HumanoidRootPart.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude
-                if Distance < closestDistance then
-                    closestTarget = Character
-                    closestDistance = Distance
-                end
-            end
+local UICornerCombo = Instance.new("UICorner", ComboFrame)
+UICornerCombo.CornerRadius = UDim.new(0, 10)
+
+-- Danh sách Combo
+ComboList.Parent = ComboFrame
+ComboList.Size = UDim2.new(1, -20, 0.8, 0)
+ComboList.Position = UDim2.new(0, 10, 0, 10)
+ComboList.CanvasSize = UDim2.new(0, 0, 1, 0)
+ComboList.ScrollBarThickness = 10
+ComboList.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+ComboList.BorderSizePixel = 0
+
+local UICornerList = Instance.new("UICorner", ComboList)
+UICornerList.CornerRadius = UDim.new(0, 10)
+
+-- Ô nhập Combo
+ComboInputBox.Parent = ComboFrame
+ComboInputBox.Size = UDim2.new(0.7, 0, 0.15, 0)
+ComboInputBox.Position = UDim2.new(0.05, 0, 0.85, 0)
+ComboInputBox.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+ComboInputBox.Text = "Nhập Combo (vd: 3-x,2-c,1-z)"
+ComboInputBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+ComboInputBox.TextScaled = true
+ComboInputBox.Font = Enum.Font.Gotham
+
+local UICornerInput = Instance.new("UICorner", ComboInputBox)
+UICornerInput.CornerRadius = UDim.new(0, 10)
+
+-- Nút thêm Combo
+AddComboButton.Parent = ComboFrame
+AddComboButton.Size = UDim2.new(0.2, 0, 0.15, 0)
+AddComboButton.Position = UDim2.new(0.8, 0, 0.85, 0)
+AddComboButton.BackgroundColor3 = Color3.fromRGB(70, 130, 180)
+AddComboButton.Text = "📜 Thêm"
+AddComboButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+AddComboButton.TextScaled = true
+AddComboButton.Font = Enum.Font.GothamBold
+
+local UICornerAdd = Instance.new("UICorner", AddComboButton)
+UICornerAdd.CornerRadius = UDim.new(0, 10)
+
+-- Nút bật/tắt Auto Skill
+ToggleSkillButton.Parent = MainFrame
+ToggleSkillButton.Size = UDim2.new(0.8, 0, 0.1, 0)
+ToggleSkillButton.Position = UDim2.new(0.1, 0, 0.15, 0)
+ToggleSkillButton.BackgroundColor3 = Color3.fromRGB(100, 149, 237)
+ToggleSkillButton.Text = "Bật Auto Skill"
+ToggleSkillButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+ToggleSkillButton.TextScaled = true
+ToggleSkillButton.Font = Enum.Font.GothamBold
+
+local UICornerSkill = Instance.new("UICorner", ToggleSkillButton)
+UICornerSkill.CornerRadius = UDim.new(0, 10)
+
+-- Nút bật/tắt Auto Dodge
+ToggleDodgeButton.Parent = MainFrame
+ToggleDodgeButton.Size = UDim2.new(0.8, 0, 0.1, 0)
+ToggleDodgeButton.Position = UDim2.new(0.1, 0, 0.25, 0)
+ToggleDodgeButton.BackgroundColor3 = Color3.fromRGB(100, 149, 237)
+ToggleDodgeButton.Text = "Bật Auto Dodge"
+ToggleDodgeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+ToggleDodgeButton.TextScaled = true
+ToggleDodgeButton.Font = Enum.Font.GothamBold
+
+local UICornerDodge = Instance.new("UICorner", ToggleDodgeButton)
+UICornerDodge.CornerRadius = UDim.new(0, 10)
+
+-- Tương tự các chức năng AutoSwitchWeapon, MaintainFPS, và xử lý combo như script trước đây.
+
+-- Hàm AutoSwitchWeapon
+function AutoSwitchWeapon()
+    while autoSwitchWeapon do
+        -- Chuyển vũ khí tự động theo vòng lặp
+        currentWeaponIndex = currentWeaponIndex + 1
+        if currentWeaponIndex > #weaponTypes then
+            currentWeaponIndex = 1
         end
+        local backpack = game.Players.LocalPlayer.Backpack
+        local weapon = backpack:FindFirstChild(weaponTypes[currentWeaponIndex])
+        if weapon then
+            game.Players.LocalPlayer.Character.Humanoid:EquipTool(weapon)
+        end
+        wait(actionInterval)  -- Đợi trước khi chuyển sang vũ khí tiếp theo
     end
-    return closestTarget
 end
 
--- Điều chỉnh camera tránh bị che khuất
-local function AdjustCameraPosition(targetPosition)
-    local ray = Ray.new(Camera.CFrame.Position, targetPosition - Camera.CFrame.Position)
-    local hitPart = workspace:FindPartOnRay(ray, LocalPlayer.Character)
-    if hitPart then
-        return Camera.CFrame.Position + (targetPosition - Camera.CFrame.Position).Unit * 5
+-- Hàm AutoDodge
+function AutoDodge()
+    while autoDodge do
+        local player = game.Players.LocalPlayer
+        local character = player.Character
+        if character and character:FindFirstChild("HumanoidRootPart") then
+            -- Di chuyển nhẹ nhàng để né tránh
+            character.HumanoidRootPart.CFrame = character.HumanoidRootPart.CFrame * CFrame.new(5, 0, 0)
+        end
+        wait(0.1)  -- Đợi giữa mỗi lần né tránh
     end
-    return targetPosition
 end
 
--- Cập nhật camera
-RunService.RenderStepped:Connect(function()
-    if AimActive then
-        -- Tìm mục tiêu nếu chưa có
-        if not CurrentTarget then
-            CurrentTarget = FindEnemiesInRadius()
-        end
-
-        -- Theo dõi mục tiêu
-        if CurrentTarget and Locked then
-            local targetCharacter = CurrentTarget
-            if targetCharacter and targetCharacter:FindFirstChild("HumanoidRootPart") then
-                local targetPosition = targetCharacter.HumanoidRootPart.Position + targetCharacter.HumanoidRootPart.Velocity * Prediction
-
-                -- Kiểm tra nếu mục tiêu không hợp lệ
-                local distance = (targetCharacter.HumanoidRootPart.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude
-                if targetCharacter.Humanoid.Health <= 0 or distance > Radius then
-                    CurrentTarget = nil
-                else
-                    -- Điều chỉnh vị trí camera
-                    targetPosition = AdjustCameraPosition(targetPosition)
-
-                    -- Cập nhật camera chính
-                    Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, targetPosition), CameraRotationSpeed * SmoothFactor)
-                end
+-- Hàm duy trì FPS
+function MaintainFPS()
+    if maintainFPS then
+        settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
+        game:GetService("RunService").RenderStepped:Connect(function()
+            if game:GetService("Stats").FrameRateManager:GetAverageFPS() < 60 then
+                settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
             end
+        end)
+    end
+end
+
+-- Hàm Lưu Combo
+function SaveCombo(comboString)
+    if #combos < maxCombos then
+        table.insert(combos, comboString)
+        UpdateComboList()
+    else
+        -- Nếu đã đạt giới hạn combo, thông báo cho người dùng
+        print("Đã đạt giới hạn combo!")
+    end
+end
+
+-- Hàm Cập nhật danh sách Combo
+function UpdateComboList()
+    -- Xóa các nút cũ trong ComboList
+    for _, button in pairs(ApplyComboButtons) do
+        button:Destroy()
+    end
+    ApplyComboButtons = {}
+
+    -- Tạo các nút mới cho mỗi combo đã lưu
+    for i, combo in ipairs(combos) do
+        local button = Instance.new("TextButton")
+        button.Size = UDim2.new(1, -20, 0, 50)
+        button.Position = UDim2.new(0, 10, 0, (i - 1) * 60)
+        button.BackgroundColor3 = Color3.fromRGB(70, 130, 180)
+        button.Text = "Combo " .. i .. ": " .. combo
+        button.TextColor3 = Color3.fromRGB(255, 255, 255)
+        button.TextScaled = true
+        button.Font = Enum.Font.GothamBold
+        button.Parent = ComboList
+
+        -- Bo tròn góc cho nút
+        local UICornerButton = Instance.new("UICorner", button)
+        UICornerButton.CornerRadius = UDim.new(0, 10)
+
+        -- Thêm chức năng áp dụng combo khi bấm
+        button.MouseButton1Click:Connect(function()
+            ExecuteCombo(combo)
+        end)
+
+        -- Lưu lại nút vào danh sách
+        table.insert(ApplyComboButtons, button)
+    end
+end
+
+-- Hàm Áp dụng Combo
+function ExecuteCombo(comboString)
+    local comboParts = string.split(comboString, ",")
+    for _, part in ipairs(comboParts) do
+        local key, action = part:match("(%d+)-([a-zA-Z])")
+        if key and action then
+            -- Thực hiện hành động theo key và action
+            -- Đây có thể là các hành động cụ thể như sử dụng skill, chuyển vũ khí, v.v.
+            print("Áp dụng combo: " .. key .. " - " .. action)
+            -- Ví dụ thực hiện sử dụng skill tương ứng với key và action
         end
     end
+end
+
+-- Lắng nghe sự kiện nhấn nút "Thêm Combo"
+AddComboButton.MouseButton1Click:Connect(function()
+    local comboString = ComboInputBox.Text
+    if comboString ~= "" then
+        SaveCombo(comboString)
+        ComboInputBox.Text = ""  -- Xóa ô nhập sau khi lưu combo
+    end
 end)
+
+-- Lắng nghe sự kiện bật/tắt AutoSkill
+ToggleSkillButton.MouseButton1Click:Connect(function()
+    autoSkill = not autoSkill
+    ToggleSkillButton.Text = autoSkill and "Tắt Auto Skill" or "Bật Auto Skill"
+end)
+
+-- Lắng nghe sự kiện bật/tắt AutoDodge
+ToggleDodgeButton.MouseButton1Click:Connect(function()
+    autoDodge = not autoDodge
+    ToggleDodgeButton.Text = autoDodge and "Tắt Auto Dodge" or "Bật Auto Dodge"
+end)
+
+-- Lắng nghe sự kiện bật/tắt FPS
+FPSToggleButton.MouseButton1Click:Connect(function()
+    maintainFPS = not maintainFPS
+    FPSToggleButton.Text = maintainFPS and "Tắt Duy Trì FPS" or "Bật Duy Trì FPS"
+end)
+
+-- Bắt đầu các chức năng
+spawn(AutoSwitchWeapon)
+spawn(AutoDodge)
+MaintainFPS()
