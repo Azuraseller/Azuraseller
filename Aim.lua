@@ -3,19 +3,18 @@ local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 
--- Tạo Camera phụ
+-- Tạo Camera phụ (nếu cần)
 local Camera2 = Instance.new("Camera")
 Camera2.Parent = workspace
 
 -- Cấu hình các tham số
-local Prediction = 0.1  -- Dự đoán vị trí mục tiêu
-local Radius = 600 -- Bán kính khóa mục tiêu
-local SmoothFactor = 0.1  -- Mức độ mượt khi camera theo dõi
-local CameraRotationSpeed = 0.01  -- Tốc độ xoay camera khi ghim mục tiêu
+local Prediction = 0.01  -- Dự đoán vị trí mục tiêu nhanh hơn
+local Radius = 200  -- Bán kính khóa mục tiêu
+local SmoothFactor = 0.01  -- Mức độ mượt khi camera theo dõi
+local CameraRotationSpeed = 0.2 -- Tốc độ xoay camera
 local Locked = false
 local CurrentTarget = nil
 local AimActive = true -- Trạng thái aim (tự động bật/tắt)
-local AutoAim = false -- Tự động kích hoạt khi có đối tượng trong bán kính
 
 -- GUI
 local ScreenGui = Instance.new("ScreenGui")
@@ -72,21 +71,24 @@ ToggleButton.MouseButton1Click:Connect(function()
     end
 end)
 
--- Tìm tất cả đối thủ trong phạm vi
+-- Tìm đối thủ gần nhất trong phạm vi
 local function FindEnemiesInRadius()
-    local targets = {}
+    local closestTarget = nil
+    local closestDistance = Radius
+
     for _, Player in ipairs(Players:GetPlayers()) do
         if Player ~= LocalPlayer then
             local Character = Player.Character
             if Character and Character:FindFirstChild("HumanoidRootPart") and Character:FindFirstChild("Humanoid") and Character.Humanoid.Health > 0 then
                 local Distance = (Character.HumanoidRootPart.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude
-                if Distance <= Radius then
-                    table.insert(targets, Character)
+                if Distance < closestDistance then
+                    closestTarget = Character
+                    closestDistance = Distance
                 end
             end
         end
     end
-    return targets
+    return closestTarget
 end
 
 -- Điều chỉnh camera tránh bị che khuất
@@ -102,24 +104,9 @@ end
 -- Cập nhật camera
 RunService.RenderStepped:Connect(function()
     if AimActive then
-        -- Tìm kẻ thù gần nhất
-        local enemies = FindEnemiesInRadius()
-        if #enemies > 0 then
-            if not Locked then
-                Locked = true
-                ToggleButton.Text = "CamLock: ON"
-                ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
-            end
-            if not CurrentTarget then
-                CurrentTarget = enemies[1] -- Chọn mục tiêu đầu tiên
-            end
-        else
-            if Locked then
-                Locked = false
-                ToggleButton.Text = "CamLock: OFF"
-                ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-                CurrentTarget = nil -- Ngừng ghim khi không còn mục tiêu
-            end
+        -- Tìm mục tiêu nếu chưa có
+        if not CurrentTarget then
+            CurrentTarget = FindEnemiesInRadius()
         end
 
         -- Theo dõi mục tiêu
@@ -136,11 +123,8 @@ RunService.RenderStepped:Connect(function()
                     -- Điều chỉnh vị trí camera
                     targetPosition = AdjustCameraPosition(targetPosition)
 
-                    -- Cập nhật camera chính (Camera 1)
-                    Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, targetPosition), SmoothFactor)
-
-                    -- Cập nhật camera phụ (Camera 2)
-                    Camera2.CFrame = Camera2.CFrame:Lerp(CFrame.new(Camera2.CFrame.Position, targetPosition), SmoothFactor)
+                    -- Cập nhật camera chính
+                    Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, targetPosition), CameraRotationSpeed * SmoothFactor)
                 end
             end
         end
