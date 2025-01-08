@@ -1,45 +1,60 @@
--- Local Script: Intelligent Performance Optimization System
+-- Local Script: High-Performance Mode with 60 FPS Lock
 local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
-local Lighting = game:GetService("Lighting")
-local StarterGui = game:GetService("StarterGui")
-local UserInputService = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
-local Debris = game:GetService("Debris")
-
-local player = Players.LocalPlayer
 local camera = Workspace.CurrentCamera
+local player = Players.LocalPlayer
 
 -- Variables
-local performanceData = { fps = 60, frameDrops = 0, memoryUsage = 0 }
-local highPerformanceMode = false -- Toggle for High-Performance Mode
-local effectManagementEnabled = true -- Toggle for Effect Management
+local highPerformanceMode = false
+local targetFPS = 60
+local dynamicAssetLoadingEnabled = true
+local effectManagementEnabled = true
+local frameTime = 1 / targetFPS
 
--- Auto-Detect Device
-local function detectDevice()
-    if UserInputService.TouchEnabled then
-        return "Mobile", 30, Enum.QualityLevel.Level03
+-- Function: Set FPS Limit
+local function setFPSLimit()
+    -- Ensure FPS is capped at 60
+    local lastTime = tick()
+    RunService.RenderStepped:Connect(function()
+        local elapsedTime = tick() - lastTime
+        if elapsedTime < frameTime then
+            wait(frameTime - elapsedTime)  -- Wait to maintain 60 FPS
+        end
+        lastTime = tick()
+    end)
+end
+
+-- Function: Toggle High-Performance Mode
+local function toggleHighPerformanceMode(state)
+    highPerformanceMode = state
+    if state then
+        settings().Rendering.QualityLevel = Enum.QualityLevel.Level02
+        camera.FieldOfView = 85
+        dynamicAssetLoadingEnabled = true
+        effectManagementEnabled = false
+        setFPSLimit()  -- Set FPS limit to 60 when in high-performance mode
     else
-        return "PC", 60, Enum.QualityLevel.Level08
+        settings().Rendering.QualityLevel = Enum.QualityLevel.Level08
+        camera.FieldOfView = 75
+        dynamicAssetLoadingEnabled = true
+        effectManagementEnabled = true
     end
 end
 
--- Dynamic Asset Loading (DAL)
+-- Function: Dynamic Asset Loading
 local function dynamicAssetLoading()
-    local function manageAssets()
-        for _, object in ipairs(Workspace:GetDescendants()) do
-            if object:IsA("BasePart") and object:IsDescendantOf(Workspace) then
-                local distance = (object.Position - camera.CFrame.Position).Magnitude
-                object.Transparency = distance > 100 and 1 or 0 -- Hide objects far from the camera
-                object.CastShadow = distance <= 100 -- Disable shadows for distant objects
-            end
+    if not dynamicAssetLoadingEnabled then return end
+    for _, object in ipairs(Workspace:GetDescendants()) do
+        if object:IsA("BasePart") and object:IsDescendantOf(Workspace) then
+            local distance = (object.Position - camera.CFrame.Position).Magnitude
+            object.Transparency = distance > 100 and 1 or 0
+            object.CastShadow = distance <= 100
         end
     end
-
-    RunService.Heartbeat:Connect(manageAssets)
 end
 
--- Effect Management
+-- Function: Manage Effects
 local function manageEffects()
     for _, particle in ipairs(Workspace:GetDescendants()) do
         if particle:IsA("ParticleEmitter") or particle:IsA("Trail") then
@@ -48,91 +63,70 @@ local function manageEffects()
     end
 end
 
--- High-Performance Mode
-local function toggleHighPerformanceMode(state)
-    highPerformanceMode = state
-    if state then
-        settings().Rendering.QualityLevel = Enum.QualityLevel.Level01 -- Lowest quality
-        camera.FieldOfView = 85 -- Increase FOV for performance
-        effectManagementEnabled = false -- Disable effects
-    else
-        local _, _, quality = detectDevice()
-        settings().Rendering.QualityLevel = quality -- Reset to device-specific quality
-        camera.FieldOfView = 75 -- Reset FOV
-        effectManagementEnabled = true -- Enable effects
-    end
-    manageEffects()
-end
-
--- Performance Debug Tool
-local function displayPerformanceDebug()
+-- Function: Create Movable GUI
+local function createMovableGUI()
     local gui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
-    local debugFrame = Instance.new("Frame", gui)
-    local fpsLabel = Instance.new("TextLabel", debugFrame)
-    local memoryLabel = Instance.new("TextLabel", debugFrame)
+    local frame = Instance.new("Frame", gui)
+    frame.Size = UDim2.new(0.3, 0, 0.4, 0)
+    frame.Position = UDim2.new(0.35, 0, 0.3, 0)
+    frame.BackgroundTransparency = 0.5
+    frame.BackgroundColor3 = Color3.new(0, 0, 0)
+    frame.Active = true
+    frame.Draggable = true -- Enable dragging
 
-    debugFrame.Size = UDim2.new(0.2, 0, 0.1, 0)
-    debugFrame.Position = UDim2.new(0.8, 0, 0, 0)
-    debugFrame.BackgroundTransparency = 0.5
-    debugFrame.BackgroundColor3 = Color3.new(0, 0, 0)
+    -- Title
+    local title = Instance.new("TextLabel", frame)
+    title.Size = UDim2.new(1, 0, 0.1, 0)
+    title.Position = UDim2.new(0, 0, 0, 0)
+    title.Text = "Performance Control Panel"
+    title.TextColor3 = Color3.new(1, 1, 1)
+    title.BackgroundTransparency = 1
+    title.Font = Enum.Font.SourceSansBold
+    title.TextSize = 20
 
-    fpsLabel.Size = UDim2.new(1, 0, 0.5, 0)
-    fpsLabel.TextColor3 = Color3.new(1, 1, 1)
-    fpsLabel.Font = Enum.Font.SourceSansBold
-    fpsLabel.TextSize = 20
-
-    memoryLabel.Size = UDim2.new(1, 0, 0.5, 0)
-    memoryLabel.Position = UDim2.new(0, 0, 0.5, 0)
-    memoryLabel.TextColor3 = Color3.new(1, 1, 1)
-    memoryLabel.Font = Enum.Font.SourceSansBold
-    memoryLabel.TextSize = 20
-
-    RunService.RenderStepped:Connect(function()
-        fpsLabel.Text = string.format("FPS: %d", math.floor(performanceData.fps))
-        memoryLabel.Text = string.format("Memory: %.2f MB", collectgarbage("count") / 1024)
+    -- Toggle High-Performance Mode Button
+    local highPerfButton = Instance.new("TextButton", frame)
+    highPerfButton.Size = UDim2.new(1, 0, 0.2, 0)
+    highPerfButton.Position = UDim2.new(0, 0, 0.15, 0)
+    highPerfButton.Text = "Toggle High-Performance Mode"
+    highPerfButton.TextColor3 = Color3.new(1, 1, 1)
+    highPerfButton.BackgroundColor3 = Color3.new(0.2, 0.2, 0.2)
+    highPerfButton.MouseButton1Click:Connect(function()
+        toggleHighPerformanceMode(not highPerformanceMode)
+        highPerfButton.Text = highPerformanceMode and "High-Performance Mode: ON" or "High-Performance Mode: OFF"
     end)
-end
 
--- Adaptive Performance Learning
-local function adaptiveLearning()
-    local lastTime = tick()
-    RunService.RenderStepped:Connect(function()
-        local currentTime = tick()
-        local deltaTime = currentTime - lastTime
-        lastTime = currentTime
+    -- Toggle Dynamic Asset Loading Button
+    local dalButton = Instance.new("TextButton", frame)
+    dalButton.Size = UDim2.new(1, 0, 0.2, 0)
+    dalButton.Position = UDim2.new(0, 0, 0.4, 0)
+    dalButton.Text = "Toggle Dynamic Asset Loading"
+    dalButton.TextColor3 = Color3.new(1, 1, 1)
+    dalButton.BackgroundColor3 = Color3.new(0.2, 0.2, 0.2)
+    dalButton.MouseButton1Click:Connect(function()
+        dynamicAssetLoadingEnabled = not dynamicAssetLoadingEnabled
+        dalButton.Text = dynamicAssetLoadingEnabled and "Dynamic Asset Loading: ON" or "Dynamic Asset Loading: OFF"
+    end)
 
-        local currentFPS = 1 / deltaTime
-        performanceData.fps = (performanceData.fps + currentFPS) / 2 -- Smooth FPS calculation
-
-        if currentFPS < 30 then
-            performanceData.frameDrops = performanceData.frameDrops + 1
-            if performanceData.frameDrops > 10 then
-                toggleHighPerformanceMode(true)
-            end
-        else
-            performanceData.frameDrops = math.max(performanceData.frameDrops - 1, 0)
-            if performanceData.frameDrops == 0 then
-                toggleHighPerformanceMode(false)
-            end
-        end
+    -- Toggle Effect Management Button
+    local effectButton = Instance.new("TextButton", frame)
+    effectButton.Size = UDim2.new(1, 0, 0.2, 0)
+    effectButton.Position = UDim2.new(0, 0, 0.65, 0)
+    effectButton.Text = "Toggle Effect Management"
+    effectButton.TextColor3 = Color3.new(1, 1, 1)
+    effectButton.BackgroundColor3 = Color3.new(0.2, 0.2, 0.2)
+    effectButton.MouseButton1Click:Connect(function()
+        effectManagementEnabled = not effectManagementEnabled
+        effectButton.Text = effectManagementEnabled and "Effect Management: ON" or "Effect Management: OFF"
     end)
 end
 
 -- Initialization
 local function initialize()
-    local device, targetFPS, quality = detectDevice()
-    settings().Rendering.QualityLevel = quality
-
-    dynamicAssetLoading()
-    adaptiveLearning()
-    displayPerformanceDebug()
-
-    StarterGui:SetCore("ChatMakeSystemMessage", {
-        Text = string.format("Optimization Applied: Device [%s] | Target FPS: %d", device, targetFPS),
-        Color = Color3.fromRGB(0, 255, 0),
-        Font = Enum.Font.SourceSansBold,
-        FontSize = Enum.FontSize.Size24
-    })
+    createMovableGUI()
+    toggleHighPerformanceMode(true)  -- Automatically enable high-performance mode on start
+    RunService.Heartbeat:Connect(dynamicAssetLoading)
+    manageEffects()
 end
 
 initialize()
