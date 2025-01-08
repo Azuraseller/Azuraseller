@@ -1,11 +1,9 @@
--- Script Tối Ưu Hoá Cho Mobile
--- Bao gồm: AutoSkill, AutoSwitchWeapon, AutoDodge, AutoHaki, MaintainFPS, Lưu/Áp dụng Combo với GUI nhỏ gọn.
+-- Script Tối Ưu Hoàn Chỉnh cho Mobile
+-- Bao gồm: AutoSkill, AutoSwitchWeapon, MaintainFPS, Lưu/Áp dụng Combo, loại bỏ AutoDodge
 
 -- Biến cấu hình
 local autoSkill = false          -- Tự động sử dụng skill
 local autoSwitchWeapon = true    -- Tự động chuyển vũ khí
-local autoDodge = true           -- Tự động né tránh
-local autoHaki = true            -- Tự động bật Haki
 local maintainFPS = true         -- Duy trì 60 FPS
 local actionInterval = 0.15      -- Thời gian chờ giữa mỗi hành động (giây)
 local skillKeys = {"Z", "X", "C", "V", "F"} -- Phím kỹ năng
@@ -24,15 +22,14 @@ local AddComboButton = Instance.new("TextButton")
 local ComboList = Instance.new("ScrollingFrame")
 local ComboInputBox = Instance.new("TextBox")
 local ToggleSkillButton = Instance.new("TextButton")
-local ToggleDodgeButton = Instance.new("TextButton")
 local FPSToggleButton = Instance.new("TextButton")
 
 ScreenGui.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
 
 -- Main Frame (Giảm kích thước cho phù hợp với mobile)
 MainFrame.Parent = ScreenGui
-MainFrame.Size = UDim2.new(0, 300, 0, 450)  -- Kích thước nhỏ hơn
-MainFrame.Position = UDim2.new(0.5, -150, 0.5, -225)  -- Căn giữa màn hình
+MainFrame.Size = UDim2.new(0, 250, 0, 400)  -- Kích thước nhỏ hơn
+MainFrame.Position = UDim2.new(0.5, -125, 0.5, -200)  -- Căn giữa màn hình
 MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
 MainFrame.BorderSizePixel = 0
 MainFrame.BackgroundTransparency = 0.1
@@ -84,7 +81,7 @@ ComboInputBox.Parent = ComboFrame
 ComboInputBox.Size = UDim2.new(0.7, 0, 0.2, 0)  -- Giảm kích thước ô nhập
 ComboInputBox.Position = UDim2.new(0.05, 0, 0.75, 0)  -- Đặt ô nhập gần cuối
 ComboInputBox.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-ComboInputBox.Text = "Nhập Combo (vd: 3-x,2-c,1-z)"
+ComboInputBox.Text = "Nhập Combo (vd: 3-x,2-x,z)"
 ComboInputBox.TextColor3 = Color3.fromRGB(255, 255, 255)
 ComboInputBox.TextScaled = true
 ComboInputBox.Font = Enum.Font.Gotham
@@ -118,18 +115,18 @@ ToggleSkillButton.Font = Enum.Font.GothamBold
 local UICornerSkill = Instance.new("UICorner", ToggleSkillButton)
 UICornerSkill.CornerRadius = UDim.new(0, 10)
 
--- Nút bật/tắt Auto Dodge
-ToggleDodgeButton.Parent = MainFrame
-ToggleDodgeButton.Size = UDim2.new(0.8, 0, 0.1, 0)
-ToggleDodgeButton.Position = UDim2.new(0.1, 0, 0.85, 0)
-ToggleDodgeButton.BackgroundColor3 = Color3.fromRGB(100, 149, 237)
-ToggleDodgeButton.Text = "Bật Auto Dodge"
-ToggleDodgeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-ToggleDodgeButton.TextScaled = true
-ToggleDodgeButton.Font = Enum.Font.GothamBold
+-- Nút bật/tắt FPS
+FPSToggleButton.Parent = MainFrame
+FPSToggleButton.Size = UDim2.new(0.8, 0, 0.1, 0)
+FPSToggleButton.Position = UDim2.new(0.1, 0, 0.85, 0)
+FPSToggleButton.BackgroundColor3 = Color3.fromRGB(100, 149, 237)
+FPSToggleButton.Text = "Bật Duy Trì FPS"
+FPSToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+FPSToggleButton.TextScaled = true
+FPSToggleButton.Font = Enum.Font.GothamBold
 
-local UICornerDodge = Instance.new("UICorner", ToggleDodgeButton)
-UICornerDodge.CornerRadius = UDim.new(0, 10)
+local UICornerFPS = Instance.new("UICorner", FPSToggleButton)
+UICornerFPS.CornerRadius = UDim.new(0, 10)
 
 -- Tương tự các chức năng AutoSwitchWeapon, MaintainFPS, và xử lý combo như script trước đây.
 
@@ -147,19 +144,6 @@ function AutoSwitchWeapon()
             game.Players.LocalPlayer.Character.Humanoid:EquipTool(weapon)
         end
         wait(actionInterval)  -- Đợi trước khi chuyển sang vũ khí tiếp theo
-    end
-end
-
--- Hàm AutoDodge
-function AutoDodge()
-    while autoDodge do
-        local player = game.Players.LocalPlayer
-        local character = player.Character
-        if character and character:FindFirstChild("HumanoidRootPart") then
-            -- Di chuyển nhẹ nhàng để né tránh
-            character.HumanoidRootPart.CFrame = character.HumanoidRootPart.CFrame * CFrame.new(5, 0, 0)
-        end
-        wait(0.1)  -- Đợi giữa mỗi lần né tránh
     end
 end
 
@@ -210,58 +194,72 @@ function UpdateComboList()
         local UICornerButton = Instance.new("UICorner", button)
         UICornerButton.CornerRadius = UDim.new(0, 10)
 
-        -- Thêm chức năng áp dụng combo khi bấm
+        -- Lưu nút vào danh sách để quản lý
+        table.insert(ApplyComboButtons, button)
+
+        -- Thêm sự kiện cho nút combo
         button.MouseButton1Click:Connect(function()
+            -- Áp dụng combo khi người dùng chọn
+            activeCombo = combo
             ExecuteCombo(combo)
         end)
-
-        -- Lưu lại nút vào danh sách
-        table.insert(ApplyComboButtons, button)
     end
 end
 
--- Hàm Áp dụng Combo
-function ExecuteCombo(comboString)
-    local comboParts = string.split(comboString, ",")
-    for _, part in ipairs(comboParts) do
-        local key, action = part:match("(%d+)-([a-zA-Z])")
+-- Hàm thực hiện Combo
+function ExecuteCombo(combo)
+    local comboSteps = {}
+    for step in combo:gmatch("[^,]+") do
+        table.insert(comboSteps, step)
+    end
+
+    -- Thực hiện các bước của combo
+    for _, step in ipairs(comboSteps) do
+        local key, action = step:match("([%d%w]+)-([%w]+)")
         if key and action then
-            -- Thực hiện hành động theo key và action
-            -- Đây có thể là các hành động cụ thể như sử dụng skill, chuyển vũ khí, v.v.
-            print("Áp dụng combo: " .. key .. " - " .. action)
-            -- Ví dụ thực hiện sử dụng skill tương ứng với key và action
+            -- Nhấn phím tương ứng với mỗi bước trong combo
+            if action == "x" then
+                -- Bấm phím tương ứng (ví dụ: sử dụng kỹ năng)
+                game:GetService("VirtualInputManager"):SendKeyPress(Enum.KeyCode[key])
+            end
+            wait(actionInterval)  -- Đợi giữa các bước
         end
     end
 end
 
--- Lắng nghe sự kiện nhấn nút "Thêm Combo"
+-- Sự kiện khi người dùng nhấn nút "Thêm"
 AddComboButton.MouseButton1Click:Connect(function()
     local comboString = ComboInputBox.Text
     if comboString ~= "" then
         SaveCombo(comboString)
-        ComboInputBox.Text = ""  -- Xóa ô nhập sau khi lưu combo
+        ComboInputBox.Text = ""  -- Xóa ô nhập sau khi thêm combo
     end
 end)
 
--- Lắng nghe sự kiện bật/tắt AutoSkill
+-- Sự kiện khi bật/tắt AutoSkill
 ToggleSkillButton.MouseButton1Click:Connect(function()
     autoSkill = not autoSkill
-    ToggleSkillButton.Text = autoSkill and "Tắt Auto Skill" or "Bật Auto Skill"
+    if autoSkill then
+        ToggleSkillButton.Text = "Tắt Auto Skill"
+    else
+        ToggleSkillButton.Text = "Bật Auto Skill"
+    end
 end)
 
--- Lắng nghe sự kiện bật/tắt AutoDodge
-ToggleDodgeButton.MouseButton1Click:Connect(function()
-    autoDodge = not autoDodge
-    ToggleDodgeButton.Text = autoDodge and "Tắt Auto Dodge" or "Bật Auto Dodge"
-end)
-
--- Lắng nghe sự kiện bật/tắt FPS
+-- Sự kiện khi bật/tắt FPS
 FPSToggleButton.MouseButton1Click:Connect(function()
     maintainFPS = not maintainFPS
-    FPSToggleButton.Text = maintainFPS and "Tắt Duy Trì FPS" or "Bật Duy Trì FPS"
+    if maintainFPS then
+        FPSToggleButton.Text = "Tắt Duy Trì FPS"
+    else
+        FPSToggleButton.Text = "Bật Duy Trì FPS"
+    end
 end)
 
 -- Bắt đầu các chức năng
-spawn(AutoSwitchWeapon)
-spawn(AutoDodge)
-MaintainFPS()
+if autoSwitchWeapon then
+    AutoSwitchWeapon()
+end
+if maintainFPS then
+    MaintainFPS()
+end
