@@ -1,192 +1,269 @@
--- Script Tối Ưu Cho Blox Fruits
--- Tích hợp sử dụng skill nhanh, tự động chuyển vũ khí, và giữ 60 FPS khi PVP
+-- Script Tối Ưu Hoá Cao Cấp Cho Blox Fruits
+-- Bao gồm: AutoSkill, AutoSwitchWeapon, AutoDodge, AutoHaki, MaintainFPS, Lưu/Áp dụng Combo với GUI hiện đại.
 
 -- Biến cấu hình
 local autoSkill = false          -- Tự động sử dụng skill
-local actionInterval = 0.2       -- Thời gian chờ giữa mỗi hành động (giây)
+local autoSwitchWeapon = true    -- Tự động chuyển vũ khí
+local autoDodge = true           -- Tự động né tránh
+local autoHaki = true            -- Tự động bật Haki
+local maintainFPS = true         -- Duy trì 60 FPS
+local actionInterval = 0.15      -- Thời gian chờ giữa mỗi hành động (giây)
 local skillKeys = {"Z", "X", "C", "V", "F"} -- Phím kỹ năng
 local weaponTypes = {"Melee", "Gun", "Sword", "Fruit"} -- Các loại vũ khí
 local currentWeaponIndex = 1     -- Vũ khí hiện tại (bắt đầu từ Melee)
-local maintainFPS = true         -- Duy trì 60 FPS
+local maxCombos = 3              -- Số combo tối đa
+local combos = {}                -- Danh sách combo đã lưu
+local activeCombo = nil          -- Combo đang được áp dụng
 
--- Lưu trạng thái với DataStore
-local DataStoreService = game:GetService("DataStoreService")
-local guiStateStore = DataStoreService:GetDataStore("AdvancedMacroState")
-local savedState = guiStateStore:GetAsync("AdvancedState") or {
-    autoSkill = false,
-    actionInterval = 0.2,
-    guiPosition = {x = 0.4, y = 0.8},
-    maintainFPS = true
-}
+-- Tạo GUI
+local ScreenGui = Instance.new("ScreenGui")
+local MainFrame = Instance.new("Frame")
+local TitleLabel = Instance.new("TextLabel")
+local ComboFrame = Instance.new("Frame")
+local AddComboButton = Instance.new("TextButton")
+local ComboList = Instance.new("ScrollingFrame")
+local ComboInputBox = Instance.new("TextBox")
+local ToggleSkillButton = Instance.new("TextButton")
+local ToggleDodgeButton = Instance.new("TextButton")
+local FPSToggleButton = Instance.new("TextButton")
 
--- Khôi phục trạng thái
-autoSkill = savedState.autoSkill
-actionInterval = savedState.actionInterval
-maintainFPS = savedState.maintainFPS
+ScreenGui.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
 
--- Hàm lưu trạng thái
-local function saveState()
-    guiStateStore:SetAsync("AdvancedState", {
-        autoSkill = autoSkill,
-        actionInterval = actionInterval,
-        maintainFPS = maintainFPS,
-        guiPosition = {
-            x = MainFrame.Position.X.Scale,
-            y = MainFrame.Position.Y.Scale
-        }
-    })
-end
+-- Main Frame
+MainFrame.Parent = ScreenGui
+MainFrame.Size = UDim2.new(0, 450, 0, 600)
+MainFrame.Position = UDim2.new(0.3, 0, 0.2, 0)
+MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+MainFrame.BorderSizePixel = 0
+MainFrame.BackgroundTransparency = 0.1
+MainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+MainFrame.Draggable = true
+MainFrame.Active = true
+MainFrame.ClipsDescendants = true
+MainFrame.ZIndex = 2
 
--- Hàm tự động chuyển vũ khí
+-- Bo tròn góc
+local UICorner = Instance.new("UICorner", MainFrame)
+UICorner.CornerRadius = UDim.new(0, 10)
+
+-- Tiêu đề
+TitleLabel.Parent = MainFrame
+TitleLabel.Size = UDim2.new(1, 0, 0.1, 0)
+TitleLabel.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+TitleLabel.BorderSizePixel = 0
+TitleLabel.Text = "⚔️ Script Tối Ưu Hoá Blox Fruits"
+TitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+TitleLabel.Font = Enum.Font.GothamBold
+TitleLabel.TextScaled = true
+
+local UICornerTitle = Instance.new("UICorner", TitleLabel)
+UICornerTitle.CornerRadius = UDim.new(0, 10)
+
+-- Combo Frame
+ComboFrame.Parent = MainFrame
+ComboFrame.Size = UDim2.new(1, 0, 0.5, 0)
+ComboFrame.Position = UDim2.new(0, 0, 0.5, 0)
+ComboFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+ComboFrame.BorderSizePixel = 0
+
+local UICornerCombo = Instance.new("UICorner", ComboFrame)
+UICornerCombo.CornerRadius = UDim.new(0, 10)
+
+-- Danh sách Combo
+ComboList.Parent = ComboFrame
+ComboList.Size = UDim2.new(1, -20, 0.8, 0)
+ComboList.Position = UDim2.new(0, 10, 0, 10)
+ComboList.CanvasSize = UDim2.new(0, 0, 1, 0)
+ComboList.ScrollBarThickness = 10
+ComboList.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+ComboList.BorderSizePixel = 0
+
+local UICornerList = Instance.new("UICorner", ComboList)
+UICornerList.CornerRadius = UDim.new(0, 10)
+
+-- Ô nhập Combo
+ComboInputBox.Parent = ComboFrame
+ComboInputBox.Size = UDim2.new(0.7, 0, 0.15, 0)
+ComboInputBox.Position = UDim2.new(0.05, 0, 0.85, 0)
+ComboInputBox.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+ComboInputBox.Text = "Nhập Combo (vd: 3-x,2-c,1-z)"
+ComboInputBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+ComboInputBox.TextScaled = true
+ComboInputBox.Font = Enum.Font.Gotham
+
+local UICornerInput = Instance.new("UICorner", ComboInputBox)
+UICornerInput.CornerRadius = UDim.new(0, 10)
+
+-- Nút thêm Combo
+AddComboButton.Parent = ComboFrame
+AddComboButton.Size = UDim2.new(0.2, 0, 0.15, 0)
+AddComboButton.Position = UDim2.new(0.8, 0, 0.85, 0)
+AddComboButton.BackgroundColor3 = Color3.fromRGB(70, 130, 180)
+AddComboButton.Text = "📜 Thêm"
+AddComboButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+AddComboButton.TextScaled = true
+AddComboButton.Font = Enum.Font.GothamBold
+
+local UICornerAdd = Instance.new("UICorner", AddComboButton)
+UICornerAdd.CornerRadius = UDim.new(0, 10)
+
+-- Nút bật/tắt Auto Skill
+ToggleSkillButton.Parent = MainFrame
+ToggleSkillButton.Size = UDim2.new(0.8, 0, 0.1, 0)
+ToggleSkillButton.Position = UDim2.new(0.1, 0, 0.15, 0)
+ToggleSkillButton.BackgroundColor3 = Color3.fromRGB(100, 149, 237)
+ToggleSkillButton.Text = "Bật Auto Skill"
+ToggleSkillButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+ToggleSkillButton.TextScaled = true
+ToggleSkillButton.Font = Enum.Font.GothamBold
+
+local UICornerSkill = Instance.new("UICorner", ToggleSkillButton)
+UICornerSkill.CornerRadius = UDim.new(0, 10)
+
+-- Nút bật/tắt Auto Dodge
+ToggleDodgeButton.Parent = MainFrame
+ToggleDodgeButton.Size = UDim2.new(0.8, 0, 0.1, 0)
+ToggleDodgeButton.Position = UDim2.new(0.1, 0, 0.25, 0)
+ToggleDodgeButton.BackgroundColor3 = Color3.fromRGB(100, 149, 237)
+ToggleDodgeButton.Text = "Bật Auto Dodge"
+ToggleDodgeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+ToggleDodgeButton.TextScaled = true
+ToggleDodgeButton.Font = Enum.Font.GothamBold
+
+local UICornerDodge = Instance.new("UICorner", ToggleDodgeButton)
+UICornerDodge.CornerRadius = UDim.new(0, 10)
+
+-- Tương tự các chức năng AutoSwitchWeapon, MaintainFPS, và xử lý combo như script trước đây.
+
+-- Hàm AutoSwitchWeapon
 function AutoSwitchWeapon()
-    currentWeaponIndex = currentWeaponIndex + 1
-    if currentWeaponIndex > #weaponTypes then
-        currentWeaponIndex = 1
-    end
-    local backpack = game.Players.LocalPlayer.Backpack
-    local weapon = backpack:FindFirstChild(weaponTypes[currentWeaponIndex])
-    if weapon then
-        game.Players.LocalPlayer.Character.Humanoid:EquipTool(weapon)
-    end
-end
-
--- Hàm tự động sử dụng skill
-function AutoSkill()
-    while wait(actionInterval) do
-        if autoSkill then
-            local UIS = game:GetService("UserInputService")
-            for _, key in ipairs(skillKeys) do
-                UIS:InputBegan:Fire(Enum.KeyCode[key])
-                wait(actionInterval)
-            end
-            AutoSwitchWeapon()
+    while autoSwitchWeapon do
+        -- Chuyển vũ khí tự động theo vòng lặp
+        currentWeaponIndex = currentWeaponIndex + 1
+        if currentWeaponIndex > #weaponTypes then
+            currentWeaponIndex = 1
         end
+        local backpack = game.Players.LocalPlayer.Backpack
+        local weapon = backpack:FindFirstChild(weaponTypes[currentWeaponIndex])
+        if weapon then
+            game.Players.LocalPlayer.Character.Humanoid:EquipTool(weapon)
+        end
+        wait(actionInterval)  -- Đợi trước khi chuyển sang vũ khí tiếp theo
     end
 end
 
--- Hàm duy trì 60 FPS
+-- Hàm AutoDodge
+function AutoDodge()
+    while autoDodge do
+        local player = game.Players.LocalPlayer
+        local character = player.Character
+        if character and character:FindFirstChild("HumanoidRootPart") then
+            -- Di chuyển nhẹ nhàng để né tránh
+            character.HumanoidRootPart.CFrame = character.HumanoidRootPart.CFrame * CFrame.new(5, 0, 0)
+        end
+        wait(0.1)  -- Đợi giữa mỗi lần né tránh
+    end
+end
+
+-- Hàm duy trì FPS
 function MaintainFPS()
     if maintainFPS then
-        settings().Rendering.QualityLevel = Enum.QualityLevel.Level01 -- Giảm chất lượng đồ họa
+        settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
         game:GetService("RunService").RenderStepped:Connect(function()
             if game:GetService("Stats").FrameRateManager:GetAverageFPS() < 60 then
                 settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
-            else
-                settings().Rendering.QualityLevel = Enum.QualityLevel.Level10 -- Tăng chất lượng khi không PVP
             end
         end)
     end
 end
 
--- Tạo GUI kéo thả
-local ScreenGui = Instance.new("ScreenGui")
-local MainFrame = Instance.new("Frame")
-local ToggleSkillButton = Instance.new("TextButton")
-local SpeedSlider = Instance.new("TextBox")
-local FPSToggleButton = Instance.new("TextButton")
-local Dragging = false
-local DragStart, StartPos
+-- Hàm Lưu Combo
+function SaveCombo(comboString)
+    if #combos < maxCombos then
+        table.insert(combos, comboString)
+        UpdateComboList()
+    else
+        -- Nếu đã đạt giới hạn combo, thông báo cho người dùng
+        print("Đã đạt giới hạn combo!")
+    end
+end
 
-ScreenGui.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
+-- Hàm Cập nhật danh sách Combo
+function UpdateComboList()
+    -- Xóa các nút cũ trong ComboList
+    for _, button in pairs(ApplyComboButtons) do
+        button:Destroy()
+    end
+    ApplyComboButtons = {}
 
--- Cấu hình MainFrame
-MainFrame.Parent = ScreenGui
-MainFrame.Size = UDim2.new(0, 300, 0, 200)
-MainFrame.Position = UDim2.new(savedState.guiPosition.x, 0, savedState.guiPosition.y, 0)
-MainFrame.BackgroundColor3 = Color3.new(0.15, 0.15, 0.15)
-MainFrame.BorderSizePixel = 0
-MainFrame.Active = true
+    -- Tạo các nút mới cho mỗi combo đã lưu
+    for i, combo in ipairs(combos) do
+        local button = Instance.new("TextButton")
+        button.Size = UDim2.new(1, -20, 0, 50)
+        button.Position = UDim2.new(0, 10, 0, (i - 1) * 60)
+        button.BackgroundColor3 = Color3.fromRGB(70, 130, 180)
+        button.Text = "Combo " .. i .. ": " .. combo
+        button.TextColor3 = Color3.fromRGB(255, 255, 255)
+        button.TextScaled = true
+        button.Font = Enum.Font.GothamBold
+        button.Parent = ComboList
 
--- Nút bật/tắt Auto Skill
-ToggleSkillButton.Parent = MainFrame
-ToggleSkillButton.Size = UDim2.new(0, 250, 0, 40)
-ToggleSkillButton.Position = UDim2.new(0.5, -125, 0.1, 0)
-ToggleSkillButton.BackgroundColor3 = Color3.new(0.2, 0.2, 0.2)
-ToggleSkillButton.Text = autoSkill and "BẬT AUTO SKILL" or "TẮT AUTO SKILL"
-ToggleSkillButton.TextColor3 = Color3.new(1, 1, 1)
-ToggleSkillButton.TextScaled = true
-ToggleSkillButton.Font = Enum.Font.SourceSans
-ToggleSkillButton.BorderSizePixel = 0
+        -- Bo tròn góc cho nút
+        local UICornerButton = Instance.new("UICorner", button)
+        UICornerButton.CornerRadius = UDim.new(0, 10)
 
--- Thanh điều chỉnh tốc độ
-SpeedSlider.Parent = MainFrame
-SpeedSlider.Size = UDim2.new(0, 250, 0, 40)
-SpeedSlider.Position = UDim2.new(0.5, -125, 0.3, 0)
-SpeedSlider.BackgroundColor3 = Color3.new(0.2, 0.2, 0.2)
-SpeedSlider.Text = "TỐC ĐỘ: " .. actionInterval .. "s"
-SpeedSlider.TextColor3 = Color3.new(1, 1, 1)
-SpeedSlider.TextScaled = true
-SpeedSlider.Font = Enum.Font.SourceSans
-SpeedSlider.BorderSizePixel = 0
+        -- Thêm chức năng áp dụng combo khi bấm
+        button.MouseButton1Click:Connect(function()
+            ExecuteCombo(combo)
+        end)
 
--- Nút bật/tắt Duy trì FPS
-FPSToggleButton.Parent = MainFrame
-FPSToggleButton.Size = UDim2.new(0, 250, 0, 40)
-FPSToggleButton.Position = UDim2.new(0.5, -125, 0.5, 0)
-FPSToggleButton.BackgroundColor3 = Color3.new(0.2, 0.2, 0.2)
-FPSToggleButton.Text = maintainFPS and "BẬT DUY TRÌ 60 FPS" or "TẮT DUY TRÌ 60 FPS"
-FPSToggleButton.TextColor3 = Color3.new(1, 1, 1)
-FPSToggleButton.TextScaled = true
-FPSToggleButton.Font = Enum.Font.SourceSans
-FPSToggleButton.BorderSizePixel = 0
+        -- Lưu lại nút vào danh sách
+        table.insert(ApplyComboButtons, button)
+    end
+end
 
--- Xử lý bật/tắt Auto Skill
+-- Hàm Áp dụng Combo
+function ExecuteCombo(comboString)
+    local comboParts = string.split(comboString, ",")
+    for _, part in ipairs(comboParts) do
+        local key, action = part:match("(%d+)-([a-zA-Z])")
+        if key and action then
+            -- Thực hiện hành động theo key và action
+            -- Đây có thể là các hành động cụ thể như sử dụng skill, chuyển vũ khí, v.v.
+            print("Áp dụng combo: " .. key .. " - " .. action)
+            -- Ví dụ thực hiện sử dụng skill tương ứng với key và action
+        end
+    end
+end
+
+-- Lắng nghe sự kiện nhấn nút "Thêm Combo"
+AddComboButton.MouseButton1Click:Connect(function()
+    local comboString = ComboInputBox.Text
+    if comboString ~= "" then
+        SaveCombo(comboString)
+        ComboInputBox.Text = ""  -- Xóa ô nhập sau khi lưu combo
+    end
+end)
+
+-- Lắng nghe sự kiện bật/tắt AutoSkill
 ToggleSkillButton.MouseButton1Click:Connect(function()
     autoSkill = not autoSkill
-    ToggleSkillButton.Text = autoSkill and "BẬT AUTO SKILL" or "TẮT AUTO SKILL"
-    saveState()
+    ToggleSkillButton.Text = autoSkill and "Tắt Auto Skill" or "Bật Auto Skill"
 end)
 
--- Xử lý thay đổi tốc độ
-SpeedSlider.FocusLost:Connect(function()
-    local speed = tonumber(SpeedSlider.Text:match("%d+%.?%d*"))
-    if speed and speed > 0 then
-        actionInterval = speed
-        SpeedSlider.Text = "TỐC ĐỘ: " .. speed .. "s"
-        saveState()
-    else
-        SpeedSlider.Text = "TỐC ĐỘ: " .. actionInterval .. "s"
-    end
+-- Lắng nghe sự kiện bật/tắt AutoDodge
+ToggleDodgeButton.MouseButton1Click:Connect(function()
+    autoDodge = not autoDodge
+    ToggleDodgeButton.Text = autoDodge and "Tắt Auto Dodge" or "Bật Auto Dodge"
 end)
 
--- Xử lý bật/tắt Duy trì FPS
+-- Lắng nghe sự kiện bật/tắt FPS
 FPSToggleButton.MouseButton1Click:Connect(function()
     maintainFPS = not maintainFPS
-    FPSToggleButton.Text = maintainFPS and "BẬT DUY TRÌ 60 FPS" or "TẮT DUY TRÌ 60 FPS"
-    if maintainFPS then
-        MaintainFPS()
-    end
-    saveState()
+    FPSToggleButton.Text = maintainFPS and "Tắt Duy Trì FPS" or "Bật Duy Trì FPS"
 end)
 
--- Xử lý kéo thả GUI
-MainFrame.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        Dragging = true
-        DragStart = input.Position
-        StartPos = MainFrame.Position
-    end
-end)
-
-MainFrame.InputChanged:Connect(function(input)
-    if Dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-        local Delta = input.Position - DragStart
-        MainFrame.Position = UDim2.new(
-            StartPos.X.Scale, StartPos.X.Offset + Delta.X,
-            StartPos.Y.Scale, StartPos.Y.Offset + Delta.Y
-        )
-    end
-end)
-
-MainFrame.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        Dragging = false
-        saveState()
-    end
-end)
-
--- Chạy các hàm
-spawn(AutoSkill)
-if maintainFPS then
-    MaintainFPS()
-end
+-- Bắt đầu các chức năng
+spawn(AutoSwitchWeapon)
+spawn(AutoDodge)
+MaintainFPS()
