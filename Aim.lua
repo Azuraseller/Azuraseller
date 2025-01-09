@@ -1,6 +1,6 @@
 --[[ 
     Aimbot Premium Script for Blox Fruits
-    Features: Advanced Targeting, Skill Chains, Dynamic Evasion, Anti-Detection, and more.
+    Features: Advanced Targeting, Skill Chains, Anti-Detection, and more.
     Version: Premium Edition
     Note: Use responsibly and comply with Roblox's Terms of Service.
 ]]--
@@ -9,11 +9,10 @@
 local Aimbot = {
     Enabled = true,
     FOV = 150, -- Field of View
-    Smoothness = 0.1, -- Increased smoothness for better accuracy
+    Smoothness = 0.05, -- Reduced smoothness for more precise aiming
     TargetPriority = "Closest", -- Options: Closest, LowestHP, HighestLevel
     MultiTarget = true, -- Enable MultiTarget
     Prediction = true, -- Enable Prediction
-    DynamicEvasion = true, -- Enable Dynamic Evasion
     AntiDetection = true, -- Enable AntiDetection
     SkillChain = true, -- Enable Skill Chain
     GhostAim = true, -- Enable Ghost Aim
@@ -101,8 +100,10 @@ local function AimAt(target)
     local hrp = target.Character:FindFirstChild("HumanoidRootPart")
     if not hrp then return end
 
+    -- Smooth aiming logic to reduce camera jerk
     local aimPosition = Aimbot.Prediction and hrp.Position + hrp.Velocity * 0.1 or hrp.Position
-    Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, aimPosition), Aimbot.Smoothness)
+    local targetCFrame = CFrame.new(Camera.CFrame.Position, aimPosition)
+    Camera.CFrame = Camera.CFrame:Lerp(targetCFrame, Aimbot.Smoothness)
 end
 
 local function AdjustFOV(target)
@@ -149,14 +150,6 @@ local function MultiTargetHandler()
         for _, target in pairs(targets) do
             AimAt(target)
         end
-    end
-end
-
--- Dynamic Evasion
-local function EvasionHandler()
-    if Aimbot.DynamicEvasion then
-        -- Random movement to avoid attacks
-        Player.Character.Humanoid:Move(Vector3.new(math.random(-10, 10), 0, math.random(-10, 10)), true)
     end
 end
 
@@ -212,9 +205,6 @@ game:GetService("RunService").RenderStepped:Connect(function()
 
     -- MultiTarget Handling
     MultiTargetHandler()
-
-    -- Dynamic Evasion
-    EvasionHandler()
 
     -- Anti-Detection
     AntiDetectionHandler()
