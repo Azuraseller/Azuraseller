@@ -1,223 +1,160 @@
--- Script Aimbot với GUI tùy chỉnh
-local player = game.Players.LocalPlayer
-local screenGui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
-screenGui.Name = "AimbotGUI"
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
 
--- Nút Menu chính
-local menuButton = Instance.new("TextButton", screenGui)
-menuButton.Size = UDim2.new(0, 50, 0, 50)
-menuButton.Position = UDim2.new(0, 10, 0, 10)
-menuButton.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-menuButton.Text = "⚙️"
-menuButton.Font = Enum.Font.SourceSansBold
-menuButton.TextSize = 24
-menuButton.BorderSizePixel = 2
+-- Cấu hình các tham số
+local Prediction = 0.1  -- Dự đoán vị trí mục tiêu
+local Radius = 200  -- Bán kính khóa mục tiêu
+local SmoothFactor = 0.3  -- Mức độ mượt khi camera theo dõi
+local AimSpeed = 0.3  -- Tốc độ Aim (giây)
+local Locked = false
+local CurrentTarget = nil
+local AimActive = true -- Trạng thái aim (tự động bật/tắt)
+local AutoAim = false -- Tự động kích hoạt khi có đối tượng trong bán kính
 
--- Khung trượt
-local menuFrame = Instance.new("Frame", screenGui)
-menuFrame.Size = UDim2.new(0, 200, 0, 300)
-menuFrame.Position = UDim2.new(0, -200, 0, 10)
-menuFrame.BackgroundColor3 = Color3.fromRGB(240, 240, 240)
-menuFrame.Visible = false
+-- X, Y, Z khởi tạo
+local X, Y, Z = 1, 1, 1
+local LastTargetPosition = nil
+local MovementThreshold = 0.1 -- Ngưỡng để xác định mục tiêu đứng yên
 
--- Hiệu ứng trượt
-local function slideMenu()
-    if menuFrame.Visible then
-        menuFrame.Visible = false
-        menuFrame:TweenPosition(UDim2.new(0, -200, 0, 10), "Out", "Quad", 0.5, true)
+-- GUI
+local ScreenGui = Instance.new("ScreenGui")
+local ToggleButton = Instance.new("TextButton")
+local CloseButton = Instance.new("TextButton") -- Nút X
+
+ScreenGui.Parent = game:GetService("CoreGui")
+
+-- Nút ON/OFF
+ToggleButton.Parent = ScreenGui
+ToggleButton.Size = UDim2.new(0, 100, 0, 50)
+ToggleButton.Position = UDim2.new(0.85, 0, 0.01, 0)
+ToggleButton.Text = "CamLock: OFF"
+ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+ToggleButton.Font = Enum.Font.SourceSans
+ToggleButton.TextSize = 20
+
+-- Nút X
+CloseButton.Parent = ScreenGui
+CloseButton.Size = UDim2.new(0, 40, 0, 40)
+CloseButton.Position = UDim2.new(0.79, 0, 0.01, 0)
+CloseButton.Text = "X"
+CloseButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+CloseButton.Font = Enum.Font.SourceSans
+CloseButton.TextSize = 20
+CloseButton.BorderSizePixel = 0
+CloseButton.UICorner = Instance.new("UICorner")
+CloseButton.UICorner.CornerRadius = UDim.new(0, 10)
+
+-- Hàm bật/tắt Aim qua nút X
+CloseButton.MouseButton1Click:Connect(function()
+    AimActive = not AimActive
+    ToggleButton.Visible = AimActive
+    if not AimActive then
+        ToggleButton.Text = "CamLock: OFF"
+        ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+        Locked = false
+        CurrentTarget = nil
+        X, Y, Z = 1, 1, 1
     else
-        menuFrame.Visible = true
-        menuFrame:TweenPosition(UDim2.new(0, 10, 0, 10), "Out", "Quad", 0.5, true)
+        ToggleButton.Text = "CamLock: ON"
+        ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
     end
-end
-
-menuButton.MouseButton1Click:Connect(slideMenu)
-
--- Biểu tượng ⚙️ (trong menu)
-local settingsIcon = Instance.new("TextLabel", menuFrame)
-settingsIcon.Size = UDim2.new(0, 50, 0, 50)
-settingsIcon.Position = UDim2.new(0, 10, 0, 10)
-settingsIcon.Text = "⚙️"
-settingsIcon.Font = Enum.Font.SourceSansBold
-settingsIcon.TextSize = 24
-settingsIcon.BackgroundTransparency = 1
-
--- Biểu tượng i (thông tin người làm script)
-local infoButton = Instance.new("TextButton", menuFrame)
-infoButton.Size = UDim2.new(0, 30, 0, 30)
-infoButton.Position = UDim2.new(0, 70, 0, 20)
-infoButton.Text = "i"
-infoButton.Font = Enum.Font.SourceSans
-infoButton.TextSize = 20
-infoButton.BackgroundColor3 = Color3.fromRGB(200, 200, 200)
-
-infoButton.MouseButton1Click:Connect(function()
-    local infoFrame = Instance.new("Frame", screenGui)
-    infoFrame.Size = UDim2.new(0, 300, 0, 100)
-    infoFrame.Position = UDim2.new(0.5, -150, 0.5, -50)
-    infoFrame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-    infoFrame.BorderSizePixel = 2
-
-    local infoText = Instance.new("TextLabel", infoFrame)
-    infoText.Size = UDim2.new(1, 0, 1, 0)
-    infoText.Text = "Script made by [Your Name Here]"
-    infoText.Font = Enum.Font.SourceSans
-    infoText.TextSize = 20
-    infoText.TextColor3 = Color3.fromRGB(0, 0, 0)
-    infoText.BackgroundTransparency = 1
-
-    wait(3)
-    infoFrame:Destroy()
 end)
 
--- Nút 🎯 (chỉnh tâm)
-local aimButton = Instance.new("TextButton", menuFrame)
-aimButton.Size = UDim2.new(0, 50, 0, 50)
-aimButton.Position = UDim2.new(0, 10, 0, 70)
-aimButton.Text = "🎯"
-aimButton.Font = Enum.Font.SourceSansBold
-aimButton.TextSize = 24
-aimButton.BackgroundColor3 = Color3.fromRGB(200, 200, 200)
-
--- Thêm các nút X, Y, Z
-local function createAxisButton(axis, posY)
-    local button = Instance.new("TextButton", menuFrame)
-    button.Size = UDim2.new(0, 100, 0, 30)
-    button.Position = UDim2.new(0, 10, 0, posY)
-    button.Text = axis .. ": 1"
-    button.Font = Enum.Font.SourceSans
-    button.TextSize = 20
-    button.BackgroundColor3 = Color3.fromRGB(220, 220, 220)
-
-    local value = 1
-    button.MouseButton1Click:Connect(function()
-        value = value + 1
-        if value > 5 then value = 1 end
-        button.Text = axis .. ": " .. value
-    end)
-end
-
-createAxisButton("X", 130)
-createAxisButton("Y", 170)
-createAxisButton("Z", 210)
-
--- Script Aimbot hoàn chỉnh với GUI
-local player = game.Players.LocalPlayer
-local screenGui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
-screenGui.Name = "AimbotGUI"
-
--- Nút Menu chính
-local menuButton = Instance.new("TextButton", screenGui)
-menuButton.Size = UDim2.new(0, 50, 0, 50)
-menuButton.Position = UDim2.new(0, 10, 0, 10)
-menuButton.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-menuButton.Text = "⚙️"
-menuButton.Font = Enum.Font.SourceSansBold
-menuButton.TextSize = 24
-menuButton.BorderSizePixel = 2
-
--- Khung trượt
-local menuFrame = Instance.new("Frame", screenGui)
-menuFrame.Size = UDim2.new(0, 250, 0, 400)
-menuFrame.Position = UDim2.new(0, -250, 0, 10)
-menuFrame.BackgroundColor3 = Color3.fromRGB(240, 240, 240)
-menuFrame.Visible = false
-
--- Hiệu ứng trượt
-local function slideMenu()
-    if menuFrame.Visible then
-        menuFrame.Visible = false
-        menuFrame:TweenPosition(UDim2.new(0, -250, 0, 10), "Out", "Quad", 0.5, true)
+-- Nút ON/OFF để bật/tắt ghim mục tiêu
+ToggleButton.MouseButton1Click:Connect(function()
+    Locked = not Locked
+    if Locked then
+        ToggleButton.Text = "CamLock: ON"
+        ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
     else
-        menuFrame.Visible = true
-        menuFrame:TweenPosition(UDim2.new(0, 10, 0, 10), "Out", "Quad", 0.5, true)
+        ToggleButton.Text = "CamLock: OFF"
+        ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+        CurrentTarget = nil
+        X, Y, Z = 1, 1, 1
     end
-end
-
-menuButton.MouseButton1Click:Connect(slideMenu)
-
--- Biểu tượng ⚙️ (trong menu)
-local settingsIcon = Instance.new("TextLabel", menuFrame)
-settingsIcon.Size = UDim2.new(0, 50, 0, 50)
-settingsIcon.Position = UDim2.new(0, 10, 0, 10)
-settingsIcon.Text = "⚙️"
-settingsIcon.Font = Enum.Font.SourceSansBold
-settingsIcon.TextSize = 24
-settingsIcon.BackgroundTransparency = 1
-
--- Biểu tượng i (thông tin người làm script)
-local infoButton = Instance.new("TextButton", menuFrame)
-infoButton.Size = UDim2.new(0, 30, 0, 30)
-infoButton.Position = UDim2.new(0, 70, 0, 20)
-infoButton.Text = "i"
-infoButton.Font = Enum.Font.SourceSans
-infoButton.TextSize = 20
-infoButton.BackgroundColor3 = Color3.fromRGB(200, 200, 200)
-
-infoButton.MouseButton1Click:Connect(function()
-    local infoFrame = Instance.new("Frame", screenGui)
-    infoFrame.Size = UDim2.new(0, 300, 0, 100)
-    infoFrame.Position = UDim2.new(0.5, -150, 0.5, -50)
-    infoFrame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-    infoFrame.BorderSizePixel = 2
-
-    local infoText = Instance.new("TextLabel", infoFrame)
-    infoText.Size = UDim2.new(1, 0, 1, 0)
-    infoText.Text = "Script made by [Your Name Here]"
-    infoText.Font = Enum.Font.SourceSans
-    infoText.TextSize = 20
-    infoText.TextColor3 = Color3.fromRGB(0, 0, 0)
-    infoText.BackgroundTransparency = 1
-
-    wait(3)
-    infoFrame:Destroy()
 end)
 
--- Nút 🎯 (chỉnh tâm)
-local aimButton = Instance.new("TextButton", menuFrame)
-aimButton.Size = UDim2.new(0, 50, 0, 50)
-aimButton.Position = UDim2.new(0, 10, 0, 70)
-aimButton.Text = "🎯"
-aimButton.Font = Enum.Font.SourceSansBold
-aimButton.TextSize = 24
-aimButton.BackgroundColor3 = Color3.fromRGB(200, 200, 200)
-
--- Chức năng chỉnh X, Y, Z
-local function createAxisButton(axis, posY)
-    local button = Instance.new("TextButton", menuFrame)
-    button.Size = UDim2.new(0, 100, 0, 30)
-    button.Position = UDim2.new(0, 10, 0, posY)
-    button.Text = axis .. ": 1"
-    button.Font = Enum.Font.SourceSans
-    button.TextSize = 20
-    button.BackgroundColor3 = Color3.fromRGB(220, 220, 220)
-
-    local value = 1
-    button.MouseButton1Click:Connect(function()
-        value = value + 1
-        if value > 5 then value = 1 end
-        button.Text = axis .. ": " .. value
-    end)
+-- Tìm tất cả đối thủ trong phạm vi
+local function FindEnemiesInRadius()
+    local targets = {}
+    for _, Player in ipairs(Players:GetPlayers()) do
+        if Player ~= LocalPlayer then
+            local Character = Player.Character
+            if Character and Character:FindFirstChild("HumanoidRootPart") and Character:FindFirstChild("Humanoid") and Character.Humanoid.Health > 0 then
+                local Distance = (Character.HumanoidRootPart.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude
+                if Distance <= Radius then
+                    table.insert(targets, Character)
+                end
+            end
+        end
+    end
+    return targets
 end
 
-createAxisButton("X", 130)
-createAxisButton("Y", 170)
-createAxisButton("Z", 210)
+-- Theo dõi mục tiêu
+RunService.RenderStepped:Connect(function()
+    if AimActive then
+        local enemies = FindEnemiesInRadius()
+        if #enemies > 0 then
+            if not Locked then
+                Locked = true
+                ToggleButton.Text = "CamLock: ON"
+                ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+            end
+            if not CurrentTarget then
+                CurrentTarget = enemies[1]
+                X, Y, Z = 1, 1, 1
+                LastTargetPosition = nil
+            end
+        else
+            if Locked then
+                Locked = false
+                ToggleButton.Text = "CamLock: OFF"
+                ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+                CurrentTarget = nil
+                X, Y, Z = 1, 1, 1
+            end
+        end
 
--- Nút chức năng khác (POV, tia sáng, Aim chỉnh)
-local povButton = Instance.new("TextButton", menuFrame)
-povButton.Size = UDim2.new(0, 200, 0, 30)
-povButton.Position = UDim2.new(0, 10, 0, 250)
-povButton.Text = "POV: OFF"
-povButton.Font = Enum.Font.SourceSans
-povButton.TextSize = 20
-povButton.BackgroundColor3 = Color3.fromRGB(200, 200, 200)
+        if CurrentTarget and Locked then
+            local targetCharacter = CurrentTarget
+            if targetCharacter and targetCharacter:FindFirstChild("HumanoidRootPart") then
+                local targetPosition = targetCharacter.HumanoidRootPart.Position + targetCharacter.HumanoidRootPart.Velocity * Prediction
 
-local povEnabled = false
-povButton.MouseButton1Click:Connect(function()
-    povEnabled = not povEnabled
-    povButton.Text = "POV: " .. (povEnabled and "ON" or "OFF")
+                -- Kiểm tra nếu mục tiêu không hợp lệ
+                local distance = (targetCharacter.HumanoidRootPart.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude
+                if targetCharacter.Humanoid.Health <= 0 or distance > Radius then
+                    CurrentTarget = nil
+                    X, Y, Z = 1, 1, 1
+                else
+                    -- Kiểm tra chuyển động của mục tiêu
+                    if LastTargetPosition then
+                        local movement = (targetPosition - LastTargetPosition).Magnitude
+                        if movement <= MovementThreshold then
+                            X, Y, Z = 1, 1, 1 -- Reset khi mục tiêu đứng yên
+                        else
+                            -- Điều chỉnh X, Y, Z theo hướng di chuyển
+                            local relativePosition = targetCharacter.HumanoidRootPart.Position - LocalPlayer.Character.HumanoidRootPart.Position
+                            if relativePosition.X > 0 then
+                                X = X + 3
+                            elseif relativePosition.X < 0 then
+                                Z = Z + 3
+                            end
+                            if relativePosition.Y > 0 then
+                                Y = Y + 3
+                            end
+                        end
+                    end
+                    LastTargetPosition = targetPosition
+
+                    -- Điều chỉnh camera
+                    Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, targetPosition), SmoothFactor * AimSpeed)
+                end
+            end
+        end
+    end
 end)
-
--- Tính năng Auto Aim và các tự động điều chỉnh khác
--- Thêm logic tại đây...
