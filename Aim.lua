@@ -11,16 +11,13 @@ local Aimbot = {
     FOV = 150, -- Field of View
     Smoothness = 0.05, -- Reduced smoothness for more precise aiming
     TargetPriority = "Closest", -- Options: Closest, LowestHP, HighestLevel
-    MultiTarget = true, -- Enable MultiTarget
     Prediction = true, -- Enable Prediction
     AntiDetection = true, -- Enable AntiDetection
     SkillChain = true, -- Enable Skill Chain
     GhostAim = true, -- Enable Ghost Aim
     AutoAdjustFOV = true,
     DisplayTargetInfo = true,
-    SafeMode = true, -- Avoid targeting strong players
     GUIVisibility = true,
-    HighlightTarget = true, -- Highlight current target
     Lock360 = true, -- 360° Target Lock
     ReturnLastTarget = true, -- Automatically return to the last target
     TargetRadius = 400 -- Radius for target priority
@@ -95,13 +92,24 @@ local function GetPriorityTarget()
     return selectedTarget
 end
 
+-- Improved Prediction Logic
+local function PredictTargetMovement(target)
+    if not target or not target.Character then return nil end
+    local hrp = target.Character:FindFirstChild("HumanoidRootPart")
+    if not hrp then return nil end
+
+    local velocity = hrp.Velocity
+    local predictedPosition = hrp.Position + velocity * 0.1
+    return predictedPosition
+end
+
 local function AimAt(target)
     if not target or not target.Character then return end
     local hrp = target.Character:FindFirstChild("HumanoidRootPart")
     if not hrp then return end
 
-    -- Smooth aiming logic to reduce camera jerk
-    local aimPosition = Aimbot.Prediction and hrp.Position + hrp.Velocity * 0.1 or hrp.Position
+    -- Apply prediction if enabled
+    local aimPosition = Aimbot.Prediction and PredictTargetMovement(target) or hrp.Position
     local targetCFrame = CFrame.new(Camera.CFrame.Position, aimPosition)
     Camera.CFrame = Camera.CFrame:Lerp(targetCFrame, Aimbot.Smoothness)
 end
@@ -143,13 +151,15 @@ local function CreateGUI()
     end)
 end
 
--- MultiTarget Logic
-local function MultiTargetHandler()
-    if Aimbot.MultiTarget then
-        local targets = GetTargetsInRadius()
-        for _, target in pairs(targets) do
-            AimAt(target)
-        end
+-- Skill Chain Execution with Improved Timing
+local function ExecuteSkillChain(target)
+    if not Aimbot.SkillChain or not target then return end
+    local skills = {"Z", "X", "C", "V"} -- Replace with skill hotkeys
+
+    for _, skill in ipairs(skills) do
+        wait(0.5) -- Adjusted to allow more time between skills
+        game:GetService("VirtualInputManager"):SendKeyEvent(true, skill, false, game)
+        AimAt(target) -- Aim at the target before using each skill
     end
 end
 
@@ -159,18 +169,6 @@ local function AntiDetectionHandler()
         game:GetService("RunService").RenderStepped:Connect(function()
             Aimbot.Smoothness = math.random(3, 10) / 10 -- Randomize smoothness to avoid detection
         end)
-    end
-end
-
--- Skill Chain Execution
-local function ExecuteSkillChain(target)
-    if not Aimbot.SkillChain or not target then return end
-    local skills = {"Z", "X", "C", "V"} -- Replace with skill hotkeys
-
-    for _, skill in ipairs(skills) do
-        wait(0.2) -- Adjust timing for skill cooldown
-        game:GetService("VirtualInputManager"):SendKeyEvent(true, skill, false, game)
-        AimAt(target)
     end
 end
 
@@ -202,9 +200,6 @@ game:GetService("RunService").RenderStepped:Connect(function()
             print("Targeting:", target.Name)
         end
     end
-
-    -- MultiTarget Handling
-    MultiTargetHandler()
 
     -- Anti-Detection
     AntiDetectionHandler()
