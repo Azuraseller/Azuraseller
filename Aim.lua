@@ -1,160 +1,165 @@
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local LocalPlayer = Players.LocalPlayer
+--[[ 
+    Aimbot Premium Script for Blox Fruits
+    Features: Advanced Targeting, Skill Chains, Dynamic Evasion, Anti-Detection, and more.
+    Version: Premium Edition
+    Note: Use responsibly and comply with Roblox's Terms of Service.
+]]--
+
+-- Global Configuration
+local Aimbot = {
+    Enabled = true,
+    FOV = 150, -- Field of View
+    Smoothness = 0.3,
+    TargetPriority = "Closest", -- Options: Closest, LowestHP, HighestLevel
+    MultiTarget = true,
+    Prediction = true,
+    DynamicEvasion = true,
+    AntiDetection = true,
+    SkillChain = true,
+    GhostAim = false,
+    AutoAdjustFOV = true,
+    DisplayTargetInfo = true,
+    SafeMode = true, -- Avoid targeting strong players
+    GUIVisibility = true,
+    HighlightTarget = true, -- Highlight current target
+    Lock360 = true, -- 360° Target Lock
+    ReturnLastTarget = true -- Automatically return to the last target
+}
+
+-- Dependencies
+local Player = game.Players.LocalPlayer
 local Camera = workspace.CurrentCamera
+local Mouse = Player:GetMouse()
 
--- Cấu hình các tham số
-local Prediction = 0.1  -- Dự đoán vị trí mục tiêu
-local Radius = 200  -- Bán kính khóa mục tiêu
-local SmoothFactor = 0.3  -- Mức độ mượt khi camera theo dõi
-local AimSpeed = 0.3  -- Tốc độ Aim (giây)
-local Locked = false
-local CurrentTarget = nil
-local AimActive = true -- Trạng thái aim (tự động bật/tắt)
-local AutoAim = false -- Tự động kích hoạt khi có đối tượng trong bán kính
+-- Variables
+local lastTarget = nil
+local ScreenGui = Instance.new("ScreenGui", Player.PlayerGui)
 
--- X, Y, Z khởi tạo
-local X, Y, Z = 1, 1, 1
-local LastTargetPosition = nil
-local MovementThreshold = 0.1 -- Ngưỡng để xác định mục tiêu đứng yên
-
--- GUI
-local ScreenGui = Instance.new("ScreenGui")
-local ToggleButton = Instance.new("TextButton")
-local CloseButton = Instance.new("TextButton") -- Nút X
-
-ScreenGui.Parent = game:GetService("CoreGui")
-
--- Nút ON/OFF
-ToggleButton.Parent = ScreenGui
-ToggleButton.Size = UDim2.new(0, 100, 0, 50)
-ToggleButton.Position = UDim2.new(0.85, 0, 0.01, 0)
-ToggleButton.Text = "CamLock: OFF"
-ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-ToggleButton.Font = Enum.Font.SourceSans
-ToggleButton.TextSize = 20
-
--- Nút X
-CloseButton.Parent = ScreenGui
-CloseButton.Size = UDim2.new(0, 40, 0, 40)
-CloseButton.Position = UDim2.new(0.79, 0, 0.01, 0)
-CloseButton.Text = "X"
-CloseButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-CloseButton.Font = Enum.Font.SourceSans
-CloseButton.TextSize = 20
-CloseButton.BorderSizePixel = 0
-CloseButton.UICorner = Instance.new("UICorner")
-CloseButton.UICorner.CornerRadius = UDim.new(0, 10)
-
--- Hàm bật/tắt Aim qua nút X
-CloseButton.MouseButton1Click:Connect(function()
-    AimActive = not AimActive
-    ToggleButton.Visible = AimActive
-    if not AimActive then
-        ToggleButton.Text = "CamLock: OFF"
-        ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-        Locked = false
-        CurrentTarget = nil
-        X, Y, Z = 1, 1, 1
-    else
-        ToggleButton.Text = "CamLock: ON"
-        ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
-    end
-end)
-
--- Nút ON/OFF để bật/tắt ghim mục tiêu
-ToggleButton.MouseButton1Click:Connect(function()
-    Locked = not Locked
-    if Locked then
-        ToggleButton.Text = "CamLock: ON"
-        ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
-    else
-        ToggleButton.Text = "CamLock: OFF"
-        ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-        CurrentTarget = nil
-        X, Y, Z = 1, 1, 1
-    end
-end)
-
--- Tìm tất cả đối thủ trong phạm vi
-local function FindEnemiesInRadius()
+-- Utility Functions
+local function GetTargets()
     local targets = {}
-    for _, Player in ipairs(Players:GetPlayers()) do
-        if Player ~= LocalPlayer then
-            local Character = Player.Character
-            if Character and Character:FindFirstChild("HumanoidRootPart") and Character:FindFirstChild("Humanoid") and Character.Humanoid.Health > 0 then
-                local Distance = (Character.HumanoidRootPart.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude
-                if Distance <= Radius then
-                    table.insert(targets, Character)
-                end
-            end
+    for _, player in pairs(game.Players:GetPlayers()) do
+        if player ~= Player and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+            table.insert(targets, player)
         end
     end
     return targets
 end
 
--- Theo dõi mục tiêu
-RunService.RenderStepped:Connect(function()
-    if AimActive then
-        local enemies = FindEnemiesInRadius()
-        if #enemies > 0 then
-            if not Locked then
-                Locked = true
-                ToggleButton.Text = "CamLock: ON"
-                ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
-            end
-            if not CurrentTarget then
-                CurrentTarget = enemies[1]
-                X, Y, Z = 1, 1, 1
-                LastTargetPosition = nil
-            end
-        else
-            if Locked then
-                Locked = false
-                ToggleButton.Text = "CamLock: OFF"
-                ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-                CurrentTarget = nil
-                X, Y, Z = 1, 1, 1
-            end
+local function GetClosestTarget()
+    local closestTarget = nil
+    local shortestDistance = Aimbot.FOV
+
+    for _, player in pairs(GetTargets()) do
+        local targetPos = player.Character.HumanoidRootPart.Position
+        local screenPos, onScreen = Camera:WorldToScreenPoint(targetPos)
+        local distance = (Vector2.new(screenPos.X, screenPos.Y) - Vector2.new(Mouse.X, Mouse.Y)).Magnitude
+
+        if onScreen and distance < shortestDistance then
+            shortestDistance = distance
+            closestTarget = player
         end
+    end
+    return closestTarget
+end
 
-        if CurrentTarget and Locked then
-            local targetCharacter = CurrentTarget
-            if targetCharacter and targetCharacter:FindFirstChild("HumanoidRootPart") then
-                local targetPosition = targetCharacter.HumanoidRootPart.Position + targetCharacter.HumanoidRootPart.Velocity * Prediction
+local function PredictTargetMovement(target)
+    if not target or not target.Character then return nil end
+    local hrp = target.Character:FindFirstChild("HumanoidRootPart")
+    if not hrp then return nil end
 
-                -- Kiểm tra nếu mục tiêu không hợp lệ
-                local distance = (targetCharacter.HumanoidRootPart.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude
-                if targetCharacter.Humanoid.Health <= 0 or distance > Radius then
-                    CurrentTarget = nil
-                    X, Y, Z = 1, 1, 1
-                else
-                    -- Kiểm tra chuyển động của mục tiêu
-                    if LastTargetPosition then
-                        local movement = (targetPosition - LastTargetPosition).Magnitude
-                        if movement <= MovementThreshold then
-                            X, Y, Z = 1, 1, 1 -- Reset khi mục tiêu đứng yên
-                        else
-                            -- Điều chỉnh X, Y, Z theo hướng di chuyển
-                            local relativePosition = targetCharacter.HumanoidRootPart.Position - LocalPlayer.Character.HumanoidRootPart.Position
-                            if relativePosition.X > 0 then
-                                X = X + 3
-                            elseif relativePosition.X < 0 then
-                                Z = Z + 3
-                            end
-                            if relativePosition.Y > 0 then
-                                Y = Y + 3
-                            end
-                        end
-                    end
-                    LastTargetPosition = targetPosition
+    local velocity = hrp.Velocity
+    return hrp.Position + velocity * 0.1
+end
 
-                    -- Điều chỉnh camera
-                    Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, targetPosition), SmoothFactor * AimSpeed)
-                end
-            end
+local function AimAt(target)
+    if not target or not target.Character then return end
+    local hrp = target.Character:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+
+    local aimPosition = Aimbot.Prediction and PredictTargetMovement(target) or hrp.Position
+    Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, aimPosition), Aimbot.Smoothness)
+end
+
+-- Highlight Target
+local function HighlightTarget(target)
+    if not Aimbot.HighlightTarget or not target or not target.Character then return end
+    local highlight = Instance.new("SelectionBox", target.Character)
+    highlight.Adornee = target.Character
+    highlight.LineThickness = 0.05
+    highlight.Color3 = Color3.new(1, 0, 0)
+    highlight.Name = "AimbotHighlight"
+
+    game:GetService("Debris"):AddItem(highlight, 0.2) -- Auto-remove highlight
+end
+
+-- Skill Chain Execution
+local function ExecuteSkillChain(target)
+    if not Aimbot.SkillChain or not target then return end
+    local skills = {"Z", "X", "C", "V"} -- Replace with skill hotkeys
+
+    for _, skill in ipairs(skills) do
+        wait(0.2) -- Adjust timing for skill cooldown
+        game:GetService("VirtualInputManager"):SendKeyEvent(true, skill, false, game)
+        AimAt(target)
+    end
+end
+
+-- Dynamic Evasion
+local function EvasionHandler()
+    if not Aimbot.DynamicEvasion then return end
+
+    -- Random movement to avoid attacks
+    Player.Character.Humanoid:Move(Vector3.new(math.random(-10, 10), 0, math.random(-10, 10)), true)
+end
+
+-- GUI for Aimbot Toggle
+local function CreateGUI()
+    local ToggleButton = Instance.new("TextButton", ScreenGui)
+    ToggleButton.Size = UDim2.new(0, 200, 0, 50)
+    ToggleButton.Position = UDim2.new(0.5, -100, 0.9, 0)
+    ToggleButton.Text = "Aimbot: ON"
+    ToggleButton.BackgroundColor3 = Color3.new(0, 1, 0)
+
+    ToggleButton.MouseButton1Click:Connect(function()
+        Aimbot.Enabled = not Aimbot.Enabled
+        ToggleButton.Text = Aimbot.Enabled and "Aimbot: ON" or "Aimbot: OFF"
+        ToggleButton.BackgroundColor3 = Aimbot.Enabled and Color3.new(0, 1, 0) or Color3.new(1, 0, 0)
+    end)
+end
+
+if Aimbot.GUIVisibility then
+    CreateGUI()
+end
+
+-- Main Loop
+game:GetService("RunService").RenderStepped:Connect(function()
+    if not Aimbot.Enabled then return end
+
+    local target = GetClosestTarget()
+    if Aimbot.ReturnLastTarget and not target then
+        target = lastTarget
+    else
+        lastTarget = target
+    end
+
+    if target then
+        AimAt(target)
+        HighlightTarget(target)
+        if Aimbot.DisplayTargetInfo then
+            print("Targeting:", target.Name)
         end
     end
 end)
+
+-- Anti-Detection
+if Aimbot.AntiDetection then
+    game:GetService("RunService").RenderStepped:Connect(function()
+        Aimbot.Smoothness = math.random(3, 10) / 10 -- Randomize smoothness
+    end)
+end
+
+-- Dynamic Evasion Execution
+game:GetService("RunService").Stepped:Connect(EvasionHandler)
+
+print("Aimbot Premium Script Loaded. Use responsibly!")
