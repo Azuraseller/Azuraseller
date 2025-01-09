@@ -11,18 +11,16 @@ Camera2.Parent = workspace
 local Prediction = 0.1  -- Dự đoán vị trí mục tiêu
 local Radius = 400  -- Bán kính khóa mục tiêu
 local SmoothFactor = 0.15  -- Mức độ mượt khi camera theo dõi
-local CameraRotationSpeed = 0.2  -- Tốc độ xoay camera khi ghim mục tiêu
+local CameraRotationSpeed = 0.3  -- Tốc độ xoay camera khi ghim mục tiêu
 local Locked = false
 local CurrentTarget = nil
 local AimActive = true -- Trạng thái aim (tự động bật/tắt)
 local AutoAim = false -- Tự động kích hoạt khi có đối tượng trong bán kính
-local POVRadius = 50  -- Bán kính POV (khoảng cách mà mục tiêu sẽ được aim khi trong phạm vi)
 
 -- GUI
 local ScreenGui = Instance.new("ScreenGui")
 local ToggleButton = Instance.new("TextButton")
 local CloseButton = Instance.new("TextButton") -- Nút X
-local POVCircle = Instance.new("Frame") -- Vòng POV
 
 ScreenGui.Parent = game:GetService("CoreGui")
 
@@ -46,15 +44,6 @@ CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 CloseButton.Font = Enum.Font.SourceSans
 CloseButton.TextSize = 18
 
--- Vòng POV
-POVCircle.Parent = ScreenGui
-POVCircle.Size = UDim2.new(0, POVRadius * 2, 0, POVRadius * 2)
-POVCircle.Position = UDim2.new(0.5, -POVRRadius, 0.5, -POVRRadius)
-POVCircle.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
-POVCircle.BackgroundTransparency = 0.5
-POVCircle.BorderSizePixel = 0
-POVCircle.Visible = false -- Ẩn POV khi không cần thiết
-
 -- Hàm bật/tắt Aim qua nút X
 CloseButton.MouseButton1Click:Connect(function()
     AimActive = not AimActive
@@ -64,7 +53,6 @@ CloseButton.MouseButton1Click:Connect(function()
         ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
         Locked = false
         CurrentTarget = nil -- Ngừng ghim mục tiêu
-        POVCircle.Visible = false -- Ẩn vòng POV
     else
         ToggleButton.Text = "CamLock: ON"
         ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
@@ -81,7 +69,6 @@ ToggleButton.MouseButton1Click:Connect(function()
         ToggleButton.Text = "CamLock: OFF"
         ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
         CurrentTarget = nil -- Hủy mục tiêu khi tắt CamLock
-        POVCircle.Visible = false -- Ẩn vòng POV khi không ghim mục tiêu
     end
 end)
 
@@ -122,7 +109,6 @@ RunService.RenderStepped:Connect(function()
                 Locked = true
                 ToggleButton.Text = "CamLock: ON"
                 ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
-                POVCircle.Visible = true -- Hiển thị vòng POV khi có mục tiêu
             end
             if not CurrentTarget then
                 CurrentTarget = enemies[1] -- Chọn mục tiêu đầu tiên
@@ -133,7 +119,6 @@ RunService.RenderStepped:Connect(function()
                 ToggleButton.Text = "CamLock: OFF"
                 ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
                 CurrentTarget = nil -- Ngừng ghim khi không còn mục tiêu
-                POVCircle.Visible = false -- Ẩn vòng POV khi không có mục tiêu
             end
         end
 
@@ -147,11 +132,7 @@ RunService.RenderStepped:Connect(function()
                 local distance = (targetCharacter.HumanoidRootPart.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude
                 if targetCharacter.Humanoid.Health <= 0 or distance > Radius then
                     CurrentTarget = nil
-                    POVCircle.Visible = false -- Ẩn vòng POV nếu mục tiêu không hợp lệ
                 else
-                    -- Cập nhật vòng POV
-                    POVCircle.Position = UDim2.new(0.5, -POVRRadius + (targetPosition.X - Camera.CFrame.Position.X) / Camera.ViewportSize.X * 100, 0.5, -POVRRadius + (targetPosition.Y - Camera.CFrame.Position.Y) / Camera.ViewportSize.Y * 100)
-
                     -- Điều chỉnh vị trí camera
                     targetPosition = AdjustCameraPosition(targetPosition)
 
