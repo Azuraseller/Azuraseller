@@ -151,10 +151,10 @@ game:GetService("RunService").RenderStepped:Connect(function()
     if not Aimbot.Enabled then return end
 
     local target = GetPriorityTarget()
-    if Aimbot.ReturnLastTarget and not target then
-        target = lastTarget
-    else
+    if target and lastTarget ~= target then
         lastTarget = target
+    elseif not target and lastTarget then
+        target = lastTarget
     end
 
     if target then
