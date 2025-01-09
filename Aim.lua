@@ -16,22 +16,21 @@ local Aimbot = {
     DynamicEvasion = true,
     AntiDetection = true,
     SkillChain = true,
-    GhostAim = false,
+    GhostAim = true,
     AutoAdjustFOV = true,
     DisplayTargetInfo = true,
     SafeMode = true, -- Avoid targeting strong players
     GUIVisibility = true,
     HighlightTarget = true, -- Highlight current target
     Lock360 = true, -- 360° Target Lock
-    ReturnLastTarget = true -- Automatically return to the last target
+    ReturnLastTarget = true, -- Automatically return to the last target
+    TargetRadius = 400 -- Radius for target priority
 }
 
 -- Dependencies
 local Player = game.Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 local Mouse = Player:GetMouse()
-
--- Variables
 local lastTarget = nil
 local ScreenGui = Instance.new("ScreenGui", Player.PlayerGui)
 
@@ -46,30 +45,54 @@ local function GetTargets()
     return targets
 end
 
-local function GetClosestTarget()
-    local closestTarget = nil
-    local shortestDistance = Aimbot.FOV
-
+local function GetTargetsInRadius()
+    local targets = {}
     for _, player in pairs(GetTargets()) do
         local targetPos = player.Character.HumanoidRootPart.Position
-        local screenPos, onScreen = Camera:WorldToScreenPoint(targetPos)
-        local distance = (Vector2.new(screenPos.X, screenPos.Y) - Vector2.new(Mouse.X, Mouse.Y)).Magnitude
-
-        if onScreen and distance < shortestDistance then
-            shortestDistance = distance
-            closestTarget = player
+        local distance = (targetPos - Camera.CFrame.Position).Magnitude
+        if distance <= Aimbot.TargetRadius then
+            table.insert(targets, player)
         end
     end
-    return closestTarget
+    return targets
 end
 
-local function PredictTargetMovement(target)
-    if not target or not target.Character then return nil end
-    local hrp = target.Character:FindFirstChild("HumanoidRootPart")
-    if not hrp then return nil end
+local function GetPriorityTarget()
+    local targets = GetTargetsInRadius()
+    local selectedTarget = nil
 
-    local velocity = hrp.Velocity
-    return hrp.Position + velocity * 0.1
+    if Aimbot.TargetPriority == "Closest" then
+        local shortestDistance = Aimbot.FOV
+        for _, player in pairs(targets) do
+            local targetPos = player.Character.HumanoidRootPart.Position
+            local screenPos, onScreen = Camera:WorldToScreenPoint(targetPos)
+            local distance = (Vector2.new(screenPos.X, screenPos.Y) - Vector2.new(Mouse.X, Mouse.Y)).Magnitude
+            if onScreen and distance < shortestDistance then
+                shortestDistance = distance
+                selectedTarget = player
+            end
+        end
+    elseif Aimbot.TargetPriority == "LowestHP" then
+        local lowestHP = math.huge
+        for _, player in pairs(targets) do
+            local humanoid = player.Character:FindFirstChild("Humanoid")
+            if humanoid and humanoid.Health < lowestHP then
+                lowestHP = humanoid.Health
+                selectedTarget = player
+            end
+        end
+    elseif Aimbot.TargetPriority == "HighestLevel" then
+        local highestLevel = -math.huge
+        for _, player in pairs(targets) do
+            local level = player:FindFirstChild("Level") and player.Level.Value or 0
+            if level > highestLevel then
+                highestLevel = level
+                selectedTarget = player
+            end
+        end
+    end
+
+    return selectedTarget
 end
 
 local function AimAt(target)
@@ -77,49 +100,39 @@ local function AimAt(target)
     local hrp = target.Character:FindFirstChild("HumanoidRootPart")
     if not hrp then return end
 
-    local aimPosition = Aimbot.Prediction and PredictTargetMovement(target) or hrp.Position
+    local aimPosition = Aimbot.Prediction and hrp.Position + hrp.Velocity * 0.1 or hrp.Position
     Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, aimPosition), Aimbot.Smoothness)
 end
 
--- Highlight Target
-local function HighlightTarget(target)
-    if not Aimbot.HighlightTarget or not target or not target.Character then return end
-    local highlight = Instance.new("SelectionBox", target.Character)
-    highlight.Adornee = target.Character
-    highlight.LineThickness = 0.05
-    highlight.Color3 = Color3.new(1, 0, 0)
-    highlight.Name = "AimbotHighlight"
-
-    game:GetService("Debris"):AddItem(highlight, 0.2) -- Auto-remove highlight
+local function AdjustFOV(target)
+    if not target or not target.Character then return end
+    local distance = (Camera.CFrame.Position - target.Character.HumanoidRootPart.Position).Magnitude
+    Aimbot.FOV = math.clamp(distance / 10, 50, 200)
 end
 
--- Skill Chain Execution
-local function ExecuteSkillChain(target)
-    if not Aimbot.SkillChain or not target then return end
-    local skills = {"Z", "X", "C", "V"} -- Replace with skill hotkeys
+local function CreateFOVCircle()
+    local FOVCircle = Drawing.new("Circle")
+    FOVCircle.Thickness = 2
+    FOVCircle.Radius = Aimbot.FOV
+    FOVCircle.Position = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+    FOVCircle.Color = Color3.new(1, 0, 0)
+    FOVCircle.Visible = true
+    FOVCircle.Transparency = 0.5
 
-    for _, skill in ipairs(skills) do
-        wait(0.2) -- Adjust timing for skill cooldown
-        game:GetService("VirtualInputManager"):SendKeyEvent(true, skill, false, game)
-        AimAt(target)
-    end
+    game:GetService("RunService").RenderStepped:Connect(function()
+        FOVCircle.Radius = Aimbot.FOV
+        FOVCircle.Position = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+        FOVCircle.Visible = Aimbot.Enabled
+    end)
 end
 
--- Dynamic Evasion
-local function EvasionHandler()
-    if not Aimbot.DynamicEvasion then return end
-
-    -- Random movement to avoid attacks
-    Player.Character.Humanoid:Move(Vector3.new(math.random(-10, 10), 0, math.random(-10, 10)), true)
-end
-
--- GUI for Aimbot Toggle
 local function CreateGUI()
     local ToggleButton = Instance.new("TextButton", ScreenGui)
-    ToggleButton.Size = UDim2.new(0, 200, 0, 50)
-    ToggleButton.Position = UDim2.new(0.5, -100, 0.9, 0)
+    ToggleButton.Size = UDim2.new(0, 150, 0, 50)
+    ToggleButton.Position = UDim2.new(0.9, -160, 0.05, 0) -- Top-right corner
     ToggleButton.Text = "Aimbot: ON"
     ToggleButton.BackgroundColor3 = Color3.new(0, 1, 0)
+    ToggleButton.TextColor3 = Color3.new(1, 1, 1)
 
     ToggleButton.MouseButton1Click:Connect(function()
         Aimbot.Enabled = not Aimbot.Enabled
@@ -128,15 +141,16 @@ local function CreateGUI()
     end)
 end
 
+-- Initialize
 if Aimbot.GUIVisibility then
     CreateGUI()
 end
+CreateFOVCircle()
 
--- Main Loop
 game:GetService("RunService").RenderStepped:Connect(function()
     if not Aimbot.Enabled then return end
 
-    local target = GetClosestTarget()
+    local target = GetPriorityTarget()
     if Aimbot.ReturnLastTarget and not target then
         target = lastTarget
     else
@@ -144,22 +158,12 @@ game:GetService("RunService").RenderStepped:Connect(function()
     end
 
     if target then
+        if Aimbot.AutoAdjustFOV then AdjustFOV(target) end
         AimAt(target)
-        HighlightTarget(target)
         if Aimbot.DisplayTargetInfo then
             print("Targeting:", target.Name)
         end
     end
 end)
-
--- Anti-Detection
-if Aimbot.AntiDetection then
-    game:GetService("RunService").RenderStepped:Connect(function()
-        Aimbot.Smoothness = math.random(3, 10) / 10 -- Randomize smoothness
-    end)
-end
-
--- Dynamic Evasion Execution
-game:GetService("RunService").Stepped:Connect(EvasionHandler)
 
 print("Aimbot Premium Script Loaded. Use responsibly!")
