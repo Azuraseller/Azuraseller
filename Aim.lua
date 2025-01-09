@@ -9,14 +9,14 @@
 local Aimbot = {
     Enabled = true,
     FOV = 150, -- Field of View
-    Smoothness = 0.3,
+    Smoothness = 0.1, -- Increased smoothness for better accuracy
     TargetPriority = "Closest", -- Options: Closest, LowestHP, HighestLevel
-    MultiTarget = true,
-    Prediction = true,
-    DynamicEvasion = true,
-    AntiDetection = true,
-    SkillChain = true,
-    GhostAim = true,
+    MultiTarget = true, -- Enable MultiTarget
+    Prediction = true, -- Enable Prediction
+    DynamicEvasion = true, -- Enable Dynamic Evasion
+    AntiDetection = true, -- Enable AntiDetection
+    SkillChain = true, -- Enable Skill Chain
+    GhostAim = true, -- Enable Ghost Aim
     AutoAdjustFOV = true,
     DisplayTargetInfo = true,
     SafeMode = true, -- Avoid targeting strong players
@@ -32,6 +32,7 @@ local Player = game.Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 local Mouse = Player:GetMouse()
 local lastTarget = nil
+local currentTarget = nil
 local ScreenGui = Instance.new("ScreenGui", Player.PlayerGui)
 
 -- Utility Functions
@@ -141,6 +142,55 @@ local function CreateGUI()
     end)
 end
 
+-- MultiTarget Logic
+local function MultiTargetHandler()
+    if Aimbot.MultiTarget then
+        local targets = GetTargetsInRadius()
+        for _, target in pairs(targets) do
+            AimAt(target)
+        end
+    end
+end
+
+-- Dynamic Evasion
+local function EvasionHandler()
+    if Aimbot.DynamicEvasion then
+        -- Random movement to avoid attacks
+        Player.Character.Humanoid:Move(Vector3.new(math.random(-10, 10), 0, math.random(-10, 10)), true)
+    end
+end
+
+-- Anti-Detection Logic
+local function AntiDetectionHandler()
+    if Aimbot.AntiDetection then
+        game:GetService("RunService").RenderStepped:Connect(function()
+            Aimbot.Smoothness = math.random(3, 10) / 10 -- Randomize smoothness to avoid detection
+        end)
+    end
+end
+
+-- Skill Chain Execution
+local function ExecuteSkillChain(target)
+    if not Aimbot.SkillChain or not target then return end
+    local skills = {"Z", "X", "C", "V"} -- Replace with skill hotkeys
+
+    for _, skill in ipairs(skills) do
+        wait(0.2) -- Adjust timing for skill cooldown
+        game:GetService("VirtualInputManager"):SendKeyEvent(true, skill, false, game)
+        AimAt(target)
+    end
+end
+
+-- Ghost Aim Logic
+local function GhostAimHandler()
+    if Aimbot.GhostAim then
+        -- Simulate aim at target even if not actually firing
+        if currentTarget then
+            AimAt(currentTarget)
+        end
+    end
+end
+
 -- Initialize
 if Aimbot.GUIVisibility then
     CreateGUI()
@@ -151,11 +201,6 @@ game:GetService("RunService").RenderStepped:Connect(function()
     if not Aimbot.Enabled then return end
 
     local target = GetPriorityTarget()
-    if target and lastTarget ~= target then
-        lastTarget = target
-    elseif not target and lastTarget then
-        target = lastTarget
-    end
 
     if target then
         if Aimbot.AutoAdjustFOV then AdjustFOV(target) end
@@ -163,6 +208,28 @@ game:GetService("RunService").RenderStepped:Connect(function()
         if Aimbot.DisplayTargetInfo then
             print("Targeting:", target.Name)
         end
+    end
+
+    -- MultiTarget Handling
+    MultiTargetHandler()
+
+    -- Dynamic Evasion
+    EvasionHandler()
+
+    -- Anti-Detection
+    AntiDetectionHandler()
+
+    -- Skill Chain Execution
+    if Aimbot.SkillChain then
+        ExecuteSkillChain(target)
+    end
+
+    -- Ghost Aim
+    GhostAimHandler()
+
+    -- Save the current target for the next loop
+    if target then
+        lastTarget = target
     end
 end)
 
