@@ -1,7 +1,8 @@
-local fov = 100
-local aimSpeedBase = 0.1 -- Tốc độ cơ bản của Aimbot
-local cameraHeightOffset = 2 -- Tăng chiều cao camera
+local fov = 60
+local aimSpeedBase = 0.3 -- Tốc độ cơ bản của Aimbot
+local cameraHeightOffset = 5 -- Tăng chiều cao camera
 local detectionRadius = 400 -- Phạm vi quét 360 độ
+local aimbotEnabled = true -- Tự động bật/tắt Aimbot
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local Players = game:GetService("Players")
@@ -37,6 +38,8 @@ local function onKeyDown(input)
     if input.KeyCode == Enum.KeyCode.Delete then
         RunService:UnbindFromRenderStep("FOVUpdate")
         FOVring:Remove()
+    elseif input.KeyCode == Enum.KeyCode.F then
+        aimbotEnabled = not aimbotEnabled -- Bật/tắt Aimbot với phím F
     end
 end
 
@@ -101,33 +104,50 @@ local function getPlayersInRange()
     return playersInRange
 end
 
+-- Predict the position of a target based on velocity
+local function predictTargetPosition(player)
+    local root = player.Character:FindFirstChild("HumanoidRootPart")
+    if root then
+        local velocity = root.Velocity
+        local predictedPosition = root.Position + velocity * 0.1 -- Dự đoán vị trí mục tiêu
+        return predictedPosition
+    end
+    return nil
+end
+
 -- Main loop
 local currentTarget = nil
 RunService.RenderStepped:Connect(function()
     updateDrawings()
-    local playersInRange = getPlayersInRange()
 
-    if #playersInRange > 0 then
-        -- Nếu có mục tiêu trong phạm vi, ưu tiên mục tiêu gần nhất và có tốc độ cao nhất
-        local highestSpeed = 0
-        local bestTarget = nil
-        for _, player in ipairs(playersInRange) do
-            local speed = calculateTargetSpeed(player)
-            if speed > highestSpeed then
-                highestSpeed = speed
-                bestTarget = player
+    if aimbotEnabled then
+        local playersInRange = getPlayersInRange()
+
+        if #playersInRange > 0 then
+            -- Nếu có mục tiêu trong phạm vi, ưu tiên mục tiêu gần nhất và có tốc độ cao nhất
+            local highestSpeed = 0
+            local bestTarget = nil
+            for _, player in ipairs(playersInRange) do
+                local predictedPos = predictTargetPosition(player)
+                if predictedPos then
+                    local speed = calculateTargetSpeed(player)
+                    if speed > highestSpeed then
+                        highestSpeed = speed
+                        bestTarget = player
+                    end
+                end
             end
-        end
 
-        -- Nếu có mục tiêu, ngắm vào nó
-        if bestTarget and bestTarget.Character and bestTarget.Character:FindFirstChild("Head") then
-            local aimSpeed = math.clamp(aimSpeedBase + (highestSpeed / 100), 0.1, 1)
-            lookAtSmooth(bestTarget.Character.Head.Position + Vector3.new(0, cameraHeightOffset, 0), aimSpeed)
-            currentTarget = bestTarget
+            -- Nếu có mục tiêu, ngắm vào nó
+            if bestTarget and bestTarget.Character and bestTarget.Character:FindFirstChild("Head") then
+                local aimSpeed = math.clamp(aimSpeedBase + (highestSpeed / 100), 0.1, 1)
+                lookAtSmooth(bestTarget.Character.Head.Position + Vector3.new(0, cameraHeightOffset, 0), aimSpeed)
+                currentTarget = bestTarget
+            end
+        else
+            -- Nếu không có mục tiêu trong phạm vi, tắt Aimbot
+            currentTarget = nil
         end
-    else
-        -- Nếu không có mục tiêu trong phạm vi, tắt Aimbot
-        currentTarget = nil
     end
 end)
 
