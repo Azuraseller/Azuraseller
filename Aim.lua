@@ -8,10 +8,10 @@ local TweenService = game:GetService("TweenService")
 local Prediction = 0.1  -- Dự đoán vị trí mục tiêu
 local Radius = 400 -- Bán kính khóa mục tiêu
 local BaseSmoothFactor = 0.15  -- Mức độ mượt khi camera theo dõi (cơ bản)
-local MaxSmoothFactor = 0.2 -- Mức độ mượt tối đa
-local CameraRotationSpeed = 0.25 -- Tốc độ xoay camera khi ghim mục tiêu
-local TargetLockSpeed = 0.3 -- Tốc độ ghim mục tiêu
-local TargetSwitchSpeed = 0.3 -- Tốc độ chuyển mục tiêu
+local MaxSmoothFactor = 0.5  -- Mức độ mượt tối đa
+local CameraRotationSpeed = 0.3  -- Tốc độ xoay camera khi ghim mục tiêu
+local TargetLockSpeed = 0.2 -- Tốc độ ghim mục tiêu
+local TargetSwitchSpeed = 0.1 -- Tốc độ chuyển mục tiêu
 local Locked = false
 local CurrentTarget = nil
 local AimActive = true -- Trạng thái aim (tự động bật/tắt)
@@ -127,22 +127,23 @@ local function CalculateSmoothFactor(target)
     return math.clamp(smoothFactor, BaseSmoothFactor, MaxSmoothFactor)
 end
 
--- Hàm khai báo POV
-local POV = 10 -- Kích thước vòng POV
-
--- Tạo vòng POV
-local function CreatePOV()
-    local circle = Instance.new("Frame")
-    circle.Parent = ScreenGui
-    circle.Size = UDim2.new(0, POV, 0, POV)
-    circle.Position = UDim2.new(0.5, -POV / 2, 0.5, -POV / 2)
-    circle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-    circle.BorderSizePixel = 2
-    circle.Visible = AimActive
-    return circle
+-- Hàm để điều chỉnh Aim vào thân mục tiêu
+local function AimAtTargetBody(target)
+    local humanoidRootPart = target:FindFirstChild("HumanoidRootPart")
+    local humanoid = target:FindFirstChild("Humanoid")
+    if humanoidRootPart and humanoid then
+        -- Đặt aim vào vị trí thân (HumanoidRootPart)
+        return humanoidRootPart.Position
+    end
+    return target.HumanoidRootPart.Position
 end
 
-local POVCircle = CreatePOV()
+-- Tự động xoay camera khi mục tiêu hoặc người dùng di chuyển
+local function AutoRotateCamera(targetPosition)
+    local direction = (targetPosition - Camera.CFrame.Position).Unit
+    local newCFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, targetPosition), CameraRotationSpeed)
+    Camera.CFrame = newCFrame
+end
 
 -- Cập nhật camera và vòng POV
 RunService.RenderStepped:Connect(function()
@@ -171,7 +172,7 @@ RunService.RenderStepped:Connect(function()
         if CurrentTarget and Locked then
             local targetCharacter = CurrentTarget
             if targetCharacter and targetCharacter:FindFirstChild("HumanoidRootPart") then
-                local targetPosition = PredictTargetPosition(targetCharacter)
+                local targetPosition = AimAtTargetBody(targetCharacter)
 
                 -- Kiểm tra nếu mục tiêu không hợp lệ
                 local distance = (targetCharacter.HumanoidRootPart.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude
@@ -187,11 +188,11 @@ RunService.RenderStepped:Connect(function()
                     -- Sử dụng TargetLockSpeed để điều chỉnh tốc độ ghim
                     local TargetPositionSmooth = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, targetPosition), TargetLockSpeed)
 
-                    -- Cập nhật camera chính (Camera 1)
+                    -- Cập nhật camera chính
                     Camera.CFrame = TargetPositionSmooth
 
-                    -- Cập nhật vòng POV
-                    POVCircle.Visible = AimActive
+                    -- Tự động xoay camera khi mục tiêu hoặc người dùng di chuyển
+                    AutoRotateCamera(targetPosition)
                 end
             end
         end
