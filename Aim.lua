@@ -6,7 +6,7 @@ local TweenService = game:GetService("TweenService")
 
 -- Cấu hình các tham số
 local Prediction = 0.1  -- Dự đoán vị trí mục tiêu
-local Radius = 230 -- Bán kính khóa mục tiêu
+local Radius = 400 -- Bán kính khóa mục tiêu
 local BaseSmoothFactor = 0.15  -- Mức độ mượt khi camera theo dõi (cơ bản)
 local MaxSmoothFactor = 0.5  -- Mức độ mượt tối đa
 local CameraRotationSpeed = 0.3  -- Tốc độ xoay camera khi ghim mục tiêu
@@ -17,60 +17,66 @@ local CurrentTarget = nil
 local AimActive = true -- Trạng thái aim (tự động bật/tắt)
 local AutoAim = false -- Tự động kích hoạt khi có đối tượng trong bán kính
 
--- GUI
-local ScreenGui = Instance.new("ScreenGui")
-local ToggleButton = Instance.new("TextButton")
-local CloseButton = Instance.new("TextButton") -- Nút X
+-- Hàm X, Y, Z, F, XY, XF, ZY, ZF
+local targetMovement = {
+    X = 1,
+    Y = 1,
+    Z = 1,
+    F = 1,
+    XY = 1,
+    XF = 1,
+    ZY = 1,
+    ZF = 1
+}
 
-ScreenGui.Parent = game:GetService("CoreGui")
+-- Cập nhật các giá trị di chuyển dựa trên hướng mục tiêu
+local function UpdateTargetMovement(target)
+    local humanoidRootPart = target:FindFirstChild("HumanoidRootPart")
+    if humanoidRootPart then
+        local previousPosition = humanoidRootPart.Position
+        local currentPosition = previousPosition
+        local delta = currentPosition - previousPosition
 
--- Nút ON/OFF
-ToggleButton.Parent = ScreenGui
-ToggleButton.Size = UDim2.new(0, 100, 0, 50)
-ToggleButton.Position = UDim2.new(0.85, 0, 0.01, 0)
-ToggleButton.Text = "OFF" -- Văn bản mặc định
-ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- Màu nền khi tắt
-ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255) -- Màu chữ
-ToggleButton.Font = Enum.Font.SourceSans
-ToggleButton.TextSize = 18
+        -- Di chuyển bên phải (X)
+        if delta.X > 0 then
+            targetMovement.X = targetMovement.X + 1
+        -- Di chuyển sang trái (Z)
+        elseif delta.X < 0 then
+            targetMovement.Z = targetMovement.Z + 1
+        end
 
--- Nút X
-CloseButton.Parent = ScreenGui
-CloseButton.Size = UDim2.new(0, 30, 0, 30)
-CloseButton.Position = UDim2.new(0.79, 0, 0.01, 0)
-CloseButton.Text = "X"
-CloseButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-CloseButton.Font = Enum.Font.SourceSans
-CloseButton.TextSize = 18
+        -- Di chuyển lên (Y)
+        if delta.Y > 0 then
+            targetMovement.Y = targetMovement.Y + 1
+        -- Di chuyển xuống (F)
+        elseif delta.Y < 0 then
+            targetMovement.F = targetMovement.F + 1
+        end
 
--- Hàm bật/tắt Aim qua nút X
-CloseButton.MouseButton1Click:Connect(function()
-    AimActive = not AimActive
-    ToggleButton.Visible = AimActive -- Ẩn/hiện nút ON/OFF theo trạng thái Aim
-    if not AimActive then
-        ToggleButton.Text = "OFF"
-        ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-        Locked = false
-        CurrentTarget = nil -- Ngừng ghim mục tiêu
-    else
-        ToggleButton.Text = "ON"
-        ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+        -- Di chuyển theo các đường chéo
+        if delta.X > 0 and delta.Y > 0 then
+            targetMovement.XY = targetMovement.XY + 1
+        elseif delta.X > 0 and delta.Y < 0 then
+            targetMovement.XF = targetMovement.XF + 1
+        elseif delta.X < 0 and delta.Y > 0 then
+            targetMovement.ZY = targetMovement.ZY + 1
+        elseif delta.X < 0 and delta.Y < 0 then
+            targetMovement.ZF = targetMovement.ZF + 1
+        end
+
+        -- Nếu mục tiêu đứng yên, reset giá trị di chuyển
+        if delta.Magnitude == 0 then
+            targetMovement.X = 1
+            targetMovement.Y = 1
+            targetMovement.Z = 1
+            targetMovement.F = 1
+            targetMovement.XY = 1
+            targetMovement.XF = 1
+            targetMovement.ZY = 1
+            targetMovement.ZF = 1
+        end
     end
-end)
-
--- Nút ON/OFF để bật/tắt ghim mục tiêu
-ToggleButton.MouseButton1Click:Connect(function()
-    Locked = not Locked
-    if Locked then
-        ToggleButton.Text = "ON"
-        ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
-    else
-        ToggleButton.Text = "OFF"
-        ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-        CurrentTarget = nil -- Hủy mục tiêu khi tắt CamLock
-    end
-end)
+end
 
 -- Tìm tất cả đối thủ trong phạm vi
 local function FindEnemiesInRadius()
@@ -146,8 +152,6 @@ RunService.RenderStepped:Connect(function()
         if #enemies > 0 then
             if not Locked then
                 Locked = true
-                ToggleButton.Text = "ON"
-                ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
             end
             if not CurrentTarget then
                 CurrentTarget = enemies[1] -- Chọn mục tiêu đầu tiên
@@ -155,8 +159,6 @@ RunService.RenderStepped:Connect(function()
         else
             if Locked then
                 Locked = false
-                ToggleButton.Text = "OFF"
-                ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
                 CurrentTarget = nil -- Ngừng ghim khi không còn mục tiêu
             end
         end
@@ -165,6 +167,8 @@ RunService.RenderStepped:Connect(function()
         if CurrentTarget and Locked then
             local targetCharacter = CurrentTarget
             if targetCharacter and targetCharacter:FindFirstChild("HumanoidRootPart") then
+                UpdateTargetMovement(targetCharacter) -- Cập nhật chuyển động của mục tiêu
+
                 local targetPosition = AimAtTargetBody(targetCharacter)
 
                 -- Kiểm tra nếu mục tiêu không hợp lệ
@@ -193,7 +197,5 @@ end)
 Players.PlayerAdded:Connect(function(player)
     if player == LocalPlayer then
         AimActive = true
-        ToggleButton.Text = "ON"
-        ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
     end
 end)
