@@ -1,148 +1,136 @@
-local Players = game:GetService("Players")
+local fov = 100
+local aimSpeedBase = 0.1 -- Tốc độ cơ bản của Aimbot
+local cameraHeightOffset = 2 -- Tăng chiều cao camera
+local detectionRadius = 400 -- Phạm vi quét 360 độ
 local RunService = game:GetService("RunService")
-local LocalPlayer = Players.LocalPlayer
-local Camera = workspace.CurrentCamera
+local UserInputService = game:GetService("UserInputService")
+local Players = game:GetService("Players")
+local Cam = game.Workspace.CurrentCamera
 
--- Tạo Camera phụ
-local Camera2 = Instance.new("Camera")
-Camera2.Parent = workspace
+-- FOV Circle Drawing
+local FOVring = Drawing.new("Circle")
+FOVring.Visible = true
+FOVring.Thickness = 2
+FOVring.Color = Color3.fromRGB(128, 0, 128) -- Purple
+FOVring.Filled = false
+FOVring.Radius = fov
+FOVring.Position = Cam.ViewportSize / 2
 
--- Cấu hình các tham số
-local Prediction = 0.1  -- Dự đoán vị trí mục tiêu
-local Radius = 400  -- Bán kính khóa mục tiêu
-local SmoothFactor = 0.15  -- Mức độ mượt khi camera theo dõi
-local CameraRotationSpeed = 0.3  -- Tốc độ xoay camera khi ghim mục tiêu
-local Locked = false
-local CurrentTarget = nil
-local AimActive = true -- Trạng thái aim (tự động bật/tắt)
-local AutoAim = false -- Tự động kích hoạt khi có đối tượng trong bán kính
+-- Update FOV Circle
+local function updateDrawings()
+    FOVring.Position = Cam.ViewportSize / 2
+    FOVring.Radius = fov
+end
 
--- GUI
-local ScreenGui = Instance.new("ScreenGui")
-local ToggleButton = Instance.new("TextButton")
-local CloseButton = Instance.new("TextButton") -- Nút X
-
-ScreenGui.Parent = game:GetService("CoreGui")
-
--- Nút ON/OFF
-ToggleButton.Parent = ScreenGui
-ToggleButton.Size = UDim2.new(0, 100, 0, 50)
-ToggleButton.Position = UDim2.new(0.85, 0, 0.01, 0)
-ToggleButton.Text = "CamLock: OFF"
-ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-ToggleButton.Font = Enum.Font.SourceSans
-ToggleButton.TextSize = 20
-
--- Nút X
-CloseButton.Parent = ScreenGui
-CloseButton.Size = UDim2.new(0, 30, 0, 30)
-CloseButton.Position = UDim2.new(0.79, 0, 0.01, 0)
-CloseButton.Text = "X"
-CloseButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-CloseButton.Font = Enum.Font.SourceSans
-CloseButton.TextSize = 18
-
--- Hàm bật/tắt Aim qua nút X
-CloseButton.MouseButton1Click:Connect(function()
-    AimActive = not AimActive
-    ToggleButton.Visible = AimActive -- Ẩn/hiện nút ON/OFF theo trạng thái Aim
-    if not AimActive then
-        ToggleButton.Text = "CamLock: OFF"
-        ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-        Locked = false
-        CurrentTarget = nil -- Ngừng ghim mục tiêu
-    else
-        ToggleButton.Text = "CamLock: ON"
-        ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+-- Adjust FOV size with keys
+local function adjustFOV(input, isProcessed)
+    if isProcessed then return end
+    if input.KeyCode == Enum.KeyCode.Up then
+        fov = math.clamp(fov + 5, 50, 500)
+    elseif input.KeyCode == Enum.KeyCode.Down then
+        fov = math.clamp(fov - 5, 50, 500)
     end
-end)
+end
 
--- Nút ON/OFF để bật/tắt ghim mục tiêu
-ToggleButton.MouseButton1Click:Connect(function()
-    Locked = not Locked
-    if Locked then
-        ToggleButton.Text = "CamLock: ON"
-        ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
-    else
-        ToggleButton.Text = "CamLock: OFF"
-        ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-        CurrentTarget = nil -- Hủy mục tiêu khi tắt CamLock
+-- Remove FOV circle on Delete key
+local function onKeyDown(input)
+    if input.KeyCode == Enum.KeyCode.Delete then
+        RunService:UnbindFromRenderStep("FOVUpdate")
+        FOVring:Remove()
     end
-end)
+end
 
--- Tìm tất cả đối thủ trong phạm vi
-local function FindEnemiesInRadius()
-    local targets = {}
-    for _, Player in ipairs(Players:GetPlayers()) do
-        if Player ~= LocalPlayer then
-            local Character = Player.Character
-            if Character and Character:FindFirstChild("HumanoidRootPart") and Character:FindFirstChild("Humanoid") and Character.Humanoid.Health > 0 then
-                local Distance = (Character.HumanoidRootPart.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude
-                if Distance <= Radius then
-                    table.insert(targets, Character)
+-- Look at target position with smooth Aimspeed
+local function lookAtSmooth(target, aimSpeed)
+    local lookVector = (target - Cam.CFrame.Position).unit
+    local newCFrame = CFrame.new(Cam.CFrame.Position, Cam.CFrame.Position + lookVector)
+    Cam.CFrame = Cam.CFrame:Lerp(newCFrame, aimSpeed)
+end
+
+-- Calculate target speed
+local function calculateTargetSpeed(player)
+    if not player.Character then return 0 end
+    local root = player.Character:FindFirstChild("HumanoidRootPart")
+    if not root then return 0 end
+    return root.Velocity.Magnitude
+end
+
+-- Get closest and fastest player within FOV
+local function getClosestAndFastestPlayerInFOV(targetPartName)
+    local nearest = nil
+    local highestSpeed = 0
+    local closestDistance = math.huge
+    local playerMousePos = Cam.ViewportSize / 2
+
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= Players.LocalPlayer then
+            local character = player.Character
+            local part = character and character:FindFirstChild(targetPartName)
+            if part then
+                local screenPos, isVisible = Cam:WorldToViewportPoint(part.Position)
+                local distance = (Vector2.new(screenPos.X, screenPos.Y) - playerMousePos).Magnitude
+                local speed = calculateTargetSpeed(player)
+
+                if isVisible and distance < fov and distance < closestDistance then
+                    if speed > highestSpeed then
+                        highestSpeed = speed
+                        nearest = player
+                    end
                 end
             end
         end
     end
-    return targets
+
+    return nearest, highestSpeed
 end
 
--- Điều chỉnh camera tránh bị che khuất
-local function AdjustCameraPosition(targetPosition)
-    local ray = Ray.new(Camera.CFrame.Position, targetPosition - Camera.CFrame.Position)
-    local hitPart = workspace:FindPartOnRay(ray, LocalPlayer.Character)
-    if hitPart then
-        return Camera.CFrame.Position + (targetPosition - Camera.CFrame.Position).Unit * 5
+-- Get all players within detection radius (360° Aimbot)
+local function getPlayersInRange()
+    local playersInRange = {}
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= Players.LocalPlayer then
+            local character = player.Character
+            if character and character:FindFirstChild("HumanoidRootPart") then
+                local distance = (character.HumanoidRootPart.Position - Cam.CFrame.Position).Magnitude
+                if distance <= detectionRadius then
+                    table.insert(playersInRange, player)
+                end
+            end
+        end
     end
-    return targetPosition
+    return playersInRange
 end
 
--- Cập nhật camera
+-- Main loop
+local currentTarget = nil
 RunService.RenderStepped:Connect(function()
-    if AimActive then
-        -- Tìm kẻ thù gần nhất
-        local enemies = FindEnemiesInRadius()
-        if #enemies > 0 then
-            if not Locked then
-                Locked = true
-                ToggleButton.Text = "CamLock: ON"
-                ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
-            end
-            if not CurrentTarget then
-                CurrentTarget = enemies[1] -- Chọn mục tiêu đầu tiên
-            end
-        else
-            if Locked then
-                Locked = false
-                ToggleButton.Text = "CamLock: OFF"
-                ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-                CurrentTarget = nil -- Ngừng ghim khi không còn mục tiêu
+    updateDrawings()
+    local playersInRange = getPlayersInRange()
+
+    if #playersInRange > 0 then
+        -- Nếu có mục tiêu trong phạm vi, ưu tiên mục tiêu gần nhất và có tốc độ cao nhất
+        local highestSpeed = 0
+        local bestTarget = nil
+        for _, player in ipairs(playersInRange) do
+            local speed = calculateTargetSpeed(player)
+            if speed > highestSpeed then
+                highestSpeed = speed
+                bestTarget = player
             end
         end
 
-        -- Theo dõi mục tiêu
-        if CurrentTarget and Locked then
-            local targetCharacter = CurrentTarget
-            if targetCharacter and targetCharacter:FindFirstChild("HumanoidRootPart") then
-                local targetPosition = targetCharacter.HumanoidRootPart.Position + targetCharacter.HumanoidRootPart.Velocity * Prediction
-
-                -- Kiểm tra nếu mục tiêu không hợp lệ
-                local distance = (targetCharacter.HumanoidRootPart.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude
-                if targetCharacter.Humanoid.Health <= 0 or distance > Radius then
-                    CurrentTarget = nil
-                else
-                    -- Điều chỉnh vị trí camera
-                    targetPosition = AdjustCameraPosition(targetPosition)
-
-                    -- Cập nhật camera chính (Camera 1)
-                    Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, targetPosition), SmoothFactor)
-
-                    -- Cập nhật camera phụ (Camera 2)
-                    Camera2.CFrame = Camera2.CFrame:Lerp(CFrame.new(Camera2.CFrame.Position, targetPosition), SmoothFactor)
-                end
-            end
+        -- Nếu có mục tiêu, ngắm vào nó
+        if bestTarget and bestTarget.Character and bestTarget.Character:FindFirstChild("Head") then
+            local aimSpeed = math.clamp(aimSpeedBase + (highestSpeed / 100), 0.1, 1)
+            lookAtSmooth(bestTarget.Character.Head.Position + Vector3.new(0, cameraHeightOffset, 0), aimSpeed)
+            currentTarget = bestTarget
         end
+    else
+        -- Nếu không có mục tiêu trong phạm vi, tắt Aimbot
+        currentTarget = nil
     end
 end)
+
+-- Connect key inputs
+UserInputService.InputBegan:Connect(adjustFOV)
+UserInputService.InputBegan:Connect(onKeyDown)
