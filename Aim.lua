@@ -4,18 +4,14 @@ local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 local TweenService = game:GetService("TweenService")
 
--- Tạo Camera phụ (Xóa camera phụ như yêu cầu)
--- local Camera2 = Instance.new("Camera")
--- Camera2.Parent = workspace
-
 -- Cấu hình các tham số
 local Prediction = 0.1  -- Dự đoán vị trí mục tiêu
-local Radius = 230 -- Bán kính khóa mục tiêu
+local Radius = 400 -- Bán kính khóa mục tiêu
 local BaseSmoothFactor = 0.15  -- Mức độ mượt khi camera theo dõi (cơ bản)
-local MaxSmoothFactor = 0.5  -- Mức độ mượt tối đa
-local CameraRotationSpeed = 0.3  -- Tốc độ xoay camera khi ghim mục tiêu
-local TargetLockSpeed = 0.2 -- Tốc độ ghim mục tiêu
-local TargetSwitchSpeed = 0.1 -- Tốc độ chuyển mục tiêu
+local MaxSmoothFactor = 0.2 -- Mức độ mượt tối đa
+local CameraRotationSpeed = 0.25 -- Tốc độ xoay camera khi ghim mục tiêu
+local TargetLockSpeed = 0.3 -- Tốc độ ghim mục tiêu
+local TargetSwitchSpeed = 0.3 -- Tốc độ chuyển mục tiêu
 local Locked = false
 local CurrentTarget = nil
 local AimActive = true -- Trạng thái aim (tự động bật/tắt)
