@@ -6,7 +6,7 @@ local TweenService = game:GetService("TweenService")
 
 -- Cấu hình các tham số
 local Prediction = 0.1  -- Dự đoán vị trí mục tiêu
-local Radius = 400 -- Bán kính khóa mục tiêu
+local Radius = 230 -- Bán kính khóa mục tiêu
 local BaseSmoothFactor = 0.15  -- Mức độ mượt khi camera theo dõi (cơ bản)
 local MaxSmoothFactor = 0.5  -- Mức độ mượt tối đa
 local CameraRotationSpeed = 0.3  -- Tốc độ xoay camera khi ghim mục tiêu
@@ -138,14 +138,7 @@ local function AimAtTargetBody(target)
     return target.HumanoidRootPart.Position
 end
 
--- Tự động xoay camera khi mục tiêu hoặc người dùng di chuyển
-local function AutoRotateCamera(targetPosition)
-    local direction = (targetPosition - Camera.CFrame.Position).Unit
-    local newCFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, targetPosition), CameraRotationSpeed)
-    Camera.CFrame = newCFrame
-end
-
--- Cập nhật camera và vòng POV
+-- Cập nhật Camera và Aim đồng bộ
 RunService.RenderStepped:Connect(function()
     if AimActive then
         -- Tìm kẻ thù gần nhất
@@ -188,11 +181,8 @@ RunService.RenderStepped:Connect(function()
                     -- Sử dụng TargetLockSpeed để điều chỉnh tốc độ ghim
                     local TargetPositionSmooth = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, targetPosition), TargetLockSpeed)
 
-                    -- Cập nhật camera chính
+                    -- Cập nhật camera và aim đồng bộ
                     Camera.CFrame = TargetPositionSmooth
-
-                    -- Tự động xoay camera khi mục tiêu hoặc người dùng di chuyển
-                    AutoRotateCamera(targetPosition)
                 end
             end
         end
