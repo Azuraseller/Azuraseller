@@ -1,210 +1,128 @@
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-local LocalPlayer = Players.LocalPlayer
-local Camera = workspace.CurrentCamera
 local TweenService = game:GetService("TweenService")
 
--- Cấu hình các tham số
-local Prediction = 0.1  -- Dự đoán vị trí mục tiêu
-local Radius = 230 -- Bán kính khóa mục tiêu
-local BaseSmoothFactor = 0.15  -- Mức độ mượt khi camera theo dõi (cơ bản)
-local MaxSmoothFactor = 0.5  -- Mức độ mượt tối đa
-local CameraRotationSpeed = 0.3  -- Tốc độ xoay camera khi ghim mục tiêu
-local TargetLockSpeed = 0.2 -- Tốc độ ghim mục tiêu
-local TargetSwitchSpeed = 0.1 -- Tốc độ chuyển mục tiêu
-local Locked = false
-local CurrentTarget = nil
-local AimActive = true -- Trạng thái aim (tự động bật/tắt)
-local AutoAim = false -- Tự động kích hoạt khi có đối tượng trong bán kính
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
 
 -- GUI
 local ScreenGui = Instance.new("ScreenGui")
-local ToggleButton = Instance.new("TextButton")
-local CloseButton = Instance.new("TextButton") -- Nút X
-local POV = Instance.new("Frame") -- POV frame
+local MenuButton = Instance.new("TextButton")
+local MenuFrame = Instance.new("Frame")
+local EspButton = Instance.new("TextButton")
+local AutoAdjustButton = Instance.new("TextButton")
 
 ScreenGui.Parent = game:GetService("CoreGui")
 
--- Nút ON/OFF
-ToggleButton.Parent = ScreenGui
-ToggleButton.Size = UDim2.new(0, 100, 0, 50)
-ToggleButton.Position = UDim2.new(0.85, 0, 0.01, 0)
-ToggleButton.Text = "OFF" -- Văn bản mặc định
-ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- Màu nền khi tắt
-ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255) -- Màu chữ
-ToggleButton.Font = Enum.Font.SourceSans
-ToggleButton.TextSize = 18
+-- Nút Menu 📜
+MenuButton.Parent = ScreenGui
+MenuButton.Size = UDim2.new(0, 30, 0, 30)
+MenuButton.Position = UDim2.new(0.79, 0, 0.06, 0)
+MenuButton.Text = "📜"
+MenuButton.BackgroundColor3 = Color3.fromRGB(255, 165, 0)
+MenuButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+MenuButton.Font = Enum.Font.SourceSans
+MenuButton.TextSize = 18
 
--- Thêm UICorner để bo tròn nút On/Off
-local ToggleButtonUICorner = Instance.new("UICorner")
-ToggleButtonUICorner.CornerRadius = UDim.new(0, 15) -- Bo tròn góc
-ToggleButtonUICorner.Parent = ToggleButton
+-- Menu Frame
+MenuFrame.Parent = ScreenGui
+MenuFrame.Size = UDim2.new(0, 0, 0, 100)
+MenuFrame.Position = UDim2.new(0.79, 0, 0.1, 0)
+MenuFrame.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+MenuFrame.Visible = false
 
--- Nút X
-CloseButton.Parent = ScreenGui
-CloseButton.Size = UDim2.new(0, 30, 0, 30)
-CloseButton.Position = UDim2.new(0.79, 0, 0.01, 0)
-CloseButton.Text = "⚙️"
-CloseButton.BackgroundColor3 = Color3.fromRGB(200, 200, 200) -- Màu xám trong suốt
-CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-CloseButton.Font = Enum.Font.SourceSans
-CloseButton.TextSize = 18
+-- Nút ESP
+EspButton.Parent = MenuFrame
+EspButton.Size = UDim2.new(0, 30, 0, 30)
+EspButton.Position = UDim2.new(0, 0, 0, 0)
+EspButton.Text = "👁️"
+EspButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- Off by default
+EspButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+EspButton.Font = Enum.Font.SourceSans
+EspButton.TextSize = 18
 
--- Thêm UICorner để bo tròn nút X
-local CloseButtonUICorner = Instance.new("UICorner")
-CloseButtonUICorner.CornerRadius = UDim.new(0, 15) -- Bo tròn góc
-CloseButtonUICorner.Parent = CloseButton
+-- Nút Auto Adjust 🎯
+AutoAdjustButton.Parent = MenuFrame
+AutoAdjustButton.Size = UDim2.new(0, 30, 0, 30)
+AutoAdjustButton.Position = UDim2.new(0, 0, 0, 35)
+AutoAdjustButton.Text = "🎯"
+AutoAdjustButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- Off by default
+AutoAdjustButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+AutoAdjustButton.Font = Enum.Font.SourceSans
+AutoAdjustButton.TextSize = 18
 
--- POV setup (Vòng tròn POV)
-local POVCircle = Instance.new("ImageLabel")
-POVCircle.Parent = ScreenGui
-POVCircle.Size = UDim2.new(0, 30, 0, 30) -- Kích thước ban đầu của POV
-POVCircle.Position = UDim2.new(0.5, -15, 0.5, -15) -- Căn giữa màn hình
-POVCircle.BackgroundTransparency = 1 -- Không có nền
-POVCircle.Image = "⊙"  -- Thay thế bằng ID của hình ảnh vòng tròn bạn muốn
-POVCircle.Visible = false -- Ẩn POV khi Aim chưa bật
-
--- Hàm bật/tắt Aim qua nút X
-CloseButton.MouseButton1Click:Connect(function()
-    AimActive = not AimActive
-    ToggleButton.Visible = AimActive -- Ẩn/hiện nút ON/OFF theo trạng thái Aim
-    if not AimActive then
-        ToggleButton.Text = "OFF"
-        ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-        Locked = false
-        CurrentTarget = nil -- Ngừng ghim mục tiêu
-        POVCircle.Visible = false -- Ẩn POV khi Aim tắt
-    else
-        ToggleButton.Text = "ON"
-        ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
-        POVCircle.Visible = true -- Hiển thị POV khi Aim bật
-    end
+-- Hiệu ứng trượt Menu
+MenuButton.MouseButton1Click:Connect(function()
+    MenuFrame.Visible = not MenuFrame.Visible
+    local newSize = MenuFrame.Visible and UDim2.new(0, 40, 0, 100) or UDim2.new(0, 0, 0, 100)
+    TweenService:Create(MenuFrame, TweenInfo.new(0.3), {Size = newSize}):Play()
 end)
 
--- Nút ON/OFF để bật/tắt ghim mục tiêu
-ToggleButton.MouseButton1Click:Connect(function()
-    Locked = not Locked
-    if Locked then
-        ToggleButton.Text = "ON"
-        ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
-    else
-        ToggleButton.Text = "OFF"
-        ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-        CurrentTarget = nil -- Hủy mục tiêu khi tắt CamLock
-    end
+-- ESP Logic
+local EspActive = false
+EspButton.MouseButton1Click:Connect(function()
+    EspActive = not EspActive
+    EspButton.BackgroundColor3 = EspActive and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
 end)
 
--- Tìm tất cả đối thủ trong phạm vi
-local function FindEnemiesInRadius()
-    local targets = {}
-    for _, Player in ipairs(Players:GetPlayers()) do
-        if Player ~= LocalPlayer then
-            local Character = Player.Character
-            if Character and Character:FindFirstChild("HumanoidRootPart") and Character:FindFirstChild("Humanoid") and Character.Humanoid.Health > 0 then
-                local Distance = (Character.HumanoidRootPart.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude
-                if Distance <= Radius then
-                    table.insert(targets, Character)
-                end
-            end
-        end
-    end
+local function DisplayEsp(target)
+    local billboard = Instance.new("BillboardGui")
+    billboard.Adornee = target.HumanoidRootPart
+    billboard.Size = UDim2.new(0, 200, 0, 50)
+    billboard.StudsOffset = Vector3.new(0, 3, 0)
+    billboard.Parent = target
 
-    -- Nếu có nhiều mục tiêu, chọn mục tiêu gần nhất với LocalPlayer
-    if #targets > 1 then
-        table.sort(targets, function(a, b)
-            return (a.HumanoidRootPart.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude < (b.HumanoidRootPart.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude
-        end)
-    end
-    return targets
+    local nameLabel = Instance.new("TextLabel", billboard)
+    nameLabel.Size = UDim2.new(1, 0, 0.5, 0)
+    nameLabel.Text = target.Name
+    nameLabel.TextColor3 = Color3.new(1, 1, 1)
+    nameLabel.BackgroundTransparency = 1
+
+    local healthBar = Instance.new("Frame", billboard)
+    healthBar.Size = UDim2.new(1, 0, 0.5, 0)
+    healthBar.Position = UDim2.new(0, 0, 0.5, 0)
+    healthBar.BackgroundColor3 = Color3.new(1, 0, 0)
+
+    local healthFill = Instance.new("Frame", healthBar)
+    healthFill.Size = UDim2.new(target.Humanoid.Health / target.Humanoid.MaxHealth, 0, 1, 0)
+    healthFill.BackgroundColor3 = Color3.new(0, 1, 0)
 end
 
--- Điều chỉnh camera tránh bị che khuất
-local function AdjustCameraPosition(targetPosition)
-    local ray = Ray.new(Camera.CFrame.Position, targetPosition - Camera.CFrame.Position)
-    local hitPart = workspace:FindPartOnRay(ray, LocalPlayer.Character)
-    if hitPart then
-        return Camera.CFrame.Position + (targetPosition - Camera.CFrame.Position).Unit * 5
-    end
-    return targetPosition
-end
-
--- Dự đoán vị trí mục tiêu với gia tốc và tốc độ
-local function PredictTargetPosition(target)
-    local humanoid = target:FindFirstChild("Humanoid")
-    local humanoidRootPart = target:FindFirstChild("HumanoidRootPart")
-    if humanoid and humanoidRootPart then
-        local velocity = humanoidRootPart.Velocity
-        local direction = velocity.Unit
-        local speed = velocity.Magnitude
-        local predictedPosition = humanoidRootPart.Position + velocity * Prediction
-        return predictedPosition
-    end
-    return target.HumanoidRootPart.Position
-end
-
--- Tính toán tốc độ ghim mục tiêu dựa trên hành vi
-local function calculateLockSpeed(target)
-    local targetSpeed = target.HumanoidRootPart.Velocity.Magnitude
-    local distance = (target.HumanoidRootPart.Position - Camera.CFrame.Position).Magnitude
-    return math.clamp(targetSpeed / distance, 0.1, 1)
-end
-
--- Hàm làm mượt chuyển động camera
-local function smoothRotation(currentRotation, targetRotation, speed)
-    local rotationDifference = (targetRotation - currentRotation).Magnitude
-    local smoothingFactor = math.clamp(rotationDifference / speed, 0.1, 1)
-    return currentRotation + (targetRotation - currentRotation) * smoothingFactor
-end
-
--- Cập nhật camera và POV
 RunService.RenderStepped:Connect(function()
-    if AimActive then
-        -- Tìm kẻ thù gần nhất
-        local enemies = FindEnemiesInRadius()
-        if #enemies > 0 then
-            if not Locked then
-                Locked = true
-                ToggleButton.Text = "ON"
-                ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
-            end
-            if not CurrentTarget then
-                CurrentTarget = enemies[1] -- Chọn mục tiêu đầu tiên
-            end
-        else
-            if Locked then
-                Locked = false
-                ToggleButton.Text = "OFF"
-                ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-                CurrentTarget = nil -- Ngừng ghim khi không còn mục tiêu
-            end
+    if EspActive then
+        local target = FindTargetInRadius(500)
+        if target then
+            DisplayEsp(target)
         end
+    end
+end)
 
-        -- Theo dõi mục tiêu
-        if CurrentTarget and Locked then
-            local targetCharacter = CurrentTarget
-            if targetCharacter and targetCharacter:FindFirstChild("HumanoidRootPart") then
-                local targetPosition = PredictTargetPosition(targetCharacter)
+-- Auto Adjust Logic
+local AutoAdjustActive = false
+local PredictionAdjustments = {North = 1, South = 1, East = 1, West = 1}
+AutoAdjustButton.MouseButton1Click:Connect(function()
+    AutoAdjustActive = not AutoAdjustActive
+    AutoAdjustButton.BackgroundColor3 = AutoAdjustActive and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
+end)
 
-                -- Kiểm tra nếu mục tiêu không hợp lệ
-                local distance = (targetCharacter.HumanoidRootPart.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude
-                if targetCharacter.Humanoid.Health <= 0 or distance > Radius then
-                    CurrentTarget = nil
-                else
-                    -- Điều chỉnh vị trí camera
-                    targetPosition = AdjustCameraPosition(targetPosition)
+RunService.RenderStepped:Connect(function()
+    if AutoAdjustActive then
+        local target = FindTargetInRadius(500)
+        if target then
+            local velocity = target.HumanoidRootPart.Velocity
+            local speed = velocity.Magnitude
 
-                    -- Cập nhật camera chính (Camera 1)
-                    Camera.CFrame = CFrame.new(Camera.CFrame.Position, targetPosition)
+            -- Tự động điều chỉnh hướng
+            PredictionAdjustments.North = velocity.Z > 0 and math.min(speed / 10, 5) or 1
+            PredictionAdjustments.South = velocity.Z < 0 and math.min(speed / 10, 5) or 1
+            PredictionAdjustments.East = velocity.X > 0 and math.min(speed / 10, 5) or 1
+            PredictionAdjustments.West = velocity.X < 0 and math.min(speed / 10, 5) or 1
 
-                    -- Thay đổi FOV (Field of View) để tạo cảm giác POV
-                    Camera.FieldOfView = 70 + (distance / Radius) * 20  -- Tăng FOV khi mục tiêu gần hơn
-
-                    -- Cập nhật kích thước POV dựa trên khoảng cách
-                    local POVSize = math.clamp(30 + (1 - (distance / Radius)) * 50, 30, 60)
-                    POVCircle.Size = UDim2.new(0, POVSize, 0, POVSize)
-                    POVCircle.Position = UDim2.new(0.5, -POVCircle.Size.X.Offset / 2, 0.5, -POVCircle.Size.Y.Offset / 2) -- Căn giữa màn hình
-                end
-            end
+            -- Áp dụng điều chỉnh
+            print("Adjustments:", PredictionAdjustments)
+        else
+            -- Reset nếu không có mục tiêu
+            PredictionAdjustments = {North = 1, South = 1, East = 1, West = 1}
         end
     end
 end)
