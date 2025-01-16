@@ -20,7 +20,7 @@ Lighting.ShadowSoftness = 0.2 -- Độ mềm của bóng
 -- Hiệu ứng ngày và đêm
 local function configureDayNightCycle()
     local isDay = true -- Ban đầu là ban ngày
-    local dayBrightness = 1.4 -- Độ sáng ban ngày
+    local dayBrightness = 1.3 -- Độ sáng ban ngày
     local nightBrightness = 0.7 -- Độ sáng ban đêm
 
     -- Thay đổi ánh sáng theo chu kỳ
@@ -47,7 +47,7 @@ configureDayNightCycle()
 
 -- Thêm hiệu ứng Bloom (ánh sáng dịu)
 local bloom = Instance.new("BloomEffect")
-bloom.Intensity = 2 -- Độ sáng của hiệu ứng
+bloom.Intensity = 2.5 -- Độ sáng của hiệu ứng
 bloom.Size = 40 -- Kích thước hiệu ứng
 bloom.Threshold = 0.9 -- Ngưỡng hiệu ứng
 bloom.Parent = Lighting
@@ -60,8 +60,8 @@ sunRays.Parent = Lighting
 
 -- Thêm hiệu ứng Color Correction (Hiệu chỉnh màu sắc nâng cao)
 local colorCorrection = Instance.new("ColorCorrectionEffect")
-colorCorrection.Brightness = 0.1 -- Độ sáng
-colorCorrection.Contrast = 0.7 -- Độ tương phản cao
+colorCorrection.Brightness = 0.3 -- Độ sáng
+colorCorrection.Contrast = 0.8 -- Độ tương phản cao
 colorCorrection.Saturation = 1.2 -- Độ bão hòa màu rực rỡ
 colorCorrection.TintColor = Color3.fromRGB(255, 240, 220) -- Tông màu ấm
 colorCorrection.Parent = Lighting
@@ -88,13 +88,13 @@ local function createReflectiveGround()
     ground.Position = Vector3.new(0, 0, 0) -- Đặt nền đất ở gốc tọa độ
     ground.Anchored = true
     ground.Material = Enum.Material.SmoothPlastic -- Bề mặt mịn
-    ground.Reflectance = 1.2 -- Độ phản chiếu cao
+    ground.Reflectance = 0.9 -- Độ phản chiếu cao
     ground.Color = Color3.fromRGB(90, 90, 90) -- Màu trung tính
     ground.Parent = workspace
 
     -- Thêm SurfaceAppearance để tăng phản chiếu
     local surfaceAppearance = Instance.new("SurfaceAppearance")
-    surfaceAppearance.Reflectance = 1.2 -- Độ phản chiếu cực cao
+    surfaceAppearance.Reflectance = 0.95 -- Độ phản chiếu cực cao
     surfaceAppearance.Parent = ground
 end
 
@@ -117,18 +117,6 @@ Players.PlayerAdded:Connect(function(player)
         end
     end)
 end)
-
--- Tạo hiệu ứng ánh sáng cho các kỹ năng (ví dụ: kỹ năng lửa)
-local function createSkillEffect(skillName, color, size)
-    local skillLight = Instance.new("PointLight")
-    skillLight.Color = color
-    skillLight.Range = size
-    skillLight.Parent = workspace
-end
-
--- Thêm ví dụ về hiệu ứng ánh sáng cho kỹ năng
-createSkillEffect("FireSkill", Color3.fromRGB(255, 85, 0), 20)  -- Kỹ năng lửa
-createSkillEffect("IceSkill", Color3.fromRGB(0, 255, 255), 15)  -- Kỹ năng băng
 
 -- Thêm hiệu ứng chuyển động cho môi trường (mây di chuyển)
 local cloud = Instance.new("Part")
