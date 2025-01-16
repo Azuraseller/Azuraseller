@@ -10,48 +10,40 @@ for _, effect in pairs(Lighting:GetChildren()) do
     end
 end
 
--- Cấu hình ánh sáng nâng cao
-Lighting.Brightness = 2 -- Giảm độ sáng tổng thể để phù hợp với ánh sáng dịu
-Lighting.Ambient = Color3.fromRGB(150, 150, 150) -- Ánh sáng môi trường trung tính
-Lighting.OutdoorAmbient = Color3.fromRGB(200, 200, 200) -- Ánh sáng ngoài trời dịu
-Lighting.EnvironmentDiffuseScale = 4 -- Độ khuếch tán ánh sáng cao
-Lighting.EnvironmentSpecularScale = 5 -- Độ phản chiếu ánh sáng cao
+-- Cấu hình ánh sáng giống map Blox Fruits
+Lighting.Brightness = 1 -- Giảm độ sáng tổng thể
+Lighting.Ambient = Color3.fromRGB(100, 100, 100) -- Ánh sáng môi trường dịu
+Lighting.OutdoorAmbient = Color3.fromRGB(120, 120, 120) -- Ánh sáng ngoài trời dịu
+Lighting.EnvironmentDiffuseScale = 2 -- Độ khuếch tán ánh sáng
+Lighting.EnvironmentSpecularScale = 4 -- Độ phản chiếu ánh sáng
 Lighting.GlobalShadows = true -- Bật bóng đổ toàn cục
 Lighting.ClockTime = 13 -- Thời gian trong ngày (13 = trưa)
 Lighting.GeographicLatitude = 45 -- Tọa độ địa lý (góc ánh sáng mặt trời)
-Lighting.ShadowSoftness = 0.03 -- Độ mềm của bóng
+Lighting.ShadowSoftness = 0.1 -- Độ mềm của bóng
 Lighting.Technology = Enum.Technology.Future -- Công nghệ ánh sáng Future
 
--- Thêm hiệu ứng Bloom (ánh sáng chói tự nhiên)
+-- Thêm hiệu ứng Bloom (ánh sáng dịu)
 local bloom = Instance.new("BloomEffect")
-bloom.Intensity = 2.5 -- Độ sáng của hiệu ứng
-bloom.Size = 40 -- Kích thước hiệu ứng
+bloom.Intensity = 2 -- Độ sáng của hiệu ứng
+bloom.Size = 20 -- Kích thước hiệu ứng
 bloom.Threshold = 0.9 -- Ngưỡng hiệu ứng
 bloom.Parent = Lighting
 
 -- Thêm hiệu ứng Sun Rays (tia sáng mặt trời)
 local sunRays = Instance.new("SunRaysEffect")
-sunRays.Intensity = 0.7 -- Cường độ
-sunRays.Spread = 0.9 -- Độ lan tỏa
+sunRays.Intensity = 0.5 -- Cường độ
+sunRays.Spread = 0.8 -- Độ lan tỏa
 sunRays.Parent = Lighting
 
--- Thêm hiệu ứng Color Correction (Hiệu chỉnh màu sắc chân thực)
+-- Thêm hiệu ứng Color Correction (Hiệu chỉnh màu sắc giống Blox Fruits)
 local colorCorrection = Instance.new("ColorCorrectionEffect")
-colorCorrection.Brightness = 0.1 -- Độ sáng
-colorCorrection.Contrast = 0.6 -- Độ tương phản
-colorCorrection.Saturation = 0.9 -- Độ bão hòa
-colorCorrection.TintColor = Color3.fromRGB(255, 245, 230) -- Tông màu dịu
+colorCorrection.Brightness = -0.1 -- Giảm độ sáng
+colorCorrection.Contrast = 0.3 -- Độ tương phản
+colorCorrection.Saturation = 0.5 -- Độ bão hòa
+colorCorrection.TintColor = Color3.fromRGB(220, 220, 255) -- Tông màu dịu, hơi xanh
 colorCorrection.Parent = Lighting
 
--- Thêm hiệu ứng Depth of Field (Làm mờ xa/gần tự nhiên)
-local depthOfField = Instance.new("DepthOfFieldEffect")
-depthOfField.InFocusRadius = 100 -- Bán kính lấy nét
-depthOfField.NearIntensity = 0.5 -- Cường độ gần
-depthOfField.FarIntensity = 0.4 -- Cường độ xa
-depthOfField.FocusDistance = 50 -- Khoảng cách lấy nét
-depthOfField.Parent = Lighting
-
--- Tạo nền đất siêu bóng loáng phản chiếu
+-- Tạo nền siêu phản chiếu
 local function createReflectiveGround()
     local ground = Instance.new("Part")
     ground.Name = "ReflectiveGround"
@@ -59,8 +51,8 @@ local function createReflectiveGround()
     ground.Position = Vector3.new(0, 0, 0) -- Đặt nền đất ở gốc tọa độ
     ground.Anchored = true
     ground.Material = Enum.Material.SmoothPlastic -- Bề mặt mịn
-    ground.Reflectance = 0.98 -- Độ phản chiếu cực cao
-    ground.Color = Color3.fromRGB(120, 120, 120) -- Màu xám trung tính
+    ground.Reflectance = 1 -- Độ phản chiếu cực cao
+    ground.Color = Color3.fromRGB(80, 80, 80) -- Màu tối hơn để tạo cảm giác giống Blox Fruits
     ground.Parent = workspace
 
     -- Thêm SurfaceAppearance để tăng phản chiếu
@@ -72,7 +64,7 @@ end
 -- Gọi hàm tạo nền đất
 createReflectiveGround()
 
--- Tăng độ chi tiết bóng đổ cho nhân vật và vật thể
+-- Tăng độ chi tiết bóng đổ cho người chơi
 game.Players.PlayerAdded:Connect(function(player)
     player.CharacterAdded:Connect(function(character)
         for _, part in pairs(character:GetDescendants()) do
@@ -88,8 +80,8 @@ for _, obj in pairs(workspace:GetDescendants()) do
     if obj:IsA("BasePart") then
         obj.CastShadow = true -- Bật bóng đổ
         obj.Material = Enum.Material.Glass -- Thay đổi vật liệu để tăng phản chiếu
-        obj.Reflectance = 0.6 -- Tăng phản chiếu
+        obj.Reflectance = 0.8 -- Tăng phản chiếu
     end
 end
 
-print("Maximum RTX-style graphics applied!")
+print("RTX graphics upgraded with reflective ground and soft lighting!")
