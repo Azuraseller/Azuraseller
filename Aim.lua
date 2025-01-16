@@ -11,8 +11,8 @@ Camera2.Parent = workspace
 -- Cấu hình các tham số
 local Prediction = 10  -- Dự đoán vị trí mục tiêu
 local Radius = 450 -- Bán kính khóa mục tiêu
-local CameraRotationSpeed = 1.5  -- Tốc độ xoay camera khi ghim mục tiêu
-local TargetLockSpeed = 1.5 -- Tốc độ ghim mục tiêu
+local CameraRotationSpeed = 3  -- Tốc độ xoay camera khi ghim mục tiêu
+local TargetLockSpeed = 2 -- Tốc độ ghim mục tiêu
 local TargetSwitchSpeed = 1 -- Tốc độ chuyển mục tiêu
 local Locked = false
 local CurrentTarget = nil
@@ -23,9 +23,6 @@ local AutoAim = false -- Tự động kích hoạt khi có đối tượng trong
 local ScreenGui = Instance.new("ScreenGui")
 local ToggleButton = Instance.new("TextButton")
 local CloseButton = Instance.new("TextButton") -- Nút X
-local PredictionSlider = Instance.new("Slider")
-local RadiusSlider = Instance.new("Slider")
-local CameraSpeedSlider = Instance.new("Slider")
 
 ScreenGui.Parent = game:GetService("CoreGui")
 
@@ -48,44 +45,6 @@ CloseButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
 CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 CloseButton.Font = Enum.Font.SourceSans
 CloseButton.TextSize = 18
-
--- Slider điều chỉnh tham số
-PredictionSlider.Parent = ScreenGui
-PredictionSlider.Size = UDim2.new(0, 200, 0, 30)
-PredictionSlider.Position = UDim2.new(0.85, 0, 0.1, 0)
-PredictionSlider.MinValue = 0.05
-PredictionSlider.MaxValue = 1
-PredictionSlider.Value = Prediction
-PredictionSlider.Text = "Prediction: " .. tostring(Prediction)
-
-RadiusSlider.Parent = ScreenGui
-RadiusSlider.Size = UDim2.new(0, 200, 0, 30)
-RadiusSlider.Position = UDim2.new(0.85, 0, 0.15, 0)
-RadiusSlider.MinValue = 100
-RadiusSlider.MaxValue = 500
-RadiusSlider.Value = Radius
-RadiusSlider.Text = "Radius: " .. tostring(Radius)
-
-CameraSpeedSlider.Parent = ScreenGui
-CameraSpeedSlider.Size = UDim2.new(0, 200, 0, 30)
-CameraSpeedSlider.Position = UDim2.new(0.85, 0, 0.2, 0)
-CameraSpeedSlider.MinValue = 0.1
-CameraSpeedSlider.MaxValue = 1
-CameraSpeedSlider.Value = CameraRotationSpeed
-CameraSpeedSlider.Text = "Camera Speed: " .. tostring(CameraRotationSpeed)
-
--- Cập nhật giá trị tham số từ slider
-PredictionSlider.Changed:Connect(function(value)
-    Prediction = value
-end)
-
-RadiusSlider.Changed:Connect(function(value)
-    Radius = value
-end)
-
-CameraSpeedSlider.Changed:Connect(function(value)
-    CameraRotationSpeed = value
-end)
 
 -- Hàm bật/tắt Aim qua nút X
 CloseButton.MouseButton1Click:Connect(function()
@@ -141,6 +100,7 @@ end
 
 -- Dự đoán vị trí mục tiêu với gia tốc và tốc độ (cải tiến bằng bộ lọc Kalman mở rộng)
 local function PredictTargetPosition(target)
+    -- Cải tiến bộ lọc Kalman hoặc sử dụng phương pháp EKF ở đây
     local humanoid = target:FindFirstChild("Humanoid")
     local humanoidRootPart = target:FindFirstChild("HumanoidRootPart")
     if humanoid and humanoidRootPart then
@@ -152,7 +112,7 @@ local function PredictTargetPosition(target)
     return target.HumanoidRootPart.Position
 end
 
--- Tính toán góc xoay camera cần thiết để theo dõi mục tiêu (Sử dụng Slerp)
+-- Tính toán góc xoay camera cần thiết để theo dõi mục tiêu (Sử dụng Quaternions)
 local function CalculateCameraRotation(targetPosition)
     local direction = (targetPosition - Camera.CFrame.Position).Unit
     local targetRotation = CFrame.lookAt(Camera.CFrame.Position, targetPosition)
@@ -197,7 +157,7 @@ RunService.RenderStepped:Connect(function()
                     local targetRotation = CalculateCameraRotation(targetPosition)
 
                     -- Cập nhật camera chính (Camera 1)
-                    Camera.CFrame = Camera.CFrame:Slerp(targetRotation, CameraRotationSpeed)
+                    Camera.CFrame = Camera.CFrame:Lerp(targetRotation, CameraRotationSpeed)
 
                     -- Cập nhật camera phụ (Camera 2)
                     Camera2.CFrame = Camera.CFrame
