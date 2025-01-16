@@ -9,10 +9,10 @@ local Camera2 = Instance.new("Camera")
 Camera2.Parent = workspace
 
 -- Cấu hình các tham số
-local Prediction = 10  -- Dự đoán vị trí mục tiêu
+local Prediction = 0.5  -- Dự đoán vị trí mục tiêu
 local Radius = 450 -- Bán kính khóa mục tiêu
-local CameraRotationSpeed = 3  -- Tốc độ xoay camera khi ghim mục tiêu
-local TargetLockSpeed = 2 -- Tốc độ ghim mục tiêu
+local CameraRotationSpeed = 1 -- Tốc độ xoay camera khi ghim mục tiêu
+local TargetLockSpeed = 1 -- Tốc độ ghim mục tiêu
 local TargetSwitchSpeed = 1 -- Tốc độ chuyển mục tiêu
 local Locked = false
 local CurrentTarget = nil
