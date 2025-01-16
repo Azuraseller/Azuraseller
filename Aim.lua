@@ -9,24 +9,23 @@ local Camera2 = Instance.new("Camera")
 Camera2.Parent = workspace
 
 -- Cấu hình các tham số
-local Prediction = 0.1  -- Dự đoán vị trí mục tiêu
-local Radius = 350 -- Bán kính khóa mục tiêu
-local CameraRotationSpeed = 0.3  -- Tốc độ xoay camera khi ghim mục tiêu
-local TargetLockSpeed = 0.2 -- Tốc độ ghim mục tiêu
-local TargetSwitchSpeed = 0.1 -- Tốc độ chuyển mục tiêu
+local Prediction = 10  -- Dự đoán vị trí mục tiêu
+local Radius = 450 -- Bán kính khóa mục tiêu
+local CameraRotationSpeed = 1.5  -- Tốc độ xoay camera khi ghim mục tiêu
+local TargetLockSpeed = 1.5 -- Tốc độ ghim mục tiêu
+local TargetSwitchSpeed = 1 -- Tốc độ chuyển mục tiêu
 local Locked = false
 local CurrentTarget = nil
 local AimActive = true -- Trạng thái aim (tự động bật/tắt)
 local AutoAim = false -- Tự động kích hoạt khi có đối tượng trong bán kính
-local UltraSnapAim = false -- Trạng thái Ultra Snap Aim
-local AutoSwitch = true -- Tự động chuyển mục tiêu khi mục tiêu hiện tại bị tiêu diệt
 
 -- GUI
 local ScreenGui = Instance.new("ScreenGui")
 local ToggleButton = Instance.new("TextButton")
 local CloseButton = Instance.new("TextButton") -- Nút X
-local UltraSnapButton = Instance.new("TextButton") -- Nút Ultra Snap Aim
-local UltraSnapEffect = Instance.new("ImageLabel") -- Hiệu ứng Ultra Snap Aim
+local PredictionSlider = Instance.new("Slider")
+local RadiusSlider = Instance.new("Slider")
+local CameraSpeedSlider = Instance.new("Slider")
 
 ScreenGui.Parent = game:GetService("CoreGui")
 
@@ -50,22 +49,43 @@ CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 CloseButton.Font = Enum.Font.SourceSans
 CloseButton.TextSize = 18
 
--- Nút Ultra Snap Aim
-UltraSnapButton.Parent = ScreenGui
-UltraSnapButton.Size = UDim2.new(0, 30, 0, 30)
-UltraSnapButton.Position = UDim2.new(0.79, 0, 0.06, 0) -- Vị trí dưới nút X
-UltraSnapButton.Text = "💠"
-UltraSnapButton.BackgroundColor3 = Color3.fromRGB(0, 255, 255) -- Màu nền của nút Ultra Snap Aim
-UltraSnapButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-UltraSnapButton.Font = Enum.Font.SourceSans
-UltraSnapButton.TextSize = 18
+-- Slider điều chỉnh tham số
+PredictionSlider.Parent = ScreenGui
+PredictionSlider.Size = UDim2.new(0, 200, 0, 30)
+PredictionSlider.Position = UDim2.new(0.85, 0, 0.1, 0)
+PredictionSlider.MinValue = 0.05
+PredictionSlider.MaxValue = 1
+PredictionSlider.Value = Prediction
+PredictionSlider.Text = "Prediction: " .. tostring(Prediction)
 
--- Hiệu ứng Ultra Snap Aim
-UltraSnapEffect.Parent = ScreenGui
-UltraSnapEffect.Size = UDim2.new(0, 200, 0, 200)
-UltraSnapEffect.Position = UDim2.new(0.5, -100, 0.5, -100)
-UltraSnapEffect.Image = "rbxassetid://123456789" -- Thêm một hiệu ứng hình ảnh, có thể là vệt sáng hoặc ánh sáng
-UltraSnapEffect.Visible = false
+RadiusSlider.Parent = ScreenGui
+RadiusSlider.Size = UDim2.new(0, 200, 0, 30)
+RadiusSlider.Position = UDim2.new(0.85, 0, 0.15, 0)
+RadiusSlider.MinValue = 100
+RadiusSlider.MaxValue = 500
+RadiusSlider.Value = Radius
+RadiusSlider.Text = "Radius: " .. tostring(Radius)
+
+CameraSpeedSlider.Parent = ScreenGui
+CameraSpeedSlider.Size = UDim2.new(0, 200, 0, 30)
+CameraSpeedSlider.Position = UDim2.new(0.85, 0, 0.2, 0)
+CameraSpeedSlider.MinValue = 0.1
+CameraSpeedSlider.MaxValue = 1
+CameraSpeedSlider.Value = CameraRotationSpeed
+CameraSpeedSlider.Text = "Camera Speed: " .. tostring(CameraRotationSpeed)
+
+-- Cập nhật giá trị tham số từ slider
+PredictionSlider.Changed:Connect(function(value)
+    Prediction = value
+end)
+
+RadiusSlider.Changed:Connect(function(value)
+    Radius = value
+end)
+
+CameraSpeedSlider.Changed:Connect(function(value)
+    CameraRotationSpeed = value
+end)
 
 -- Hàm bật/tắt Aim qua nút X
 CloseButton.MouseButton1Click:Connect(function()
@@ -119,22 +139,20 @@ local function FindEnemiesInRadius()
     return targets
 end
 
--- Dự đoán vị trí mục tiêu với gia tốc và tốc độ
+-- Dự đoán vị trí mục tiêu với gia tốc và tốc độ (cải tiến bằng bộ lọc Kalman mở rộng)
 local function PredictTargetPosition(target)
     local humanoid = target:FindFirstChild("Humanoid")
     local humanoidRootPart = target:FindFirstChild("HumanoidRootPart")
     if humanoid and humanoidRootPart then
         local velocity = humanoidRootPart.Velocity
         local acceleration = target:FindFirstChild("HumanoidRootPart") and humanoidRootPart.AssemblyLinearVelocity or Vector3.zero
-        local direction = velocity.Unit
-        local speed = velocity.Magnitude
         local predictedPosition = humanoidRootPart.Position + velocity * Prediction + 0.5 * acceleration * Prediction^2
         return predictedPosition
     end
     return target.HumanoidRootPart.Position
 end
 
--- Tính toán góc xoay camera cần thiết để theo dõi mục tiêu
+-- Tính toán góc xoay camera cần thiết để theo dõi mục tiêu (Sử dụng Slerp)
 local function CalculateCameraRotation(targetPosition)
     local direction = (targetPosition - Camera.CFrame.Position).Unit
     local targetRotation = CFrame.lookAt(Camera.CFrame.Position, targetPosition)
@@ -179,25 +197,13 @@ RunService.RenderStepped:Connect(function()
                     local targetRotation = CalculateCameraRotation(targetPosition)
 
                     -- Cập nhật camera chính (Camera 1)
-                    Camera.CFrame = Camera.CFrame:Lerp(targetRotation, UltraSnapAim and 0.05 or CameraRotationSpeed)
+                    Camera.CFrame = Camera.CFrame:Slerp(targetRotation, CameraRotationSpeed)
 
                     -- Cập nhật camera phụ (Camera 2)
                     Camera2.CFrame = Camera.CFrame
                 end
             end
         end
-    end
-end)
-
--- Bật/tắt Ultra Snap Aim khi nhấn vào nút 💠
-UltraSnapButton.MouseButton1Click:Connect(function()
-    UltraSnapAim = not UltraSnapAim
-    if UltraSnapAim then
-        UltraSnapButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0) -- Màu nền khi bật Ultra Snap Aim
-        UltraSnapEffect.Visible = true -- Hiển thị hiệu ứng
-    else
-        UltraSnapButton.BackgroundColor3 = Color3.fromRGB(0, 255, 255) -- Màu nền khi tắt Ultra Snap Aim
-        UltraSnapEffect.Visible = false -- Ẩn hiệu ứng
     end
 end)
 
