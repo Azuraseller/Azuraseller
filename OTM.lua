@@ -1,101 +1,103 @@
+-- Đảm bảo script được đặt trong ServerScriptService hoặc StarterPlayerScripts
 
-Search within code
- 
-‎OTM.lua
-+53
--38
-Original file line number	Original file line	Diff line number	Diff line change
-@@ -1,80 +1,95 @@
--- Đặt script này vào ServerScriptService hoặc Workspace
+local lighting = game:GetService("Lighting")
+local runService = game:GetService("RunService")
 
--- Lấy Lighting service
-local Lighting = game:GetService("Lighting")
+-- Cài đặt ban đầu cho Lighting
+lighting.EnvironmentDiffuseScale = 3 -- Tăng cường độ khuếch tán ánh sáng
+lighting.EnvironmentSpecularScale = 3.5 -- Tăng độ phản chiếu ánh sáng
+lighting.GlobalShadows = true
+lighting.Brightness = 3
+lighting.ShadowSoftness = 0.2 -- Bóng mềm mại hơn
 
--- Xóa các hiệu ứng cũ nếu có
-for _, effect in pairs(Lighting:GetChildren()) do
-    if effect:IsA("PostEffect") then
-        effect:Destroy()
+-- Thêm hiệu ứng Bloom
+local bloom = Instance.new("BloomEffect", lighting)
+bloom.Intensity = 0.6 -- Hiệu ứng ánh sáng mạnh hơn
+bloom.Size = 15 -- Kích thước vùng sáng
+bloom.Threshold = 1.6 -- Tăng ngưỡng để ánh sáng chỉ tập trung ở vùng sáng mạnh
+
+-- Thêm hiệu ứng ColorCorrection
+local colorCorrection = Instance.new("ColorCorrectionEffect", lighting)
+colorCorrection.Brightness = 0.2 -- Làm sáng tổng thể
+colorCorrection.Contrast = 0.5 -- Tăng độ tương phản để làm nổi bật vùng sáng tối
+colorCorrection.Saturation = 0.5 -- Tăng độ bão hòa để màu sắc rực rỡ hơn
+colorCorrection.TintColor = Color3.fromRGB(255, 255, 255)
+
+-- Thêm hiệu ứng SunRays
+local sunRays = Instance.new("SunRaysEffect", lighting)
+sunRays.Intensity = 0.2 -- Hiệu ứng tia sáng mạnh hơn
+sunRays.Spread = 1 -- Tăng vùng lan tỏa của tia sáng
+
+-- Thêm hiệu ứng DepthOfField
+local depthOfField = Instance.new("DepthOfFieldEffect", lighting)
+depthOfField.FarIntensity = 0.5 -- Làm mờ các vật thể xa
+depthOfField.FocusDistance = 70 -- Khoảng cách lấy nét
+depthOfField.InFocusRadius = 25 -- Vùng rõ nét
+depthOfField.NearIntensity = 0.8 -- Làm mờ các vật thể gần
+
+-- Cài đặt ánh sáng mặt trời
+lighting.SunAngularSize = 25 -- Kích thước mặt trời lớn hơn
+lighting.SunRaysEnabled = true -- Bật hiệu ứng tia sáng mặt trời
+lighting.ClockTime = 12 -- Bắt đầu với ánh sáng ban ngày
+
+-- Cài đặt ánh sáng theo từng khung giờ
+local function updateLighting(clockTime)
+    if clockTime >= 5 and clockTime < 7 then
+        -- Bình minh
+        lighting.Ambient = Color3.fromRGB(255, 200, 150)
+        lighting.OutdoorAmbient = Color3.fromRGB(200, 150, 100)
+        lighting.Brightness = 2.8
+        lighting.EnvironmentDiffuseScale = 2.5
+        lighting.EnvironmentSpecularScale = 3
+        colorCorrection.TintColor = Color3.fromRGB(255, 180, 140)
+        sunRays.Intensity = 0.3
+    elseif clockTime >= 7 and clockTime < 12 then
+        -- Sáng sớm
+        lighting.Ambient = Color3.fromRGB(255, 255, 255)
+        lighting.OutdoorAmbient = Color3.fromRGB(220, 220, 220)
+        lighting.Brightness = 3.2
+        lighting.EnvironmentDiffuseScale = 3
+        lighting.EnvironmentSpecularScale = 3.5
+        colorCorrection.TintColor = Color3.fromRGB(255, 255, 255)
+        sunRays.Intensity = 0.2
+    elseif clockTime >= 12 and clockTime < 17 then
+        -- Ban ngày
+        lighting.Ambient = Color3.fromRGB(255, 255, 255)
+        lighting.OutdoorAmbient = Color3.fromRGB(230, 230, 230)
+        lighting.Brightness = 3.5
+        lighting.EnvironmentDiffuseScale = 3.5
+        lighting.EnvironmentSpecularScale = 4
+        colorCorrection.TintColor = Color3.fromRGB(255, 255, 255)
+        sunRays.Intensity = 0.15
+    elseif clockTime >= 17 and clockTime < 19 then
+        -- Hoàng hôn
+        lighting.Ambient = Color3.fromRGB(255, 150, 100)
+        lighting.OutdoorAmbient = Color3.fromRGB(200, 100, 50)
+        lighting.Brightness = 2.8
+        lighting.EnvironmentDiffuseScale = 2.8
+        lighting.EnvironmentSpecularScale = 3.2
+        colorCorrection.TintColor = Color3.fromRGB(255, 150, 100)
+        sunRays.Intensity = 0.25
+    else
+        -- Ban đêm
+        lighting.Ambient = Color3.fromRGB(50, 50, 100)
+        lighting.OutdoorAmbient = Color3.fromRGB(30, 30, 50)
+        lighting.Brightness = 1.8
+        lighting.EnvironmentDiffuseScale = 2
+        lighting.EnvironmentSpecularScale = 2.5
+        colorCorrection.TintColor = Color3.fromRGB(200, 200, 255)
+        sunRays.Intensity = 0.1
     end
 end
 
--- Cấu hình ánh sáng nâng cao
-Lighting.Brightness = 1.3 -- Giảm độ sáng tổng thể để phù hợp với ánh sáng dịu
-Lighting.Ambient = Color3.fromRGB(150, 150, 150) -- Ánh sáng môi trường trung tính
-Lighting.OutdoorAmbient = Color3.fromRGB(200, 200, 200) -- Ánh sáng ngoài trời dịu
-Lighting.EnvironmentDiffuseScale = 4 -- Độ khuếch tán ánh sáng cao
-Lighting.EnvironmentSpecularScale = 5 -- Độ phản chiếu ánh sáng cao
-Lighting.GlobalShadows = true -- Bật bóng đổ toàn cục
-Lighting.ClockTime = 13 -- Thời gian trong ngày (13 = trưa)
-Lighting.GeographicLatitude = 45 -- Tọa độ địa lý (góc ánh sáng mặt trời)
-Lighting.ShadowSoftness = 0.03 -- Độ mềm của bóng
-Lighting.Technology = Enum.Technology.Future -- Công nghệ ánh sáng Future
-
--- Thêm hiệu ứng Bloom (ánh sáng chói tự nhiên)
-local bloom = Instance.new("BloomEffect")
-bloom.Intensity = 2.5 -- Độ sáng của hiệu ứng
-bloom.Size = 40 -- Kích thước hiệu ứng
-bloom.Threshold = 0.9 -- Ngưỡng hiệu ứng
-bloom.Parent = Lighting
-
--- Thêm hiệu ứng Sun Rays (tia sáng mặt trời)
-local sunRays = Instance.new("SunRaysEffect")
-sunRays.Intensity = 0.7 -- Cường độ
-sunRays.Spread = 0.9 -- Độ lan tỏa
-sunRays.Parent = Lighting
-
--- Thêm hiệu ứng Color Correction (Hiệu chỉnh màu sắc chân thực)
-local colorCorrection = Instance.new("ColorCorrectionEffect")
-colorCorrection.Brightness = 0.1 -- Độ sáng
-colorCorrection.Contrast = 0.6 -- Độ tương phản
-colorCorrection.Saturation = 0.9 -- Độ bão hòa
-colorCorrection.TintColor = Color3.fromRGB(255, 245, 230) -- Tông màu dịu
-colorCorrection.Parent = Lighting
-
--- Thêm hiệu ứng Depth of Field (Làm mờ xa/gần tự nhiên)
-local depthOfField = Instance.new("DepthOfFieldEffect")
-depthOfField.InFocusRadius = 100 -- Bán kính lấy nét
-depthOfField.NearIntensity = 0.5 -- Cường độ gần
-depthOfField.FarIntensity = 0.4 -- Cường độ xa
-depthOfField.FocusDistance = 50 -- Khoảng cách lấy nét
-depthOfField.Parent = Lighting
-
--- Tạo nền đất siêu bóng loáng phản chiếu
-local function createReflectiveGround()
-    local ground = Instance.new("Part")
-    ground.Name = "ReflectiveGround"
-    ground.Size = Vector3.new(1000, 1, 1000) -- Kích thước nền đất
-    ground.Position = Vector3.new(0, 0, 0) -- Đặt nền đất ở gốc tọa độ
-    ground.Anchored = true
-    ground.Material = Enum.Material.SmoothPlastic -- Bề mặt mịn
-    ground.Reflectance = 0.98 -- Độ phản chiếu cực cao
-    ground.Color = Color3.fromRGB(120, 120, 120) -- Màu xám trung tính
-    ground.Parent = workspace
-
-    -- Thêm SurfaceAppearance để tăng phản chiếu
-    local surfaceAppearance = Instance.new("SurfaceAppearance")
-    surfaceAppearance.Reflectance = 0.98 -- Độ phản chiếu cao
-    surfaceAppearance.Parent = ground
-end
-
--- Gọi hàm tạo nền đất
-createReflectiveGround()
--- Tăng độ chi tiết bóng đổ cho nhân vật và vật thể
-game.Players.PlayerAdded:Connect(function(player)
-    player.CharacterAdded:Connect(function(character)
-        for _, part in pairs(character:GetDescendants()) do
-            if part:IsA("BasePart") then
-                part.CastShadow = true -- Bật bóng đổ chi tiết
-            end
-        end
-    end)
+-- Cập nhật ánh sáng liên tục
+runService.Heartbeat:Connect(function()
+    local currentTime = lighting.ClockTime + 0.01 -- Tăng thời gian liên tục
+    if currentTime >= 24 then
+        currentTime = 0
+    end
+    lighting.ClockTime = currentTime
+    updateLighting(currentTime)
 end)
 
--- Cải thiện bóng và phản chiếu cho các vật thể trong Workspace
-for _, obj in pairs(workspace:GetDescendants()) do
-    if obj:IsA("BasePart") then
-        obj.CastShadow = true -- Bật bóng đổ
-        obj.Material = Enum.Material.Glass -- Thay đổi vật liệu để tăng phản chiếu
-        obj.Reflectance = 0.6 -- Tăng phản chiếu
-    end
-end
-print("Maximum RTX-style graphics applied!")
+print("Ultra RTX lighting with enhanced sun reflections applied!")
