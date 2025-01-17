@@ -9,11 +9,12 @@ local Camera2 = Instance.new("Camera")
 Camera2.Parent = workspace
 
 -- Cấu hình các tham số
-local Prediction = 0.1  -- Dự đoán vị trí mục tiêu
+local Prediction = 0.35  -- Dự đoán vị trí mục tiêu
 local Radius = 450 -- Bán kính khóa mục tiêu
-local CameraRotationSpeed = 0.5 -- Tốc độ xoay camera khi ghim mục tiêu
+local CloseRadius = 10 -- Bán kính gần để tự động tắt Aim
+local CameraRotationSpeed = 0.55 -- Tốc độ xoay camera khi ghim mục tiêu
 local TargetLockSpeed = 0.7 -- Tốc độ ghim mục tiêu
-local TargetSwitchSpeed = 0.1 -- Tốc độ chuyển mục tiêu
+local TargetSwitchSpeed = 0.45 -- Tốc độ chuyển mục tiêu
 local Locked = false
 local CurrentTarget = nil
 local AimActive = true -- Trạng thái aim (tự động bật/tắt)
@@ -100,7 +101,6 @@ end
 
 -- Dự đoán vị trí mục tiêu với gia tốc và tốc độ (cải tiến bằng bộ lọc Kalman mở rộng)
 local function PredictTargetPosition(target)
-    -- Cải tiến bộ lọc Kalman hoặc sử dụng phương pháp EKF ở đây
     local humanoid = target:FindFirstChild("Humanoid")
     local humanoidRootPart = target:FindFirstChild("HumanoidRootPart")
     if humanoid and humanoidRootPart then
@@ -153,14 +153,22 @@ RunService.RenderStepped:Connect(function()
                 if targetCharacter.Humanoid.Health <= 0 or distance > Radius then
                     CurrentTarget = nil
                 else
-                    -- Tính toán góc xoay camera cần thiết
-                    local targetRotation = CalculateCameraRotation(targetPosition)
+                    -- Kiểm tra khoảng cách gần để tắt Aim
+                    if distance <= CloseRadius then
+                        Locked = false
+                        ToggleButton.Text = "OFF"
+                        ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+                        CurrentTarget = nil -- Tắt Aim khi mục tiêu quá gần
+                    else
+                        -- Tính toán góc xoay camera cần thiết
+                        local targetRotation = CalculateCameraRotation(targetPosition)
 
-                    -- Cập nhật camera chính (Camera 1)
-                    Camera.CFrame = Camera.CFrame:Lerp(targetRotation, CameraRotationSpeed)
+                        -- Cập nhật camera chính (Camera 1)
+                        Camera.CFrame = Camera.CFrame:Lerp(targetRotation, CameraRotationSpeed)
 
-                    -- Cập nhật camera phụ (Camera 2)
-                    Camera2.CFrame = Camera.CFrame
+                        -- Cập nhật camera phụ (Camera 2)
+                        Camera2.CFrame = Camera.CFrame
+                    end
                 end
             end
         end
