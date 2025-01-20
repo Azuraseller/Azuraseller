@@ -1,56 +1,56 @@
-local Players = game:GetService("Players")
-local player = Players.LocalPlayer
-local screenGui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
-screenGui.Name = "CustomKeyboard"
+local UserInputService = game:GetService("UserInputService")
+local screenGui = Instance.new("ScreenGui")
+screenGui.Parent = game.Players.LocalPlayer.PlayerGui
 
--- Tạo nút chính
-local button = Instance.new("TextButton", screenGui)
-button.Size = UDim2.new(0, 100, 0, 100)
-button.Position = UDim2.new(0.9, -50, 0.5, -50) -- Góc phải giữa
-button.BackgroundColor3 = Color3.new(0, 0, 0) -- Nền màu đen
-button.TextColor3 = Color3.new(1, 1, 1) -- Màu chữ trắng
-button.Font = Enum.Font.SourceSans
-button.TextScaled = true
+local button = Instance.new("TextButton")
+button.Parent = screenGui
 button.Text = "2"
-button.BorderSizePixel = 0
-button.AutoButtonColor = false
-button.ClipsDescendants = true
-button.BackgroundTransparency = 0.2
+button.Size = UDim2.new(0, 100, 0, 50)
+button.Position = UDim2.new(1, -110, 0.5, -25)
+button.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+button.TextColor3 = Color3.fromRGB(255, 255, 255)
+button.TextSize = 24
+button.TextButtonStyle = Enum.ButtonStyle.Rounded
 
--- Danh sách phím và hành động
-local sequence = {
-    {number = "2", letter = "c"},
-    {number = "3", letter = "x"},
-    {number = "1", letter = "z"},
-    {number = "2", letter = "x"},
-    {number = "1", letter = "c", delay = 0.35, extra = "x"}
-}
+local sequence = {"2", "C", "3", "X", "1", "Z", "2", "X", "1", "C", "X"}
+local currentIndex = 1
+local isHolding = false
 
-local index = 1 -- Vị trí hiện tại trong chuỗi
-
--- Hàm đổi phím
-local function switchKey()
-    local current = sequence[index]
-    button.Text = current.number
-    button.BackgroundColor3 = Color3.new(0, 0, 0)
-    
-    button.MouseButton1Down:Connect(function()
-        -- Đổi sang phím chữ
-        button.Text = current.letter
-        task.wait(current.delay or 0)
-        
-        if current.extra then
-            button.Text = current.extra
-            task.wait(0.35)
-        end
-        
-        -- Chuyển sang phím tiếp theo
-        index = index + 1
-        if index > #sequence then
-            index = 1 -- Quay lại phím đầu tiên
-        end
-        switchKey() -- Gọi lại để cập nhật phím
-    end)
+local function performAction(key)
+    if key == "1" then
+        -- Chỉ thực hiện phím C sau 0.35 giây, rồi thực hiện phím X
+        print("C pressed")
+        wait(0.35)
+        print("X pressed")
+    elseif key == "2" then
+        print("2 pressed")
+    elseif key == "3" then
+        print("3 pressed")
+    elseif key == "C" then
+        print("C pressed")
+    elseif key == "X" then
+        print("X pressed")
+    elseif key == "Z" then
+        print("Z pressed")
+    end
 end
 
-switchKey()
+local function updateButtonText()
+    button.Text = sequence[currentIndex]
+end
+
+local function onButtonPressed()
+    if not isHolding then
+        isHolding = true
+        performAction(sequence[currentIndex])
+        wait(0.1)  -- Thời gian trễ giữa các lần bấm
+        currentIndex = currentIndex + 1
+        if currentIndex > #sequence then
+            currentIndex = 1  -- Quay lại phím đầu tiên
+        end
+        updateButtonText()
+        isHolding = false
+    end
+end
+
+button.MouseButton1Down:Connect(onButtonPressed)
