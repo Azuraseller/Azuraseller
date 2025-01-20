@@ -1,66 +1,56 @@
--- Tạo GUI
-local ScreenGui = Instance.new("ScreenGui")
-local Button = Instance.new("TextButton")
+local Players = game:GetService("Players")
+local player = Players.LocalPlayer
+local screenGui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
+screenGui.Name = "CustomKeyboard"
 
--- Thuộc tính GUI
-ScreenGui.Name = "CustomKeyboard"
-ScreenGui.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
+-- Tạo nút chính
+local button = Instance.new("TextButton", screenGui)
+button.Size = UDim2.new(0, 100, 0, 100)
+button.Position = UDim2.new(0.9, -50, 0.5, -50) -- Góc phải giữa
+button.BackgroundColor3 = Color3.new(0, 0, 0) -- Nền màu đen
+button.TextColor3 = Color3.new(1, 1, 1) -- Màu chữ trắng
+button.Font = Enum.Font.SourceSans
+button.TextScaled = true
+button.Text = "2"
+button.BorderSizePixel = 0
+button.AutoButtonColor = false
+button.ClipsDescendants = true
+button.BackgroundTransparency = 0.2
 
-Button.Name = "ActionButton"
-Button.Parent = ScreenGui
-Button.Text = ""
-Button.Size = UDim2.new(0, 100, 0, 50)
-Button.Position = UDim2.new(1, -120, 1, -70) -- Góc phải phía dưới
-Button.BackgroundColor3 = Color3.new(0.2, 0.8, 0.2)
-Button.Visible = true
-
--- Chu kỳ hành động
-local actions = {
-    {number = "2", letters = {"C"}, ability = function()
-        print("Thực thi chiêu C")
-        -- Thêm hiệu ứng hoặc hành động trong game tại đây
-        -- Ví dụ: Gây sát thương, tạo hiệu ứng, hoặc di chuyển
-    end},
-    {number = "3", letters = {"X"}, ability = function()
-        print("Thực thi chiêu X")
-        -- Ví dụ: Gây sát thương diện rộng
-    end},
-    {number = "1", letters = {"Z"}, ability = function()
-        print("Thực thi chiêu Z")
-        -- Ví dụ: Tăng tốc độ hoặc nhảy cao
-    end},
-    {number = "2", letters = {"X"}, ability = function()
-        print("Thực thi chiêu X lần nữa")
-    end},
-    {number = "1", letters = {"X", "C"}, ability = function()
-        print("Thực thi chiêu X và C")
-        -- Gọi nhiều chiêu cùng lúc
-    end}
+-- Danh sách phím và hành động
+local sequence = {
+    {number = "2", letter = "c"},
+    {number = "3", letter = "x"},
+    {number = "1", letter = "z"},
+    {number = "2", letter = "x"},
+    {number = "1", letter = "c", delay = 0.35, extra = "x"}
 }
 
-local currentIndex = 1
+local index = 1 -- Vị trí hiện tại trong chuỗi
 
--- Hàm thực hiện hành động
-local function performAction()
-    local action = actions[currentIndex]
-
-    -- Hiển thị số và chữ trên nút
-    Button.Text = action.number .. " → " .. table.concat(action.letters, ", ")
-
-    -- Thực thi chiêu thức
-    action.ability()
-
-    -- Chuyển sang nút tiếp theo
-    currentIndex = currentIndex + 1
-    if currentIndex > #actions then
-        currentIndex = 1 -- Quay lại đầu chu kỳ
-    end
+-- Hàm đổi phím
+local function switchKey()
+    local current = sequence[index]
+    button.Text = current.number
+    button.BackgroundColor3 = Color3.new(0, 0, 0)
+    
+    button.MouseButton1Down:Connect(function()
+        -- Đổi sang phím chữ
+        button.Text = current.letter
+        task.wait(current.delay or 0)
+        
+        if current.extra then
+            button.Text = current.extra
+            task.wait(0.35)
+        end
+        
+        -- Chuyển sang phím tiếp theo
+        index = index + 1
+        if index > #sequence then
+            index = 1 -- Quay lại phím đầu tiên
+        end
+        switchKey() -- Gọi lại để cập nhật phím
+    end)
 end
 
--- Kết nối sự kiện nhấn nút
-Button.MouseButton1Click:Connect(function()
-    performAction()
-end)
-
--- Khởi tạo trạng thái
-performAction()
+switchKey()
