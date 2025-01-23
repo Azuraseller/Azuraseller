@@ -1,137 +1,242 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
-local UserInputService = game:GetService("UserInputService")
 
--- Create a new ScreenGui
-local GUI = Instance.new("ScreenGui")
-GUI.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
+-- Cấu hình các tham số
+local Prediction = 0.15 -- Dự đoán vị trí mục tiêu
+local Radius = 450 -- Bán kính khóa mục tiêu
+local CloseRadius = 7 -- Bán kính gần để tự động tắt Aim
+local CameraRotationSpeed = 0.65 -- Tốc độ xoay camera khi ghim mục tiêu
+local TargetLockSpeed = 0.8 -- Tốc độ ghim mục tiêu
+local TargetSwitchSpeed = 0.2 -- Tốc độ chuyển mục tiêu
+local Locked = false
+local CurrentTarget = nil
+local AimActive = true -- Trạng thái aim (tự động bật/tắt)
+local SilentAimActive = false -- Trạng thái Silent Aim
+local SilentSkillActive = false -- Trạng thái Silent Skill
+local AutoAim = false -- Tự động kích hoạt khi có đối tượng trong bán kính
 
--- Create the main frame for the keyboard
-local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.new(0, 300, 0, 100)
-MainFrame.Position = UDim2.new(1, -310, 0.95, -100) -- Start off-screen
-MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-MainFrame.Parent = GUI
+-- GUI
+local ScreenGui = Instance.new("ScreenGui")
+local ToggleButton = Instance.new("TextButton")
+local CloseButton = Instance.new("TextButton") -- Nút X
+local SilentAimButton = Instance.new("TextButton")
+local SilentSkillButton = Instance.new("TextButton")
 
--- Round the corners of the main frame
-local MainFrameCorner = Instance.new("UICorner")
-MainFrameCorner.CornerRadius = UDim.new(0, 10)
-MainFrameCorner.Parent = MainFrame
+ScreenGui.Parent = game:GetService("CoreGui")
 
--- Trình tự các phím
-local sequence = {"2", "C", "3", "X", "1", "Z", "2", "X", "1", "C", "X"}
-local currentIndex = 1
-local isHolding = false
+-- Nút ON/OFF
+ToggleButton.Parent = ScreenGui
+ToggleButton.Size = UDim2.new(0, 100, 0, 50)
+ToggleButton.Position = UDim2.new(0.85, 0, 0.01, 0)
+ToggleButton.Text = "OFF" -- Văn bản mặc định
+ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- Màu nền khi tắt
+ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255) -- Màu chữ
+ToggleButton.Font = Enum.Font.SourceSans
+ToggleButton.TextSize = 18
 
--- Hàm thực hiện hành động
-local function performAction(key)
-    if key == "1" then
-        -- Chỉ thực hiện phím C sau 0.35 giây, rồi thực hiện phím X
-        print("C pressed")
-        wait(0.35)
-        print("X pressed")
-    elseif key == "2" then
-        print("2 pressed")
-    elseif key == "3" then
-        print("3 pressed")
-    elseif key == "C" then
-        print("C pressed")
-    elseif key == "X" then
-        print("X pressed")
-    elseif key == "Z" then
-        print("Z pressed")
+-- Nút X
+CloseButton.Parent = ScreenGui
+CloseButton.Size = UDim2.new(0, 30, 0, 30)
+CloseButton.Position = UDim2.new(0.79, 0, 0.01, 0)
+CloseButton.Text = "X"
+CloseButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+CloseButton.Font = Enum.Font.SourceSans
+CloseButton.TextSize = 18
+
+-- Nút Silent Aim
+SilentAimButton.Parent = ScreenGui
+SilentAimButton.Size = UDim2.new(0, 100, 0, 50)
+SilentAimButton.Position = UDim2.new(0.85, 0, 0.1, 0)
+SilentAimButton.Text = "Silent Aim OFF"
+SilentAimButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- Màu nền khi tắt
+SilentAimButton.TextColor3 = Color3.fromRGB(255, 255, 255) -- Màu chữ
+SilentAimButton.Font = Enum.Font.SourceSans
+SilentAimButton.TextSize = 18
+
+-- Nút Silent Skill
+SilentSkillButton.Parent = ScreenGui
+SilentSkillButton.Size = UDim2.new(0, 100, 0, 50)
+SilentSkillButton.Position = UDim2.new(0.85, 0, 0.2, 0)
+SilentSkillButton.Text = "Silent Skill OFF"
+SilentSkillButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- Màu nền khi tắt
+SilentSkillButton.TextColor3 = Color3.fromRGB(255, 255, 255) -- Màu chữ
+SilentSkillButton.Font = Enum.Font.SourceSans
+SilentSkillButton.TextSize = 18
+
+-- Hàm bật/tắt Aim qua nút X
+CloseButton.MouseButton1Click:Connect(function()
+    AimActive = not AimActive
+    ToggleButton.Visible = AimActive -- Ẩn/hiện nút ON/OFF theo trạng thái Aim
+    if not AimActive then
+        ToggleButton.Text = "OFF"
+        ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+        Locked = false
+        CurrentTarget = nil -- Ngừng ghim mục tiêu
+    else
+        ToggleButton.Text = "ON"
+        ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+    end
+end)
+
+-- Nút ON/OFF để bật/tắt Silent Aim
+SilentAimButton.MouseButton1Click:Connect(function()
+    SilentAimActive = not SilentAimActive
+    if SilentAimActive then
+        SilentAimButton.Text = "Silent Aim ON"
+        SilentAimButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+    else
+        SilentAimButton.Text = "Silent Aim OFF"
+        SilentAimButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+    end
+end)
+
+-- Nút ON/OFF để bật/tắt Silent Skill
+SilentSkillButton.MouseButton1Click:Connect(function()
+    SilentSkillActive = not SilentSkillActive
+    if SilentSkillActive then
+        SilentSkillButton.Text = "Silent Skill ON"
+        SilentSkillButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+    else
+        SilentSkillButton.Text = "Silent Skill OFF"
+        SilentSkillButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+    end
+end)
+
+-- Tìm tất cả đối thủ trong phạm vi
+local function FindEnemiesInRadius()
+    local targets = {}
+    for _, Player in ipairs(Players:GetPlayers()) do
+        if Player ~= LocalPlayer then
+            local Character = Player.Character
+            if Character and Character:FindFirstChild("HumanoidRootPart") and Character:FindFirstChild("Humanoid") and Character.Humanoid.Health > 0 then
+                local Distance = (Character.HumanoidRootPart.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude
+                if Distance <= Radius then
+                    table.insert(targets, Character)
+                end
+            end
+        end
+    end
+    return targets
+end
+
+-- Dự đoán vị trí mục tiêu với gia tốc và tốc độ (Cải tiến)
+local function PredictTargetPosition(target)
+    local humanoidRootPart = target:FindFirstChild("HumanoidRootPart")
+    if humanoidRootPart then
+        local velocity = humanoidRootPart.Velocity
+        local previousVelocity = humanoidRootPart:GetAttribute("PreviousVelocity") or velocity
+        local acceleration = (velocity - previousVelocity) / RunService.Heartbeat:Wait()
+        humanoidRootPart:SetAttribute("PreviousVelocity", velocity) -- Store the previous velocity
+        local predictedPosition = humanoidRootPart.Position + velocity * Prediction + 0.5 * acceleration * Prediction^2
+        
+        -- Account for target's rotation and gravity
+        local gravity = Vector3.new(0, -9.81, 0)  -- Simulate gravity effect on target
+        predictedPosition = predictedPosition + gravity * (Prediction ^ 2)  -- Add gravity effect
+        
+        return predictedPosition
+    end
+    return target.HumanoidRootPart.Position
+end
+
+-- Hàm bắn tự động vào mục tiêu (Silent Aim)
+local function FireAtTarget(target)
+    if target and target:FindFirstChild("HumanoidRootPart") then
+        local predictedPosition = PredictTargetPosition(target)
+        
+        -- Raycast kiểm tra xem có trúng mục tiêu không
+        local ray = workspace:Raycast(Camera.CFrame.Position, (predictedPosition - Camera.CFrame.Position).Unit * 1000)
+        if ray and ray.Instance and ray.Instance.Parent and ray.Instance.Parent:FindFirstChild("Humanoid") then
+            -- Bắn vào mục tiêu nếu raycast trúng
+            ReplicatedStorage:FireServer("FireAtPosition", predictedPosition) -- Modify this to match your game’s firing system
+        end
     end
 end
 
--- Cập nhật lại chữ trên nút
-local function updateButtonText(button)
-    button.Text = sequence[currentIndex]
-end
+-- Hàm Silent Skill
+local lastSkillUseTime = 0
+local skillCooldown = 1  -- 1 second cooldown for skill
 
--- Tạo các phím ảo
-local function createButton(text, position)
-    local button = Instance.new("TextButton")
-    button.Parent = MainFrame
-    button.Text = text
-    button.Size = UDim2.new(0, 80, 0, 50)
-    button.Position = position
-    button.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-    button.TextColor3 = Color3.fromRGB(255, 255, 255)
-    button.TextSize = 24
-    button.TextButtonStyle = Enum.ButtonStyle.Rounded
-
-    -- Bo tròn các nút
-    local buttonCorner = Instance.new("UICorner")
-    buttonCorner.CornerRadius = UDim.new(0, 10)
-    buttonCorner.Parent = button
-
-    -- Sự kiện nhấn nút
-    button.MouseButton1Down:Connect(function()
-        if not isHolding then
-            isHolding = true
-            performAction(sequence[currentIndex])
-            wait(0.1)  -- Thời gian trễ giữa các lần bấm
-            currentIndex = currentIndex + 1
-            if currentIndex > #sequence then
-                currentIndex = 1  -- Quay lại phím đầu tiên
+local function UseSilentSkill(target)
+    if target and SilentSkillActive then
+        local currentTime = tick()
+        if currentTime - lastSkillUseTime >= skillCooldown then
+            lastSkillUseTime = currentTime
+            -- Perform skill at predicted position
+            local predictedPosition = PredictTargetPosition(target)
+            
+            -- Example: Aim at weak spots (headshot targeting)
+            local head = target:FindFirstChild("Head")
+            if head then
+                predictedPosition = head.Position
             end
-            updateButtonText(button)
-            isHolding = false
+            
+            -- Send skill usage event to the server
+            ReplicatedStorage:FireServer("UseSkillAtPosition", predictedPosition)
         end
-    end)
-
-    return button
+    end
 end
 
--- Tạo các phím theo trình tự
-local button1 = createButton("2", UDim2.new(0, 0, 0, 0))
-local button2 = createButton("C", UDim2.new(0, 90, 0, 0))
-local button3 = createButton("3", UDim2.new(0, 180, 0, 0))
-local button4 = createButton("X", UDim2.new(0, 270, 0, 0))
-local button5 = createButton("1", UDim2.new(0, 0, 0, 60))
-local button6 = createButton("Z", UDim2.new(0, 90, 0, 60))
-local button7 = createButton("2", UDim2.new(0, 180, 0, 60))
-local button8 = createButton("X", UDim2.new(0, 270, 0, 60))
-local button9 = createButton("1", UDim2.new(0, 0, 0, 120))
-local button10 = createButton("C", UDim2.new(0, 90, 0, 120))
-local button11 = createButton("X", UDim2.new(0, 180, 0, 120))
-
--- Thêm sự kiện cho việc nhấn giữ trên thiết bị di động
-for _, button in ipairs({button1, button2, button3, button4, button5, button6, button7, button8, button9, button10, button11}) do
-    button.MouseButton1Hold:Connect(function()
-        if not isHolding then
-            isHolding = true
-            performAction(sequence[currentIndex])
-            wait(0.1)  -- Thời gian trễ giữa các lần bấm
-            currentIndex = currentIndex + 1
-            if currentIndex > #sequence then
-                currentIndex = 1  -- Quay lại phím đầu tiên
+-- Cập nhật camera và Silent Aim
+RunService.RenderStepped:Connect(function()
+    if AimActive then
+        -- Tìm kẻ thù gần nhất
+        local enemies = FindEnemiesInRadius()
+        
+        if #enemies > 0 then
+            if not Locked then
+                Locked = true
+                ToggleButton.Text = "ON"
+                ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
             end
-            updateButtonText(button)
-            isHolding = false
-        end
-    end)
-end
+            -- Chuyển sang mục tiêu gần nhất hoặc mục tiêu ưu tiên
+            local closestTarget = nil
+            local minDistance = math.huge
+            for _, enemy in ipairs(enemies) do
+                local distance = (enemy.HumanoidRootPart.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude
+                if distance < minDistance then
+                    closestTarget = enemy
+                    minDistance = distance
+                end
+            end
 
--- Lắng nghe sự kiện nhấn phím từ bàn phím PC
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
-    if gameProcessed then return end
-
-    if input.UserInputType == Enum.UserInputType.Keyboard then
-        -- Kiểm tra phím nhấn và thực hiện hành động tương ứng
-        if input.KeyCode == Enum.KeyCode.One then
-            performAction("1")
-            wait(0.35)
-            performAction("X")
-        elseif input.KeyCode == Enum.KeyCode.Two then
-            performAction("2")
-        elseif input.KeyCode == Enum.KeyCode.Three then
-            performAction("3")
-        elseif input.KeyCode == Enum.KeyCode.C then
-            performAction("C")
-        elseif input.KeyCode == Enum.KeyCode.X then
-            performAction("X")
-        elseif input.KeyCode == Enum.KeyCode.Z then
-            performAction("Z")
+            CurrentTarget = closestTarget
+        else
+            if Locked then
+                Locked = false
+                ToggleButton.Text = "OFF"
+                ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+                CurrentTarget = nil -- Ngừng ghim khi không còn mục tiêu
+            end
         end
+
+        -- Silent Skill: Tự động sử dụng kỹ năng vào mục tiêu
+        if SilentSkillActive and CurrentTarget then
+            UseSilentSkill(CurrentTarget)
+        end
+
+        -- Camera tự động "lock" vào mục tiêu
+        if CurrentTarget then
+            local targetPosition = PredictTargetPosition(CurrentTarget)
+            local targetRotation = CFrame.lookAt(Camera.CFrame.Position, targetPosition)
+            Camera.CFrame = Camera.CFrame:Lerp(targetRotation, CameraRotationSpeed)
+            
+            -- Adjust FOV for better focus on the target
+            local distance = (targetPosition - Camera.CFrame.Position).Magnitude
+            Camera.FieldOfView = math.clamp(70 + (distance / 10), 60, 90)  -- Adjust FOV based on distance
+        end
+    end
+end)
+
+-- Tự động bật script khi chuyển server
+Players.PlayerAdded:Connect(function(player)
+    if player == LocalPlayer then
+        AimActive = true
+        ToggleButton.Text = "ON"
+        ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
     end
 end)
