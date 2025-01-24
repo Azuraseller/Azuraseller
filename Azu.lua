@@ -3,7 +3,8 @@ local RunService = game:GetService("RunService")
 
 local LocalPlayer = Players.LocalPlayer
 local DetectionRadius = 600 -- Bán kính phát hiện mục tiêu
-local HitboxRadius = 50 -- Bán kính hitbox
+local HitboxRadius = 35 -- Bán kính hitbox
+local HitboxTransparency = 0.85 -- Độ trong suốt hitbox
 local HitboxColorNormal = Color3.fromRGB(255, 255, 255) -- Màu trắng
 local HitboxColorDamaged = Color3.fromRGB(255, 0, 0) -- Màu đỏ
 
@@ -23,6 +24,7 @@ local function CreateHitbox(target)
         hitbox.Adornee = humanoidRootPart
         hitbox.Radius = HitboxRadius
         hitbox.Color3 = HitboxColorNormal
+        hitbox.Transparency = HitboxTransparency
         hitbox.AlwaysOnTop = true
         hitbox.ZIndex = 5
         hitbox.Parent = humanoidRootPart
@@ -56,15 +58,15 @@ local function CreateESP(target)
     local billboard = Instance.new("BillboardGui")
     billboard.Name = "ESPBillboard"
     billboard.Adornee = humanoidRootPart
-    billboard.Size = UDim2.new(4, 0, 2, 0)
-    billboard.StudsOffset = Vector3.new(0, 3, 0)
+    billboard.Size = UDim2.new(6, 0, 3, 0) -- Tăng kích thước ESP
+    billboard.StudsOffset = Vector3.new(0, 4, 0)
     billboard.AlwaysOnTop = true
     billboard.Parent = humanoidRootPart
 
     -- Tạo thanh máu
     local healthBarBackground = Instance.new("Frame")
-    healthBarBackground.Size = UDim2.new(1, 0, 0.2, 0)
-    healthBarBackground.Position = UDim2.new(0, 0, 0.8, 0)
+    healthBarBackground.Size = UDim2.new(1, 0, 0.25, 0) -- Tăng chiều cao thanh máu
+    healthBarBackground.Position = UDim2.new(0, 0, 0.75, 0)
     healthBarBackground.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
     healthBarBackground.BorderSizePixel = 0
     healthBarBackground.Parent = billboard
@@ -78,7 +80,7 @@ local function CreateESP(target)
     -- Tạo nhãn tên
     local nameLabel = Instance.new("TextLabel")
     nameLabel.Size = UDim2.new(1, 0, 0.5, 0)
-    nameLabel.Position = UDim2.new(0, 0, -0.5, 0)
+    nameLabel.Position = UDim2.new(0, 0, -0.6, 0)
     nameLabel.BackgroundTransparency = 1
     nameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
     nameLabel.TextScaled = true
