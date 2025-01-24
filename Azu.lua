@@ -1,170 +1,130 @@
--- Blox Fruits Aimbot & Camera 2 - Phiên bản Nâng Cấp Cao Cấp (Cải tiến)
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
 
--- Khai báo các biến toàn cục
-local Camera = game.Workspace.CurrentCamera
-local player = game.Players.LocalPlayer
-local mouse = player:GetMouse()
-local target = nil
-local predictionEnabled = true
-local predictionFactor = 0.5  -- Hệ số dự đoán
-local fovRadius = 50  -- Bán kính FOV
-local smoothness = 0.1  -- Độ mượt của chuyển động Camera
-local maxTargetDistance = 100  -- Khoảng cách tối đa để nhắm mục tiêu
-local predictionMode = "kalman"  -- Chế độ dự đoán: "basic", "advanced", hoặc "kalman"
-local cameraMode = "dynamic"  -- Chế độ Camera: "first-person", "third-person", hoặc "dynamic"
+local LocalPlayer = Players.LocalPlayer
+local DetectionRadius = 600 -- Bán kính phát hiện mục tiêu
+local HitboxRadius = 50 -- Bán kính hitbox
+local HitboxColorNormal = Color3.fromRGB(255, 255, 255) -- Màu trắng
+local HitboxColorDamaged = Color3.fromRGB(255, 0, 0) -- Màu đỏ
 
--- Tạo Camera 2
-local Camera2 = Instance.new("Camera")
-Camera2.Parent = game.Workspace
-Camera2.FieldOfView = 70
-Camera2.CFrame = Camera.CFrame
-
--- Dữ liệu Kalman Filter
-local kalmanData = {
-    position = Vector3.new(),
-    velocity = Vector3.new(),
-    acceleration = Vector3.new(),
-    lastUpdate = tick()
-}
-
--- Hàm Kalman Filter để dự đoán vị trí
-local function kalmanFilter(target)
-    if not target or not target:FindFirstChild("HumanoidRootPart") then return nil end
-    local currentTime = tick()
-    local deltaTime = currentTime - kalmanData.lastUpdate
-    kalmanData.lastUpdate = currentTime
-
-    local currentPos = target.HumanoidRootPart.Position
-    local currentVel = target.HumanoidRootPart.Velocity
-    local currentAcc = currentVel - kalmanData.velocity
-
-    -- Cập nhật dữ liệu Kalman
-    kalmanData.position = kalmanData.position + kalmanData.velocity * deltaTime + 0.5 * kalmanData.acceleration * deltaTime ^ 2
-    kalmanData.velocity = currentVel
-    kalmanData.acceleration = currentAcc
-
-    return kalmanData.position
+-- Hàm tính khoảng cách giữa hai điểm
+local function GetDistance(pos1, pos2)
+    return (pos1 - pos2).Magnitude
 end
 
--- Dự đoán vị trí mục tiêu
-local function predictTargetPosition(target)
-    if not target or not target:FindFirstChild("HumanoidRootPart") then return nil end
+-- Hàm tạo hitbox dạng hình cầu
+local function CreateHitbox(target)
+    if target:FindFirstChild("HumanoidRootPart") and not target:FindFirstChild("HitboxAdornment") then
+        local humanoidRootPart = target.HumanoidRootPart
 
-    if predictionMode == "basic" then
-        -- Dự đoán cơ bản
-        return target.HumanoidRootPart.Position + target.HumanoidRootPart.Velocity * predictionFactor
-    elseif predictionMode == "advanced" then
-        -- Dự đoán nâng cao
-        local targetPosition = target.HumanoidRootPart.Position
-        local targetVelocity = target.HumanoidRootPart.Velocity
-        local targetAcceleration = targetVelocity - target.HumanoidRootPart.Velocity
-        return targetPosition + targetVelocity * predictionFactor + targetAcceleration * predictionFactor / 2
-    elseif predictionMode == "kalman" then
-        -- Dự đoán với Kalman Filter
-        return kalmanFilter(target)
+        -- Tạo SphereHandleAdornment cho hitbox
+        local hitbox = Instance.new("SphereHandleAdornment")
+        hitbox.Name = "HitboxAdornment"
+        hitbox.Adornee = humanoidRootPart
+        hitbox.Radius = HitboxRadius
+        hitbox.Color3 = HitboxColorNormal
+        hitbox.AlwaysOnTop = true
+        hitbox.ZIndex = 5
+        hitbox.Parent = humanoidRootPart
     end
 end
 
--- Tính toán góc nhắm và dự đoán mục tiêu
-local function aimAtTarget(target)
-    if not target then return end
-    local predictedPosition = predictTargetPosition(target)
-    if not predictedPosition then return end
-    local targetDirection = (predictedPosition - Camera.CFrame.Position).unit
-    local lookAtCFrame = CFrame.new(Camera.CFrame.Position, predictedPosition)
-    Camera.CFrame = Camera.CFrame:Lerp(lookAtCFrame, smoothness)
-end
-
--- Cập nhật Camera 2 thông minh
-local function updateCamera2()
-    local closestTarget = getClosestTarget()
-    if closestTarget then
-        local targetPosition = closestTarget.HumanoidRootPart.Position
-
-        if cameraMode == "third-person" then
-            -- Camera theo dõi từ góc nhìn thứ ba
-            Camera2.CFrame = CFrame.new(targetPosition + Vector3.new(0, 10, -15), targetPosition)
-        elseif cameraMode == "first-person" then
-            -- Camera theo dõi từ góc nhìn thứ nhất
-            Camera2.CFrame = CFrame.new(targetPosition + Vector3.new(0, 5, 0), targetPosition)
-        elseif cameraMode == "dynamic" then
-            -- Camera động, tự động chọn góc tối ưu
-            local distance = (player.Character.HumanoidRootPart.Position - targetPosition).Magnitude
-            if distance > 50 then
-                -- Chuyển sang góc nhìn thứ ba khi mục tiêu xa
-                Camera2.CFrame = CFrame.new(targetPosition + Vector3.new(0, 15, -20), targetPosition)
-            else
-                -- Chuyển sang góc nhìn thứ nhất khi mục tiêu gần
-                Camera2.CFrame = CFrame.new(targetPosition + Vector3.new(0, 5, 0), targetPosition)
+-- Hàm cập nhật màu hitbox khi bị sát thương
+local function UpdateHitboxColor(target)
+    local humanoid = target:FindFirstChild("Humanoid")
+    if humanoid then
+        humanoid.HealthChanged:Connect(function()
+            local hitbox = target.HumanoidRootPart:FindFirstChild("HitboxAdornment")
+            if hitbox then
+                hitbox.Color3 = HitboxColorDamaged
+                task.wait(0.2) -- Thời gian chuyển lại màu trắng
+                hitbox.Color3 = HitboxColorNormal
             end
-        end
-    else
-        Camera2.CFrame = Camera.CFrame
+        end)
     end
 end
 
--- Kiểm tra vật thể cản trở
-local function isObstructed(target)
-    local ray = Ray.new(Camera2.CFrame.Position, target.HumanoidRootPart.Position - Camera2.CFrame.Position)
-    local hitPart, hitPosition = game.Workspace:FindPartOnRay(ray, player.Character, false, true)
-    return hitPart ~= nil
+-- Hàm tạo ESP (hiển thị tên và thanh máu)
+local function CreateESP(target)
+    if not target:FindFirstChild("HumanoidRootPart") then return end
+    if target:FindFirstChild("ESPBillboard") then return end
+
+    local humanoidRootPart = target.HumanoidRootPart
+    local humanoid = target:FindFirstChild("Humanoid")
+
+    -- Tạo BillboardGui cho ESP
+    local billboard = Instance.new("BillboardGui")
+    billboard.Name = "ESPBillboard"
+    billboard.Adornee = humanoidRootPart
+    billboard.Size = UDim2.new(4, 0, 2, 0)
+    billboard.StudsOffset = Vector3.new(0, 3, 0)
+    billboard.AlwaysOnTop = true
+    billboard.Parent = humanoidRootPart
+
+    -- Tạo thanh máu
+    local healthBarBackground = Instance.new("Frame")
+    healthBarBackground.Size = UDim2.new(1, 0, 0.2, 0)
+    healthBarBackground.Position = UDim2.new(0, 0, 0.8, 0)
+    healthBarBackground.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+    healthBarBackground.BorderSizePixel = 0
+    healthBarBackground.Parent = billboard
+
+    local healthBar = Instance.new("Frame")
+    healthBar.Size = UDim2.new(1, 0, 1, 0)
+    healthBar.BackgroundColor3 = Color3.fromRGB(0, 255, 0) -- Màu xanh lá mặc định
+    healthBar.BorderSizePixel = 0
+    healthBar.Parent = healthBarBackground
+
+    -- Tạo nhãn tên
+    local nameLabel = Instance.new("TextLabel")
+    nameLabel.Size = UDim2.new(1, 0, 0.5, 0)
+    nameLabel.Position = UDim2.new(0, 0, -0.5, 0)
+    nameLabel.BackgroundTransparency = 1
+    nameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    nameLabel.TextScaled = true
+    nameLabel.Font = Enum.Font.SourceSansBold
+    nameLabel.Text = target.Name
+    nameLabel.Parent = billboard
+
+    -- Cập nhật thanh máu và màu sắc
+    humanoid.HealthChanged:Connect(function()
+        local healthPercent = humanoid.Health / humanoid.MaxHealth
+        healthBar.Size = UDim2.new(healthPercent, 0, 1, 0)
+
+        -- Đổi màu theo lượng máu
+        if healthPercent > 0.5 then
+            healthBar.BackgroundColor3 = Color3.fromRGB(0, 255, 0) -- Xanh lá
+        elseif healthPercent > 0.2 then
+            healthBar.BackgroundColor3 = Color3.fromRGB(255, 255, 0) -- Vàng
+        else
+            healthBar.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- Đỏ
+        end
+    end)
 end
 
--- Tìm mục tiêu gần nhất trong phạm vi FOV
-local function getClosestTarget()
-    local closestTarget = nil
-    local closestDistance = maxTargetDistance
-    for _, obj in pairs(game.Workspace:GetChildren()) do
-        if obj:IsA("Model") and obj:FindFirstChild("HumanoidRootPart") then
-            local humanoid = obj:FindFirstChildOfClass("Humanoid")
-            if humanoid and humanoid.Health > 0 then
-                local distance = (Camera.CFrame.Position - obj.HumanoidRootPart.Position).Magnitude
-                if distance < closestDistance and (Camera.CFrame.Position - obj.HumanoidRootPart.Position).Unit:Dot(Camera.CFrame.LookVector) > 0 then
-                    closestTarget = obj
-                    closestDistance = distance
+-- Theo dõi mục tiêu trong phạm vi và áp dụng hitbox, ESP
+RunService.RenderStepped:Connect(function()
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("Humanoid") then
+            local character = player.Character
+            local distance = GetDistance(LocalPlayer.Character.HumanoidRootPart.Position, character.HumanoidRootPart.Position)
+
+            if distance <= DetectionRadius then
+                -- Tạo hitbox và ESP
+                CreateHitbox(character)
+                UpdateHitboxColor(character)
+                CreateESP(character)
+            else
+                -- Xóa hitbox và ESP nếu ngoài phạm vi
+                if character:FindFirstChild("HumanoidRootPart") then
+                    if character.HumanoidRootPart:FindFirstChild("HitboxAdornment") then
+                        character.HumanoidRootPart.HitboxAdornment:Destroy()
+                    end
+                    if character.HumanoidRootPart:FindFirstChild("ESPBillboard") then
+                        character.HumanoidRootPart.ESPBillboard:Destroy()
+                    end
                 end
             end
         end
-    end
-    return closestTarget
-end
-
--- Cập nhật mỗi frame (mỗi khi trò chơi chạy)
-game:GetService("RunService").Heartbeat:Connect(function()
-    -- Cập nhật Camera 2 để theo dõi mục tiêu
-    updateCamera2()
-    
-    -- Kiểm tra và tấn công mục tiêu nếu có
-    if predictionEnabled then
-        local closestTarget = getClosestTarget()
-        if closestTarget then
-            aimAtTarget(closestTarget)
-        end
-    end
-end)
-
--- Điều khiển nâng cao
-local userInputService = game:GetService("UserInputService")
-userInputService.InputBegan:Connect(function(input)
-    if input.KeyCode == Enum.KeyCode.C then
-        -- Chuyển chế độ Camera
-        if cameraMode == "third-person" then
-            cameraMode = "first-person"
-        elseif cameraMode == "first-person" then
-            cameraMode = "dynamic"
-        else
-            cameraMode = "third-person"
-        end
-        print("Chế độ Camera: " .. cameraMode)
-    elseif input.KeyCode == Enum.KeyCode.M then
-        -- Chuyển chế độ dự đoán
-        if predictionMode == "basic" then
-            predictionMode = "advanced"
-        elseif predictionMode == "advanced" then
-            predictionMode = "kalman"
-        else
-            predictionMode = "basic"
-        end
-        print("Chế độ Dự Đoán: " .. predictionMode)
     end
 end)
