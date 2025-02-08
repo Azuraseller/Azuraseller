@@ -19,7 +19,7 @@ local overlay = Instance.new("Frame")
 overlay.Size = UDim2.new(1, 0, 1, 0)
 overlay.Position = UDim2.new(0, 0, 0, 0)
 overlay.BackgroundColor3 = Color3.fromRGB(0, 0, 0) -- Màu đen nhẹ để giảm chói
-overlay.BackgroundTransparency = 0.4 -- Điều chỉnh độ trong suốt (0.3 - 0.6 tùy môi trường)
+overlay.BackgroundTransparency = 0.1 -- Điều chỉnh độ trong suốt (0.3 - 0.6 tùy môi trường)
 overlay.Parent = screenGui
 
 -- Cập nhật độ trong suốt theo môi trường ánh sáng
