@@ -1,12 +1,15 @@
 ------------------------------------------------------------
--- RTX-like Advanced Effects - Nâng cấp tối ưu cao cấp
+-- RTX-like Advanced Effects - Nâng cấp RTX (với các cải tiến mới)
 ------------------------------------------------------------
-
 --[[
-  Lưu ý:
-  • Phiên bản này dùng task.wait, task.spawn thay cho wait, spawn để tối ưu.
-  • Các tham số hiệu ứng được cấu hình trong bảng "config" để dễ chỉnh sửa.
-  • Một số hàm được cập nhật theo khoảng thời gian hợp lý nhằm giảm tải RenderStepped.
+  CÁC CẢI TIẾN:
+  1. Giảm thiểu hiệu ứng lan của ánh sáng bằng cách giảm bloom.Size.
+  2. Tự động điều chỉnh độ chói theo môi trường & chất lượng thiết bị (nếu Brightness vượt quá giá trị gốc sẽ được hạ dần).
+  3. Môi trường có sắc xanh dương nhạt nhẹ (Lighting.Ambient và TintColor).
+  4. Hiệu ứng che ánh sáng: raycasting kiểm tra vật cản làm giảm Brightness của ánh sáng nguồn.
+  5. Khi ánh sáng bị che bởi vật liệu, ánh sáng của bóng sẽ nhỏ hơn ánh sáng ngoài.
+  
+  Lưu ý: Các chức năng ban đầu (clouds, skybox, water, shadows, shooting stars, v.v.) vẫn được bảo toàn.
 ]]
 
 local Lighting = game:GetService("Lighting")
@@ -24,10 +27,15 @@ local camera = Workspace.CurrentCamera
 local config = {
 	PostProcessing = {
 		Bloom = { Intensity = 1.2, Size = 40, Threshold = 2 },
-		ColorCorrection = { Brightness = 0.15, Contrast = 0.25, Saturation = 0.1, TintColor = Color3.new(1,1,1) },
+		ColorCorrection = { Brightness = 0.15, Contrast = 0.25, Saturation = 0.1, TintColor = Color3.fromRGB(180,210,255) }, -- tint xanh dương nhạt
 		DepthOfField = { FarIntensity = 0.3, FocusDistance = 20, InFocusRadius = 10, NearIntensity = 0.3 },
 		SSR = { Intensity = 0.8, Reflectance = 0.7 },
 		SunRays = { Intensity = 0.35, Spread = 0.2 }
+	},
+	-- Các tham số mới để nâng cấp RTX:
+	RtxUpgrade = {
+		LightBleedReduction = 0.5,        -- hệ số giảm bloom.Size (giảm lan của ánh sáng)
+		DeviceBrightnessFactor = 0.8,       -- nếu thiết bị kém, giảm độ chói
 	},
 	Clouds = {
 		PartTransparency = { Day = 0.7, Night = 1 },
@@ -62,6 +70,7 @@ local config = {
 	Shadow = {
 		BaseSize = 6,
 		Offsets = { offsetDistance = 3 },
+		Smoothing = 0.2,  -- nội suy chuyển động bóng mượt
 		Layers = {
 			{ Name = "ShadowCore", Multiplier = 1, Transparency = 0.3 },
 			{ Name = "ShadowBlur1", Multiplier = 1.1, Transparency = 0.5, ExtraOffset = Vector3.new(0.2,0,0.2) },
@@ -73,7 +82,8 @@ local config = {
 		PartSize = Vector3.new(60,60,60),
 		PartColor = Color3.fromRGB(255,220,100),
 		Light = { Range = 1200, Brightness = 3 },
-		Billboard = { Size = UDim2.new(4,0,4,0), FlareSize = UDim2.new(5,0,5,0), ImageTransparencyFocused = 0.2, ImageTransparencyNormal = 0.5 }
+		Billboard = { Size = UDim2.new(4,0,4,0), FlareSize = UDim2.new(5,0,5,0), ImageTransparencyFocused = 0.2, ImageTransparencyNormal = 0.5 },
+		OcclusionFactor = 0.4  -- hệ số giảm độ chói nếu ánh sáng bị che (với vật cản)
 	},
 	Moon = {
 		PartSize = Vector3.new(50,50,50),
@@ -112,12 +122,13 @@ local advancedMode = true
 ------------------------------------------------------------
 Lighting.GlobalShadows = true
 Lighting.ShadowSoftness = 0.6
-Lighting.Ambient = Color3.fromRGB(100,100,100)
+-- Cập nhật môi trường: ánh sáng nền xanh dương nhạt của bầu trời
+Lighting.Ambient = Color3.fromRGB(180,210,255)
 
--- Tạo các hiệu ứng post-processing và gán cấu hình từ bảng config
 local bloom = Instance.new("BloomEffect")
 bloom.Intensity = config.PostProcessing.Bloom.Intensity
-bloom.Size = config.PostProcessing.Bloom.Size
+-- GIẢM hiệu ứng lan của ánh sáng bằng cách giảm kích thước bloom
+bloom.Size = config.PostProcessing.Bloom.Size * config.RtxUpgrade.LightBleedReduction
 bloom.Threshold = config.PostProcessing.Bloom.Threshold
 bloom.Parent = Lighting
 
@@ -205,7 +216,6 @@ local function updateSkyAndClouds()
 	end
 end
 
--- Star field cho bầu trời đêm
 local starFieldPart = Instance.new("Part")
 starFieldPart.Name = "StarField"
 starFieldPart.Size = Vector3.new(1,1,1)
@@ -249,7 +259,6 @@ for _, obj in pairs(Workspace:GetDescendants()) do
 		end
 		sa.Reflectance = config.Water.Reflectance
 		sa.Color = Color3.new(1,1,1)
-		-- Tối ưu: Chỉ duyệt Texture nếu có
 		for _, child in pairs(obj:GetChildren()) do
 			if child:IsA("Texture") then
 				task.spawn(function()
@@ -261,7 +270,6 @@ for _, obj in pairs(Workspace:GetDescendants()) do
 				end)
 			end
 		end
-		-- Mist hiệu ứng trên mặt nước
 		if not obj:FindFirstChild("WaterMist") then
 			local mist = Instance.new("ParticleEmitter")
 			mist.Name = "WaterMist"
@@ -292,21 +300,45 @@ RunService.RenderStepped:Connect(function()
 end)
 
 ------------------------------------------------------------
--- 6. GLOBAL LIGHTING (cập nhật theo TimeOfDay)
+-- 6. GLOBAL LIGHTING (cập nhật theo TimeOfDay & tự động điều chỉnh Brightness)
 ------------------------------------------------------------
 local function updateGlobalLighting()
 	local hour = tonumber(Lighting.TimeOfDay:sub(1,2))
-	Lighting.Brightness = (hour >= 6 and hour < 18) and config.GlobalLighting.DayBrightness or config.GlobalLighting.NightBrightness
+	local baseBrightness = (hour >= 6 and hour < 18) and config.GlobalLighting.DayBrightness or config.GlobalLighting.NightBrightness
+	
+	-- Kiểm tra chất lượng thiết bị (nếu có thuộc tính RenderingQualityLevel)
+	local quality = settings().RenderingQualityLevel or 1
+	if quality < 2 then
+		baseBrightness = baseBrightness * config.RtxUpgrade.DeviceBrightnessFactor
+	end
+	
+	Lighting.Brightness = baseBrightness
 end
+
+-- Hàm điều chỉnh Brightness nếu có sự chênh lệch (giảm dần về giá trị cơ sở)
+local function adjustGlobalBrightness()
+	local hour = tonumber(Lighting.TimeOfDay:sub(1,2))
+	local baseBrightness = (hour >= 6 and hour < 18) and config.GlobalLighting.DayBrightness or config.GlobalLighting.NightBrightness
+	-- Nếu thiết bị kém, áp dụng thêm hệ số
+	local quality = settings().RenderingQualityLevel or 1
+	if quality < 2 then
+		baseBrightness = baseBrightness * config.RtxUpgrade.DeviceBrightnessFactor
+	end
+	if Lighting.Brightness > baseBrightness then
+		Lighting.Brightness = Lighting.Brightness - (Lighting.Brightness - baseBrightness)*0.05
+	end
+end
+
 task.spawn(function()
 	while true do
 		updateGlobalLighting()
-		task.wait(5)
+		adjustGlobalBrightness()
+		task.wait(1)
 	end
 end)
 
 ------------------------------------------------------------
--- 7. HIỆU ỨNG BÓNG NHÂN VẬT (Advanced Shadows)
+-- 7. HIỆU ỨNG BÓNG NHÂN VẬT (Advanced Shadows - Nâng cấp)
 ------------------------------------------------------------
 local shadowLayers = {}
 local function createShadowLayer(layerConfig)
@@ -326,7 +358,8 @@ for _, layer in ipairs(config.Shadow.Layers) do
 	shadowLayers[layer.Name] = createShadowLayer(layer)
 end
 
--- Hàm tính hướng Mặt Trời theo TimeOfDay
+local previousShadowCFrame = nil
+
 local function getSunDirection()
 	local timeOfDay = Lighting.TimeOfDay
 	local hour = tonumber(timeOfDay:sub(1,2))
@@ -345,19 +378,56 @@ local function updateAdvancedShadows()
 	if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
 		local hrp = player.Character.HumanoidRootPart
 		local sunDir, elevation = getSunDirection()
-		local shadowDir = Vector3.new(-sunDir.X, 0, -sunDir.Z).Unit
+		-- Dự đoán vị trí bóng bằng raycasting từ vị trí nhân vật theo hướng ngược Mặt Trời
+		local rayOrigin = hrp.Position
+		local rayDirection = -sunDir * 100
+		local rayParams = RaycastParams.new()
+		-- Loại trừ nhân vật và các layer bóng
+		local blacklist = {player.Character}
+		for _, layer in pairs(shadowLayers) do
+			table.insert(blacklist, layer)
+		end
+		rayParams.FilterDescendantsInstances = blacklist
+		rayParams.FilterType = Enum.RaycastFilterType.Blacklist
+		local rayResult = Workspace:Raycast(rayOrigin, rayDirection, rayParams)
+		
+		local shadowPosition, groundNormal
+		if rayResult then
+			shadowPosition = rayResult.Position + rayResult.Normal * 0.1
+			groundNormal = rayResult.Normal
+		else
+			local shadowDir = Vector3.new(-sunDir.X, 0, -sunDir.Z).Unit
+			shadowPosition = hrp.Position - Vector3.new(0, hrp.Size.Y/2, 0) + shadowDir * config.Shadow.Offsets.offsetDistance
+			groundNormal = Vector3.new(0,1,0)
+		end
+		
 		local lengthFactor = 1 / math.max(math.sin(elevation), 0.2)
 		lengthFactor = math.clamp(lengthFactor, 1, 3)
 		local baseSize = config.Shadow.BaseSize * lengthFactor
-		local offsetDistance = config.Shadow.Offsets.offsetDistance * lengthFactor
-		local shadowPos = hrp.Position - Vector3.new(0, hrp.Size.Y/2 + 0.1, 0) + shadowDir * offsetDistance
-		local rotation = math.atan2(shadowDir.Z, shadowDir.X) - math.pi/2
+		
+		-- Tính hướng bóng theo mặt đất
+		local shadowDir = Vector3.new(-sunDir.X, 0, -sunDir.Z)
+		if shadowDir.Magnitude < 0.001 then
+			shadowDir = Vector3.new(0,0,1)
+		else
+			shadowDir = shadowDir.Unit
+		end
+		local rightVector = shadowDir:Cross(groundNormal).Unit
+		local forwardVector = groundNormal:Cross(rightVector).Unit
+		local targetCFrame = CFrame.fromMatrix(shadowPosition, rightVector, groundNormal, forwardVector)
+		
+		-- Nội suy chuyển động bóng cho mượt
+		if previousShadowCFrame then
+			targetCFrame = previousShadowCFrame:Lerp(targetCFrame, config.Shadow.Smoothing)
+		end
+		previousShadowCFrame = targetCFrame
+		
 		for _, layer in ipairs(config.Shadow.Layers) do
 			local multiplier = layer.Multiplier
 			local extraOffset = layer.ExtraOffset or Vector3.new(0,0,0)
 			local shadow = shadowLayers[layer.Name]
-			shadow.Size = Vector3.new(baseSize, 0.2, baseSize) * multiplier
-			shadow.CFrame = CFrame.new(shadowPos + extraOffset) * CFrame.Angles(0, rotation, 0)
+			shadow.Size = Vector3.new(baseSize * multiplier, 0.2, baseSize * multiplier)
+			shadow.CFrame = targetCFrame * CFrame.new(extraOffset)
 		end
 	end
 end
@@ -376,8 +446,7 @@ playerLight.Shadows = true
 local function onCharacterAdded(char)
 	local hrp = char:WaitForChild("HumanoidRootPart")
 	playerLight.Parent = hrp
-	
-	-- Thêm halo hiệu ứng cho đầu nhân vật
+	-- Thêm halo cho đầu nhân vật
 	local head = char:FindFirstChild("Head")
 	if head and not head:FindFirstChild("HaloEmitter") then
 		local halo = Instance.new("ParticleEmitter")
@@ -407,7 +476,6 @@ end)
 ------------------------------------------------------------
 -- 9. HIỆU ỨNG MẶT TRỜI & MẶT TRĂNG (Với Lens Flare & Occlusion)
 ------------------------------------------------------------
--- Mặt Trời
 local sunPart = Instance.new("Part")
 sunPart.Name = "SunPart"
 sunPart.Shape = Enum.PartType.Ball
@@ -437,7 +505,6 @@ sunImage.Image = "rbxassetid://YourSunCoronaImage"  -- Thay asset id corona củ
 sunImage.ImageTransparency = config.Sun.Billboard.ImageTransparencyNormal
 sunImage.Parent = sunBillboard
 
--- Mặt Trăng
 local moonPart = Instance.new("Part")
 moonPart.Name = "MoonPart"
 moonPart.Shape = Enum.PartType.Ball
@@ -467,7 +534,6 @@ moonImage.Image = "rbxassetid://YourMoonCoronaImage"  -- Thay asset id corona c�
 moonImage.ImageTransparency = config.Moon.Billboard.ImageTransparency
 moonImage.Parent = moonBillboard
 
--- Cập nhật vị trí và hiệu ứng lens flare theo camera
 RunService.RenderStepped:Connect(function()
 	local sunDir, _ = getSunDirection()
 	local distance = config.Sun.Light.Range
@@ -483,7 +549,6 @@ RunService.RenderStepped:Connect(function()
 		moonPart.Transparency = 0
 	end
 	
-	-- Lens flare cho mặt trời
 	local cameraLook = camera.CFrame.LookVector
 	local sunVector = (sunPart.Position - camera.CFrame.Position).Unit
 	local alignment = cameraLook:Dot(sunVector)
@@ -496,7 +561,7 @@ RunService.RenderStepped:Connect(function()
 	end
 end)
 
--- Kiểm tra occlusion của Mặt Trời
+-- HIỆU ỨNG CHE ÁNH SÁNG: Nếu raycasting từ SunPart đến đầu nhân vật bị che, giảm độ chói ánh sáng (mô phỏng bóng của vật cản)
 local function updateSunOcclusion()
 	if player.Character and player.Character:FindFirstChild("Head") then
 		local headPos = player.Character.Head.Position
@@ -506,7 +571,7 @@ local function updateSunOcclusion()
 		rayParams.FilterType = Enum.RaycastFilterType.Blacklist
 		local rayResult = Workspace:Raycast(sunPart.Position, (headPos - sunPart.Position), rayParams)
 		if rayResult then
-			sunLight.Brightness = config.Sun.Light.Brightness * 0.5
+			sunLight.Brightness = config.Sun.Light.Brightness * config.Sun.OcclusionFactor
 		else
 			sunLight.Brightness = config.Sun.Light.Brightness
 		end
@@ -529,7 +594,6 @@ local function spawnEnhancedShootingStar()
 	star.Transparency = 0
 	star.Parent = Workspace
 	
-	-- Tạo trail hiệu ứng (2 lớp)
 	local att0 = Instance.new("Attachment", star)
 	local att1 = Instance.new("Attachment", star)
 	local trail1 = Instance.new("Trail")
@@ -620,7 +684,7 @@ local function updateEnvironmentLighting()
 		rayParams.FilterType = Enum.RaycastFilterType.Blacklist
 		local result = Workspace:Raycast(origin, direction, rayParams)
 		if result then
-			-- Indoors: giảm Brightness và giảm phạm vi ánh sáng của nhân vật
+			-- Indoors: giảm Brightness và phạm vi ánh sáng của nhân vật
 			Lighting.Brightness = 1
 			playerLight.Range = config.PlayerLight.Range.Indoors
 		else
@@ -664,4 +728,4 @@ end)
 ------------------------------------------------------------
 -- 14. THÔNG BÁO HOÀN THIỆN
 ------------------------------------------------------------
-print("RTX-like Advanced Effects đã được nâng cấp, tối ưu & làm đẹp hơn nữa thành công!")
+print("RTX-like Advanced Effects đã được nâng cấp với các cải tiến mới: giảm hiệu ứng lan ánh sáng, tự động điều chỉnh độ chói, môi trường xanh dương nhạt và hiệu ứng che ánh sáng thành công!")
