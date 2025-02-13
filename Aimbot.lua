@@ -1,5 +1,5 @@
 --[[  
-  Advanced Camera Gun Script - Phiên bản nâng cấp chuyên sâu (v3)
+  Advanced Camera Gun Script - Phiên bản nâng cấp chuyên sâu (v4)
 --]]  
 
 -------------------------------  
@@ -17,12 +17,12 @@ local LOCK_RADIUS = 600                   -- Bán kính ghim mục tiêu
 local CLOSE_RADIUS = 7                    -- Nếu mục tiêu quá gần, lock theo ngang
 local PRIORITY_HOLD_TIME = 3              -- Thời gian ưu tiên (giây)
 local HEALTH_PRIORITY_THRESHOLD = 0.3     -- HP dưới 30% được ưu tiên
-local CAMERA_ROTATION_SPEED = 0.55        -- Tốc độ xoay camera cơ bản
+local CAMERA_ROTATION_SPEED = 0.55        -- Tốc độ xoay cơ bản
 local FAST_ROTATION_MULTIPLIER = 2        -- Tốc độ xoay nhanh tối đa
 local HEALTH_BOARD_RADIUS = 900           -- Bán kính hiển thị Health Board
 local HEIGHT_DIFFERENCE_THRESHOLD = 20    -- Ngưỡng chênh lệch theo trục Y
 
--- Các thông số liên quan đến chuyển động của LocalPlayer  
+-- Các thông số chuyển động của LocalPlayer  
 local MOVEMENT_THRESHOLD = 0.1            
 local STATIONARY_TIMEOUT = 5              
 
@@ -32,7 +32,7 @@ local STATIONARY_TIMEOUT = 5
 local locked = false                    -- Trạng thái ghim mục tiêu (ON/OFF)
 local aimActive = true                  -- Script có đang hoạt động
 local currentTarget = nil               -- Mục tiêu hiện tại
-local targetTimeTracker = {}            -- Thời gian mục tiêu nằm trong vùng
+local targetTimeTracker = {}            -- Thời gian mục tiêu ở trong vùng
 
 local lastLocalPosition = nil
 local lastMovementTime = tick()
@@ -121,7 +121,7 @@ toggleButton.MouseButton1Click:Connect(function()
 end)
 
 -------------------------------------  
--- Hàm tiện ích và logic --  
+-- Các hàm tiện ích & logic --  
 -------------------------------------  
 local function updateLocalMovement()
     local character = LocalPlayer.Character
@@ -168,7 +168,7 @@ local function updateTargetTimers(deltaTime)
     targetTimeTracker = newTracker
 end
 
--- Cải tiến target priority: kết hợp khoảng cách, thời gian ở vùng, tỉ lệ HP và góc giữa hướng camera và enemy
+-- Cải tiến target priority: kết hợp khoảng cách, thời gian nằm trong vùng, tỉ lệ HP và góc lệch so với hướng camera
 local function selectTarget()
     local enemies = getEnemiesInRadius(LOCK_RADIUS)
     if #enemies == 0 then
@@ -188,7 +188,7 @@ local function selectTarget()
                 local healthRatio = enemyHumanoid.Health / enemyHumanoid.MaxHealth
                 local dirToEnemy = (enemy.HumanoidRootPart.Position - localPos).Unit
                 local angleDiff = math.acos(math.clamp(Camera.CFrame.LookVector:Dot(dirToEnemy), -1, 1))
-                local angleScore = angleDiff * 100  -- trọng số cho góc
+                local angleScore = angleDiff * 100  -- yếu tố góc có trọng số 100
                 local score = 0
                 if timeInRange >= PRIORITY_HOLD_TIME or healthRatio <= HEALTH_PRIORITY_THRESHOLD then
                     score = distance + angleScore + (healthRatio * 500)
@@ -263,7 +263,7 @@ local function calculateCameraRotation(targetPosition)
     return newCFrame
 end
 
--- Health Board: tạo thanh nhỏ dựa trên enemy.Head, không hiển thị thông tin số máu
+-- Health Board: Thanh nhỏ dựa trên enemy.Head, kích thước cố định (không scale theo khoảng cách)
 local function updateHealthBoardForTarget(enemy)
     if not enemy or not enemy:FindFirstChild("Head") or not enemy:FindFirstChild("Humanoid") then
         return
@@ -288,10 +288,10 @@ local function updateHealthBoardForTarget(enemy)
         return
     end
 
-    -- Kích thước dựa trên enemy.Head.Size (thanh nhỏ)
+    -- Cố định kích thước: chiều dài dựa theo enemy.Head, chiều cao giảm bớt
     local headSize = enemy.Head.Size
-    local boardWidth = headSize.X * 100
-    local boardHeight = headSize.Y * 50
+    local boardWidth = headSize.X * 100   -- chiều dài (bạn có thể điều chỉnh hệ số nếu cần)
+    local boardHeight = headSize.Y * 30    -- chiều dọc giảm lại so với trước
 
     if not healthBoards[enemy] then
         local billboard = Instance.new("BillboardGui")
