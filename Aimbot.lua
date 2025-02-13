@@ -1,5 +1,5 @@
 --[[  
-  Advanced Camera Gun Script - Phiên bản nâng cấp chuyên sâu (v2)
+  Advanced Camera Gun Script - Phiên bản nâng cấp chuyên sâu (v3)
 --]]  
 
 -------------------------------  
@@ -18,8 +18,8 @@ local CLOSE_RADIUS = 7                    -- Nếu mục tiêu quá gần, lock 
 local PRIORITY_HOLD_TIME = 3              -- Thời gian ưu tiên (giây)
 local HEALTH_PRIORITY_THRESHOLD = 0.3     -- HP dưới 30% được ưu tiên
 local CAMERA_ROTATION_SPEED = 0.55        -- Tốc độ xoay camera cơ bản
-local FAST_ROTATION_MULTIPLIER = 2        -- Tăng tốc xoay khi mục tiêu “sau lưng”
-local HEALTH_BOARD_RADIUS = 1000           -- Bán kính hiển thị Health Board
+local FAST_ROTATION_MULTIPLIER = 2        -- Tốc độ xoay nhanh tối đa
+local HEALTH_BOARD_RADIUS = 900           -- Bán kính hiển thị Health Board
 local HEIGHT_DIFFERENCE_THRESHOLD = 20    -- Ngưỡng chênh lệch theo trục Y
 
 -- Các thông số liên quan đến chuyển động của LocalPlayer  
@@ -46,7 +46,6 @@ local healthBoards = {}
 local screenGui = Instance.new("ScreenGui")
 screenGui.Parent = game:GetService("CoreGui")
 
--- Các kích thước cơ bản  
 local baseToggleSize = Vector2.new(100, 50)
 local baseCloseSize = Vector2.new(30, 30)
 
@@ -54,8 +53,7 @@ local baseCloseSize = Vector2.new(30, 30)
 local toggleButton = Instance.new("TextButton")
 toggleButton.Parent = screenGui
 toggleButton.Size = UDim2.new(0, baseToggleSize.X, 0, baseToggleSize.Y)
--- Dời nút lên trên (vị trí đã điều chỉnh)  
-toggleButton.Position = UDim2.new(0.85, 0, 0.03, 0)
+toggleButton.Position = UDim2.new(0.85, 0, 0.03, 0) -- dời lên trên một chút
 toggleButton.AnchorPoint = Vector2.new(0.5, 0.5)
 toggleButton.Text = "OFF"
 toggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
@@ -63,12 +61,10 @@ toggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 toggleButton.Font = Enum.Font.SourceSans
 toggleButton.TextSize = 18
 
--- Bo tròn nút Toggle  
 local toggleUICorner = Instance.new("UICorner")
 toggleUICorner.CornerRadius = UDim.new(0, 10)
 toggleUICorner.Parent = toggleButton
 
--- Viền trắng cho Toggle  
 local toggleUIStroke = Instance.new("UIStroke")
 toggleUIStroke.Color = Color3.fromRGB(255, 255, 255)
 toggleUIStroke.Thickness = 2
@@ -78,7 +74,7 @@ toggleUIStroke.Parent = toggleButton
 local closeButton = Instance.new("TextButton")
 closeButton.Parent = screenGui
 closeButton.Size = UDim2.new(0, baseCloseSize.X, 0, baseCloseSize.Y)
-closeButton.Position = UDim2.new(0.75, 0, 0.03, 0)  -- Đặt gần nút Toggle
+closeButton.Position = UDim2.new(0.75, 0, 0.03, 0)  -- đặt gần nút Toggle
 closeButton.AnchorPoint = Vector2.new(0.5, 0.5)
 closeButton.Text = "X"
 closeButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
@@ -86,19 +82,17 @@ closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 closeButton.Font = Enum.Font.SourceSans
 closeButton.TextSize = 18
 
--- Bo tròn nút Close  
 local closeUICorner = Instance.new("UICorner")
 closeUICorner.CornerRadius = UDim.new(0, 10)
 closeUICorner.Parent = closeButton
 
--- Viền trắng cho nút Close  
 local closeUIStroke = Instance.new("UIStroke")
 closeUIStroke.Color = Color3.fromRGB(255, 255, 255)
 closeUIStroke.Thickness = 2
 closeUIStroke.Parent = closeButton
 
 -------------------------------------  
--- Xử lý sự kiện cho các nút GUI --  
+-- Sự kiện GUI --  
 -------------------------------------  
 closeButton.MouseButton1Click:Connect(function()
     aimActive = not aimActive
@@ -127,9 +121,8 @@ toggleButton.MouseButton1Click:Connect(function()
 end)
 
 -------------------------------------  
--- Các hàm tiện ích và xử lý logic --  
+-- Hàm tiện ích và logic --  
 -------------------------------------  
-
 local function updateLocalMovement()
     local character = LocalPlayer.Character
     if character and character:FindFirstChild("HumanoidRootPart") then
@@ -175,6 +168,7 @@ local function updateTargetTimers(deltaTime)
     targetTimeTracker = newTracker
 end
 
+-- Cải tiến target priority: kết hợp khoảng cách, thời gian ở vùng, tỉ lệ HP và góc giữa hướng camera và enemy
 local function selectTarget()
     local enemies = getEnemiesInRadius(LOCK_RADIUS)
     if #enemies == 0 then
@@ -192,11 +186,14 @@ local function selectTarget()
                 local timeInRange = targetTimeTracker[enemy] or 0
                 local distance = (enemy.HumanoidRootPart.Position - localPos).Magnitude
                 local healthRatio = enemyHumanoid.Health / enemyHumanoid.MaxHealth
+                local dirToEnemy = (enemy.HumanoidRootPart.Position - localPos).Unit
+                local angleDiff = math.acos(math.clamp(Camera.CFrame.LookVector:Dot(dirToEnemy), -1, 1))
+                local angleScore = angleDiff * 100  -- trọng số cho góc
                 local score = 0
                 if timeInRange >= PRIORITY_HOLD_TIME or healthRatio <= HEALTH_PRIORITY_THRESHOLD then
-                    score = distance + (healthRatio * 1000)
+                    score = distance + angleScore + (healthRatio * 500)
                 else
-                    score = distance + 1000
+                    score = distance + angleScore + 500
                 end
                 if score < bestScore then
                     bestScore = score
@@ -263,12 +260,10 @@ local function calculateCameraRotation(targetPosition)
             newCFrame = Camera.CFrame
         end
     end
-    local dotProduct = Camera.CFrame.LookVector:Dot(direction.Unit)
-    local targetBehind = dotProduct < 0
-    return newCFrame, targetBehind
+    return newCFrame
 end
 
--- Health Board: sử dụng kích thước của enemy.Head (không scale theo khoảng cách)
+-- Health Board: tạo thanh nhỏ dựa trên enemy.Head, không hiển thị thông tin số máu
 local function updateHealthBoardForTarget(enemy)
     if not enemy or not enemy:FindFirstChild("Head") or not enemy:FindFirstChild("Humanoid") then
         return
@@ -293,7 +288,7 @@ local function updateHealthBoardForTarget(enemy)
         return
     end
 
-    -- Tính kích thước Health Board theo kích thước Head  
+    -- Kích thước dựa trên enemy.Head.Size (thanh nhỏ)
     local headSize = enemy.Head.Size
     local boardWidth = headSize.X * 100
     local boardHeight = headSize.Y * 50
@@ -307,7 +302,6 @@ local function updateHealthBoardForTarget(enemy)
         billboard.StudsOffset = Vector3.new(0, headSize.Y + 0.5, 0)
         billboard.Parent = enemy
 
-        -- Khung nền của Health Board  
         local bg = Instance.new("Frame")
         bg.Name = "Background"
         bg.Size = UDim2.new(1, 0, 1, 0)
@@ -324,7 +318,6 @@ local function updateHealthBoardForTarget(enemy)
         bgCorner.CornerRadius = UDim.new(0, 10)
         bgCorner.Parent = bg
 
-        -- Thanh fill hiển thị % máu  
         local healthFill = Instance.new("Frame")
         healthFill.Name = "HealthFill"
         local ratio = math.clamp(humanoid.Health / humanoid.MaxHealth, 0, 1)
@@ -337,32 +330,6 @@ local function updateHealthBoardForTarget(enemy)
         fillCorner.CornerRadius = UDim.new(0, 10)
         fillCorner.Parent = healthFill
 
-        -- Text hiển thị máu: bên trái là máu hiện tại  
-        local leftLabel = Instance.new("TextLabel")
-        leftLabel.Name = "LeftHealth"
-        leftLabel.Size = UDim2.new(0.5, 0, 1, 0)
-        leftLabel.Position = UDim2.new(0, 0, 0, 0)
-        leftLabel.BackgroundTransparency = 1
-        leftLabel.Text = tostring(math.floor(humanoid.Health))
-        leftLabel.TextColor3 = Color3.fromRGB(255,255,255)
-        leftLabel.Font = Enum.Font.SourceSansBold
-        leftLabel.TextScaled = true
-        leftLabel.TextXAlignment = Enum.TextXAlignment.Left
-        leftLabel.Parent = bg
-
-        -- Bên phải hiển thị máu tối đa  
-        local rightLabel = Instance.new("TextLabel")
-        rightLabel.Name = "RightHealth"
-        rightLabel.Size = UDim2.new(0.5, 0, 1, 0)
-        rightLabel.Position = UDim2.new(0.5, 0, 0, 0)
-        rightLabel.BackgroundTransparency = 1
-        rightLabel.Text = tostring(math.floor(humanoid.MaxHealth))
-        rightLabel.TextColor3 = Color3.fromRGB(255,255,255)
-        rightLabel.Font = Enum.Font.SourceSansBold
-        rightLabel.TextScaled = true
-        rightLabel.TextXAlignment = Enum.TextXAlignment.Right
-        rightLabel.Parent = bg
-
         healthBoards[enemy] = billboard
     else
         local billboard = healthBoards[enemy]
@@ -371,18 +338,10 @@ local function updateHealthBoardForTarget(enemy)
         local bg = billboard:FindFirstChild("Background")
         if bg then
             local healthFill = bg:FindFirstChild("HealthFill")
-            local leftLabel = bg:FindFirstChild("LeftHealth")
-            local rightLabel = bg:FindFirstChild("RightHealth")
             local ratio = math.clamp(humanoid.Health / humanoid.MaxHealth, 0, 1)
             if healthFill then
                 healthFill.Size = UDim2.new(ratio, 0, 1, 0)
                 healthFill.BackgroundColor3 = (ratio > 0.7 and Color3.fromRGB(0,255,0)) or (ratio > 0.25 and Color3.fromRGB(255,255,0)) or Color3.fromRGB(255,0,0)
-            end
-            if leftLabel then
-                leftLabel.Text = tostring(math.floor(humanoid.Health))
-            end
-            if rightLabel then
-                rightLabel.Text = tostring(math.floor(humanoid.MaxHealth))
             end
         end
     end
@@ -407,7 +366,6 @@ RunService.RenderStepped:Connect(function(deltaTime)
         updateLocalMovement()
         updateTargetTimers(deltaTime)
         
-        -- Nếu currentTarget không hợp lệ, chọn lại  
         if not isValidTarget(currentTarget) then
             local selected = selectTarget()
             if selected then
@@ -440,17 +398,18 @@ RunService.RenderStepped:Connect(function(deltaTime)
                         if distance <= CLOSE_RADIUS then
                             predictedPos = Vector3.new(predictedPos.X, Camera.CFrame.Position.Y, predictedPos.Z)
                         end
-                        local targetCFrame, targetIsBehind = calculateCameraRotation(predictedPos)
-                        local interpSpeed = targetIsBehind and CAMERA_ROTATION_SPEED * FAST_ROTATION_MULTIPLIER or CAMERA_ROTATION_SPEED
-                        Camera.CFrame = Camera.CFrame:Lerp(targetCFrame, interpSpeed)
+                        local targetCFrame = calculateCameraRotation(predictedPos)
+                        local angleDiff = math.acos(math.clamp(Camera.CFrame.LookVector:Dot((predictedPos - Camera.CFrame.Position).Unit), -1, 1))
+                        local dynamicSpeed = CAMERA_ROTATION_SPEED + (angleDiff / math.pi) * (FAST_ROTATION_MULTIPLIER - CAMERA_ROTATION_SPEED)
+                        Camera.CFrame = Camera.CFrame:Lerp(targetCFrame, dynamicSpeed)
                     end
                 end
             end
         end
 
-        -- Hiệu ứng oscilla cho nút Toggle khi lock (thu nhỏ & phóng to)
+        -- Hiệu ứng oscilla cho nút Toggle khi lock
         if locked then
-            local oscillation = 0.05 * math.sin(tick() * 5)  -- dao động ±5%
+            local oscillation = 0.05 * math.sin(tick() * 5)
             local newWidth = baseToggleSize.X * (1 + oscillation)
             local newHeight = baseToggleSize.Y * (1 + oscillation)
             toggleButton.Size = UDim2.new(0, newWidth, 0, newHeight)
@@ -463,7 +422,7 @@ RunService.RenderStepped:Connect(function(deltaTime)
 end)
 
 -------------------------------------  
--- Xử lý sự kiện khi người chơi thay đổi character hoặc rời server --  
+-- Xử lý sự kiện khi Character/Player rời server --  
 -------------------------------------  
 Players.PlayerRemoving:Connect(function(player)
     if player ~= LocalPlayer and player.Character and healthBoards[player.Character] then
