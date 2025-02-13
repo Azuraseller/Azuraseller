@@ -1,5 +1,5 @@
 --[[  
-  Advanced Camera Gun Script - Phiên bản nâng cấp chuyên sâu (v4)
+  Advanced Camera Gun Script - Phiên bản nâng cấp chuyên sâu (v5)
 --]]  
 
 -------------------------------  
@@ -121,7 +121,7 @@ toggleButton.MouseButton1Click:Connect(function()
 end)
 
 -------------------------------------  
--- Các hàm tiện ích & logic --  
+-- Hàm tiện ích & logic --  
 -------------------------------------  
 local function updateLocalMovement()
     local character = LocalPlayer.Character
@@ -263,7 +263,9 @@ local function calculateCameraRotation(targetPosition)
     return newCFrame
 end
 
--- Health Board: Thanh nhỏ dựa trên enemy.Head, kích thước cố định (không scale theo khoảng cách)
+-- Health Board: Thanh nhỏ dựa trên enemy.Head với kích thước cố định (không bị ảnh hưởng bởi zoom)
+-- Kích thước được giảm lại (boardWidth = headSize.X * 50, boardHeight = headSize.Y * 15)
+-- Và thanh luôn được đặt cách đầu mục tiêu 2 studs.
 local function updateHealthBoardForTarget(enemy)
     if not enemy or not enemy:FindFirstChild("Head") or not enemy:FindFirstChild("Humanoid") then
         return
@@ -288,10 +290,9 @@ local function updateHealthBoardForTarget(enemy)
         return
     end
 
-    -- Cố định kích thước: chiều dài dựa theo enemy.Head, chiều cao giảm bớt
     local headSize = enemy.Head.Size
-    local boardWidth = headSize.X * 100   -- chiều dài (bạn có thể điều chỉnh hệ số nếu cần)
-    local boardHeight = headSize.Y * 30    -- chiều dọc giảm lại so với trước
+    local boardWidth = headSize.X * 50   -- giảm kích thước so với phiên bản trước
+    local boardHeight = headSize.Y * 15    -- chiều cao nhỏ hơn
 
     if not healthBoards[enemy] then
         local billboard = Instance.new("BillboardGui")
@@ -299,7 +300,7 @@ local function updateHealthBoardForTarget(enemy)
         billboard.Adornee = enemy.Head
         billboard.AlwaysOnTop = true
         billboard.Size = UDim2.new(0, boardWidth, 0, boardHeight)
-        billboard.StudsOffset = Vector3.new(0, headSize.Y + 0.5, 0)
+        billboard.StudsOffset = Vector3.new(0, 2, 0)  -- luôn cách đầu mục tiêu 2 studs
         billboard.Parent = enemy
 
         local bg = Instance.new("Frame")
@@ -334,7 +335,7 @@ local function updateHealthBoardForTarget(enemy)
     else
         local billboard = healthBoards[enemy]
         billboard.Size = UDim2.new(0, boardWidth, 0, boardHeight)
-        billboard.StudsOffset = Vector3.new(0, headSize.Y + 0.5, 0)
+        billboard.StudsOffset = Vector3.new(0, 2, 0)
         local bg = billboard:FindFirstChild("Background")
         if bg then
             local healthFill = bg:FindFirstChild("HealthFill")
