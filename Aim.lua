@@ -23,11 +23,11 @@ local Camera = workspace.CurrentCamera
 local PREDICTION_TIME = 0.1               -- Thời gian dự đoán
 local LOCK_RADIUS = 600                   -- Bán kính ghim mục tiêu
 local CLOSE_RADIUS = 7                    -- Nếu mục tiêu quá gần, lock theo ngang
-local PRIORITY_HOLD_TIME = 1.5              -- Thời gian ưu tiên (giây)
-local HEALTH_PRIORITY_THRESHOLD = 0.3     -- HP dưới 30% được ưu tiên
+local PRIORITY_HOLD_TIME = 3              -- Thời gian ưu tiên (giây)
+local HEALTH_PRIORITY_THRESHOLD = 0     -- HP dưới 30% được ưu tiên
 local CAMERA_ROTATION_SPEED = 0.55        -- Tốc độ xoay cơ bản (dùng cho tính năng Camera Gun)
 local FAST_ROTATION_MULTIPLIER = 2        -- Tốc độ xoay nhanh tối đa
-local HEALTH_BOARD_RADIUS = 1000           -- Bán kính hiển thị Health Board
+local HEALTH_BOARD_RADIUS = 900           -- Bán kính hiển thị Health Board
 local HEIGHT_DIFFERENCE_THRESHOLD = 20    -- Ngưỡng chênh lệch theo trục Y
 
 -- Các thông số chuyển động của LocalPlayer    
