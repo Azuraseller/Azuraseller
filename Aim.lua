@@ -1,36 +1,35 @@
 --[[    
-  Advanced Camera Gun Script - Phiên bản “Siêu Nâng Cấp”
-  ----------------------------------------------------------
+  Advanced Camera Gun Script - Siêu Nâng Cấp 2.0
+  --------------------------------------------------
   Các cải tiến:
-   1. Dự đoán mục tiêu dựa theo khoảng cách và tốc độ skill (1-2 giây dự đoán).
-   2. Target lock cực nhanh, siêu chính xác (dựa vào khoảng cách & góc, ưu tiên mục tiêu gần).
-   3. Xoá các thời gian ưu tiên.
-   4. Health Board được kéo dài theo bề ngang, thu nhỏ theo chiều dọc, cách head 1 stud.
-   5. Hitbox nâng cấp: khối vuông (kích thước có thể chỉnh – mặc định 80), màu xanh dương đậm, siêu trong suốt,
-      có hiệu ứng “chớp đỏ” khi mục tiêu nhận sát thương.
-   6. GUI Settings: Cho phép chỉnh các thông số (Skill Speed, Lock Radius, Health Board Radius, Hitbox Offset, Prediction On/Off).
+   1. Dự đoán mục tiêu dựa theo khoảng cách & tốc độ skill (1-2 giây dự đoán).
+   2. Target lock cực nhanh, siêu chính xác, ưu tiên mục tiêu gần (không dùng yếu tố máu).
+   3. Health Board được chỉnh sửa: chiều ngang kéo dài, chiều dọc thu nhỏ, cách head 1 stud.
+   4. Hitbox nâng cấp: khối vuông (80x80x80 mặc định) xung quanh mục tiêu, hiệu ứng flash đỏ khi nhận sát thương.
+   5. Shiftlock với BodyGyro ổn định.
+   6. GUI Settings siêu “chất”: hiệu ứng Tween cho panel, các nút hover/click, bo tròn, viền trắng, fade in/out.
 --]]    
 
--------------------------------
+-------------------------------------
 -- Các biến cấu hình “điều chỉnh” --
--------------------------------
-local SKILL_SPEED = 50            -- Tốc độ của skill (units/sec), dùng để tính thời gian dự đoán
-local LOCK_RADIUS = 600           -- Bán kính ghim mục tiêu (có thể chỉnh qua GUI)
-local HEALTH_BOARD_RADIUS = 900   -- Bán kính hiển thị Health Board (có thể chỉnh qua GUI)
-local HITBOX_OFFSET = 80          -- Giá trị offset tăng kích thước hitbox (mặc định 80)
-local PREDICTION_ENABLED = true   -- Bật/tắt dự đoán mục tiêu (true: dùng dự đoán, false: ghim trực tiếp vào head)
+-------------------------------------
+local SKILL_SPEED = 50            -- Tốc độ của skill (units/sec)
+local LOCK_RADIUS = 600           -- Bán kính ghim mục tiêu
+local HEALTH_BOARD_RADIUS = 900   -- Bán kính hiển thị Health Board
+local HITBOX_OFFSET = 80          -- Giá trị mở rộng hitbox (mặc định 80)
+local PREDICTION_ENABLED = true   -- Bật/tắt dự đoán mục tiêu
 
--- Các tham số khác (không thay đổi nhiều)
-local CLOSE_RADIUS = 7                    -- Nếu mục tiêu quá gần, lock theo ngang
-local CAMERA_ROTATION_SPEED = 0.55        -- Tốc độ xoay cơ bản (Camera Gun)
-local FAST_ROTATION_MULTIPLIER = 2        -- Tốc độ xoay nhanh tối đa
-local HEIGHT_DIFFERENCE_THRESHOLD = 20    -- Ngưỡng chênh lệch theo trục Y
+-- Các tham số khác
+local CLOSE_RADIUS = 7
+local CAMERA_ROTATION_SPEED = 0.55
+local FAST_ROTATION_MULTIPLIER = 2
+local HEIGHT_DIFFERENCE_THRESHOLD = 7
 local MOVEMENT_THRESHOLD = 0.1              
-local STATIONARY_TIMEOUT = 5                
+local STATIONARY_TIMEOUT = 1               
 
--------------------------------
+-------------------------------------
 -- Dịch vụ và đối tượng --
--------------------------------
+-------------------------------------
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
@@ -38,33 +37,42 @@ local UserInputService = game:GetService("UserInputService")
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 
--------------------------------
+-------------------------------------
 -- Biến trạng thái toàn cục --
--------------------------------
+-------------------------------------
 local locked = false           -- Aim lock On/Off
-local aimActive = true         -- Script (và Shiftlock) đang bật
+local aimActive = true         -- Script (và Shiftlock) bật
 local currentTarget = nil      -- Mục tiêu hiện tại
-
--- Loại bỏ targetTimeTracker vì không dùng "thời gian ưu tiên"
--- local targetTimeTracker = {}
-
 local lastLocalPosition = nil  
 local lastMovementTime = tick()
 
 -- Bảng lưu Health Board (key = Character)
 local healthBoards = {}
 
--- Biến lưu hitbox (chỉ tồn tại khi Aim lock)
+-- Biến lưu hitbox (khi Aim lock)
 local currentHitbox = nil
 
--------------------------------
--- GUI: Nút Toggle, Close, Settings --
--------------------------------
+-------------------------------------
+-- GUI: Tạo ScreenGui và các nút --
+-------------------------------------
 local screenGui = Instance.new("ScreenGui")
 screenGui.Parent = game:GetService("CoreGui")
 
+-- Kích thước cơ bản cho các nút
 local baseToggleSize = Vector2.new(100, 50)
 local baseCloseSize = Vector2.new(30, 30)
+
+-- Hàm tạo hiệu ứng hover cho nút (scale tween)
+local function addHoverEffect(button)
+    button.MouseEnter:Connect(function()
+        local tween = TweenService:Create(button, TweenInfo.new(0.2, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {Size = UDim2.new(0, button.Size.X.Offset * 1.1, 0, button.Size.Y.Offset * 1.1)})
+        tween:Play()
+    end)
+    button.MouseLeave:Connect(function()
+        local tween = TweenService:Create(button, TweenInfo.new(0.2, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {Size = UDim2.new(0, baseToggleSize.X, 0, baseToggleSize.Y)})
+        tween:Play()
+    end)
+end
 
 -- Nút Toggle (On/Off Aim)
 local toggleButton = Instance.new("TextButton")
@@ -84,6 +92,7 @@ local toggleUIStroke = Instance.new("UIStroke")
 toggleUIStroke.Color = Color3.fromRGB(255, 255, 255)
 toggleUIStroke.Thickness = 2
 toggleUIStroke.Parent = toggleButton
+addHoverEffect(toggleButton)
 
 -- Nút Close (X)
 local closeButton = Instance.new("TextButton")
@@ -103,8 +112,9 @@ local closeUIStroke = Instance.new("UIStroke")
 closeUIStroke.Color = Color3.fromRGB(255, 255, 255)
 closeUIStroke.Thickness = 2
 closeUIStroke.Parent = closeButton
+addHoverEffect(closeButton)
 
--- Nút Settings (⚙️) - đặt bên trái nút X
+-- Nút Settings (⚙️) – đặt bên trái nút X
 local settingsButton = Instance.new("TextButton")
 settingsButton.Name = "SettingsButton"
 settingsButton.Parent = screenGui
@@ -123,13 +133,14 @@ local settingsUIStroke = Instance.new("UIStroke")
 settingsUIStroke.Color = Color3.fromRGB(255, 255, 255)
 settingsUIStroke.Thickness = 2
 settingsUIStroke.Parent = settingsButton
+addHoverEffect(settingsButton)
 
--- Frame Settings (ban đầu ẩn đi, vị trí “đóng” ở trên ngoài màn hình)
+-- Frame Settings (panel cài đặt, ban đầu ẩn đi)
 local settingsFrame = Instance.new("Frame")
 settingsFrame.Name = "SettingsFrame"
 settingsFrame.Parent = screenGui
 settingsFrame.Size = UDim2.new(0, 250, 0, 200)
--- Vị trí mở: dưới nút settings; vị trí đóng: ngoài màn hình (Y = -0.5)
+-- Vị trí mở: dưới nút settings; đóng: ngoài màn hình (Y âm)
 local settingsOpenPosition = UDim2.new(0.65, 0, 0.12, 0)
 local settingsClosedPosition = UDim2.new(0.65, 0, -0.5, 0)
 settingsFrame.Position = settingsClosedPosition
@@ -138,12 +149,11 @@ settingsFrame.BackgroundTransparency = 0.2
 local settingsFrameUICorner = Instance.new("UICorner")
 settingsFrameUICorner.CornerRadius = UDim.new(0, 10)
 settingsFrameUICorner.Parent = settingsFrame
-settingsFrame.Visible = true  -- Sẽ ẩn/hiện qua Tween
 
 local settingsOpen = false
 local tweenInfoSettings = TweenInfo.new(0.3, Enum.EasingStyle.Sine, Enum.EasingDirection.Out)
 
--- Tạo các mục trong Settings Frame:
+-- Hàm tạo dòng cài đặt (label + TextBox hoặc Toggle)
 local function createSettingRow(parent, yPos, labelText, defaultValue, isToggle)
     local rowFrame = Instance.new("Frame")
     rowFrame.Parent = parent
@@ -172,7 +182,14 @@ local function createSettingRow(parent, yPos, labelText, defaultValue, isToggle)
         toggleBtn.TextSize = 18
         toggleBtn.Text = defaultValue and "On" or "Off"
         toggleBtn.AutoButtonColor = true
-        -- Khi nhấn thì cập nhật giá trị tương ứng
+        local uicorner = Instance.new("UICorner")
+        uicorner.CornerRadius = UDim.new(0, 10)
+        uicorner.Parent = toggleBtn
+        local uistroke = Instance.new("UIStroke")
+        uistroke.Color = Color3.new(1,1,1)
+        uistroke.Thickness = 2
+        uistroke.Parent = toggleBtn
+
         toggleBtn.MouseButton1Click:Connect(function()
             defaultValue = not defaultValue
             toggleBtn.Text = defaultValue and "On" or "Off"
@@ -308,14 +325,10 @@ local function getEnemiesInRadius(radius)
     return enemies
 end
 
--- Không dùng targetTimeTracker nữa
-
--- Hàm chọn mục tiêu: dùng khoảng cách và góc lệch; nếu mục tiêu gần (<100) thì score được giảm theo tỷ lệ.
+-- Hàm chọn mục tiêu: sử dụng khoảng cách và góc lệch; nếu mục tiêu gần (<100) thì score giảm theo tỷ lệ.
 local function selectTarget()
     local enemies = getEnemiesInRadius(LOCK_RADIUS)
-    if #enemies == 0 then
-        return nil
-    end
+    if #enemies == 0 then return nil end
     local localCharacter = LocalPlayer.Character
     if not localCharacter or not localCharacter:FindFirstChild("HumanoidRootPart") then return nil end
     local localPos = localCharacter.HumanoidRootPart.Position
@@ -390,7 +403,7 @@ local function calculateCameraRotation(targetPosition)
     return newCFrame
 end
 
--- Health Board: chỉnh sửa kích thước (rộng hơn, cao thấp hơn) và StudsOffset = (0,1,0)
+-- Health Board: chỉnh sửa kích thước (rộng hơn, cao thấp lại) và StudsOffset = (0,1,0)
 local function updateHealthBoardForTarget(enemy)
     if not enemy or not enemy:FindFirstChild("Head") or not enemy:FindFirstChild("Humanoid") then
         return
@@ -489,7 +502,8 @@ end
 RunService.RenderStepped:Connect(function(deltaTime)
     if aimActive then
         updateLocalMovement()
-        -- Lựa chọn mục tiêu liên tục dựa trên khoảng cách & góc lệch
+        
+        -- Target lock liên tục: nếu mục tiêu không hợp lệ, chọn lại
         if not isValidTarget(currentTarget) then
             local selected = selectTarget()
             if selected then
@@ -549,15 +563,13 @@ RunService.RenderStepped:Connect(function(deltaTime)
                     weld.Part0 = enemyHRP
                     weld.Part1 = currentHitbox
                     weld.Parent = currentHitbox
-                    -- Lưu giá trị sức khỏe ban đầu để so sánh khi nhận sát thương
                     currentHitbox:SetAttribute("LastHealth", enemyHumanoid.Health)
                 else
                     currentHitbox.Size = enemyHRP.Size + Vector3.new(HITBOX_OFFSET, HITBOX_OFFSET, HITBOX_OFFSET)
-                    -- Kiểm tra sát thương: nếu sức khỏe giảm, flash hitbox đỏ
                     local lastHealth = currentHitbox:GetAttribute("LastHealth") or enemyHumanoid.Health
                     if enemyHumanoid.Health < lastHealth then
                         local originalColor = currentHitbox.Color
-                        currentHitbox.Color = Color3.new(1, 0, 0)
+                        currentHitbox.Color = Color3.new(1, 0, 0)  -- flash đỏ
                         task.delay(0.1, function()
                             if currentHitbox then
                                 currentHitbox.Color = originalColor
@@ -621,8 +633,7 @@ end)
 --        TÍNH NĂNG SHIFTLOCK CẢM ỨNG (CẢI TIẾN)                --
 ----------------------------------------------------------------
 local idleSpeedThreshold = 0.5   -- Nếu HRP dưới ngưỡng này, coi như đứng yên
-local angleThreshold = 5         -- Ngưỡng cập nhật xoay (độ); nếu chênh lệch nhỏ thì không xoay
-
+local angleThreshold = 5         -- Ngưỡng cập nhật xoay (độ)
 RunService.RenderStepped:Connect(function(delta)
     local character = LocalPlayer.Character
     if not character then return end
