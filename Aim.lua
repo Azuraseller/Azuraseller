@@ -1,14 +1,14 @@
 --[[    
-  Advanced Camera Gun Script - Siêu Nâng Cấp 3.0
+  Advanced Camera Gun Script - Siêu Nâng Cấp 3.1
   --------------------------------------------------
   Các cải tiến:
    1. Dự đoán mục tiêu dựa theo khoảng cách & tốc độ skill (1-2 giây dự đoán).
    2. Target lock cực nhanh, siêu chính xác, ưu tiên mục tiêu gần (không dùng yếu tố máu).
-   3. Health Board được chỉnh sửa: chiều ngang kéo dài, chiều dọc thu nhỏ, cách head 1 stud.
-   4. Hitbox nâng cấp: khối vuông (80x80x80 mặc định) xung quanh mục tiêu, có hiệu ứng flash đỏ khi nhận sát thương.
+   3. Health Board chỉnh sửa: chiều ngang kéo dài, chiều dọc thu nhỏ, cách head 1 stud.
+   4. Hitbox nâng cấp: Khi ghim, hitbox của mục tiêu tăng thêm (80,80,80) xung quanh HRP, có màu xanh đậm với transparency cao, flash đỏ khi nhận sát thương.
    5. Shiftlock cải tiến với BodyGyro ổn định.
-   6. GUI Settings “siêu chất”: panel cài đặt trượt ra vào mượt mà, các nút có hiệu ứng hover/click, bo tròn, viền trắng.
-   7. Skill Speed: Khi người chơi sử dụng các Tool có giá trị "Cooldown" (NumberValue), cooldown sẽ được giảm (ví dụ từ 2 giây xuống 0.3 giây).
+   6. GUI Settings “siêu chất”: panel settings ban đầu nhỏ (giống nút X) sẽ phóng to ra khi nhấn ⚙️, vị trí panel được dịch sang trái 1 chút.
+   7. Skill Speed: Các Tool có "Cooldown" sẽ được điều chỉnh giảm xuống (0.3 giây).
 --]]    
 
 -------------------------------------
@@ -17,14 +17,14 @@
 local SKILL_SPEED = 50            -- Tốc độ của skill (units/sec)
 local LOCK_RADIUS = 600           -- Bán kính ghim mục tiêu
 local HEALTH_BOARD_RADIUS = 900   -- Bán kính hiển thị Health Board
-local HITBOX_OFFSET = 80          -- Giá trị mở rộng hitbox (mặc định 80)
+local HITBOX_OFFSET = 80          -- Giá trị mở rộng hitbox (80,80,80)
 local PREDICTION_ENABLED = true   -- Bật/tắt dự đoán mục tiêu
 
 -- Các tham số khác
 local CLOSE_RADIUS = 7
 local CAMERA_ROTATION_SPEED = 0.55
 local FAST_ROTATION_MULTIPLIER = 2
-local HEIGHT_DIFFERENCE_THRESHOLD = 5
+local HEIGHT_DIFFERENCE_THRESHOLD = 3
 local MOVEMENT_THRESHOLD = 0.1              
 local STATIONARY_TIMEOUT = 5                
 
@@ -70,7 +70,6 @@ local function addHoverEffect(button)
         tween:Play()
     end)
     button.MouseLeave:Connect(function()
-        -- Phục hồi kích thước ban đầu (dùng kích thước gốc tùy theo loại nút)
         if button.Name == "ToggleButton" then
             local tween = TweenService:Create(button, TweenInfo.new(0.2, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {Size = UDim2.new(0, baseToggleSize.X, 0, baseToggleSize.Y)})
             tween:Play()
@@ -108,7 +107,7 @@ closeButton.Parent = screenGui
 closeButton.Size = UDim2.new(0, baseCloseSize.X, 0, baseCloseSize.Y)
 closeButton.Position = UDim2.new(0.75, 0, 0.03, 0)
 closeButton.AnchorPoint = Vector2.new(0.5, 0.5)
-closeButton.Text = "X"
+closeButton.Text = "✖️"
 closeButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
 closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 closeButton.Font = Enum.Font.SourceSans
@@ -143,14 +142,16 @@ settingsUIStroke.Thickness = 2
 settingsUIStroke.Parent = settingsButton
 addHoverEffect(settingsButton)
 
--- Frame Settings (panel cài đặt, ban đầu ẩn đi)
+-- Panel Settings: Ban đầu ẩn đi với kích thước nhỏ (giống nút X)
+local settingsClosedSize = UDim2.new(0, baseCloseSize.X, 0, baseCloseSize.Y)
+local settingsOpenSize = UDim2.new(0, 250, 0, 200)
+-- CHỈNH VỊ: Dịch panel sang trái 1 chút (offset X = -25)
+local settingsClosedPosition = UDim2.new(0.65, -25, 0.03, 0)
+local settingsOpenPosition = UDim2.new(0.65, -25, 0.12, 0)
 local settingsFrame = Instance.new("Frame")
 settingsFrame.Name = "SettingsFrame"
 settingsFrame.Parent = screenGui
-settingsFrame.Size = UDim2.new(0, 250, 0, 200)
--- CHỈNH VỊ TRÍ: Giả sử ta muốn panel thẳng với cạnh trái của nút ⚙️ (dịch sang trái 15 pixel)
-local settingsOpenPosition = UDim2.new(0.65, -15, 0.12, 0)
-local settingsClosedPosition = UDim2.new(0.65, -15, -0.5, 0)
+settingsFrame.Size = settingsClosedSize
 settingsFrame.Position = settingsClosedPosition
 settingsFrame.BackgroundColor3 = Color3.new(0, 0, 0)
 settingsFrame.BackgroundTransparency = 0.2
@@ -256,14 +257,16 @@ createSettingRow(settingsFrame, 90, "Health Board Radius", HEALTH_BOARD_RADIUS, 
 createSettingRow(settingsFrame, 130, "Hitbox Offset", HITBOX_OFFSET, false)
 createSettingRow(settingsFrame, 170, "Prediction", PREDICTION_ENABLED, true)
 
--- Toggle Settings Frame bằng nút ⚙️
+-- Toggle Settings Frame bằng nút ⚙️: Tween cả vị trí và kích thước
 settingsButton.MouseButton1Click:Connect(function()
     settingsOpen = not settingsOpen
     local goal = {}
     if settingsOpen then
         goal.Position = settingsOpenPosition
+        goal.Size = settingsOpenSize
     else
         goal.Position = settingsClosedPosition
+        goal.Size = settingsClosedSize
     end
     local tween = TweenService:Create(settingsFrame, tweenInfoSettings, goal)
     tween:Play()
@@ -333,7 +336,7 @@ local function getEnemiesInRadius(radius)
     return enemies
 end
 
--- Hàm chọn mục tiêu: sử dụng khoảng cách và góc lệch; nếu mục tiêu gần (<100) thì score giảm theo tỷ lệ.
+-- Hàm chọn mục tiêu: dùng khoảng cách và góc lệch; nếu mục tiêu gần (<100) thì score giảm theo tỷ lệ.
 local function selectTarget()
     local enemies = getEnemiesInRadius(LOCK_RADIUS)
     if #enemies == 0 then return nil end
@@ -445,7 +448,7 @@ local function updateHealthBoardForTarget(enemy)
         billboard.Adornee = enemy.Head
         billboard.AlwaysOnTop = true
         billboard.Size = UDim2.new(0, boardWidth, 0, boardHeight)
-        billboard.StudsOffset = Vector3.new(0, 3, 0)  -- cách head 1 stud
+        billboard.StudsOffset = Vector3.new(0, 10, 0)  -- cách head 1 stud
         billboard.Parent = enemy
 
         local bg = Instance.new("Frame")
@@ -695,14 +698,12 @@ end)
 -- CHỨC NĂNG SKILL SPEED: GIẢM COOLDOWN TOOL --
 -------------------------------------
 local function adjustToolCooldown(tool)
-    -- Nếu công cụ có con NumberValue tên "Cooldown", ta sẽ thiết lập giá trị này thành 0.3
     local cooldownValue = tool:FindFirstChild("Cooldown")
     if cooldownValue and cooldownValue:IsA("NumberValue") then
          cooldownValue.Value = 0.3
     end
 end
 
--- Kiểm tra các công cụ trong Backpack
 for _, tool in ipairs(LocalPlayer.Backpack:GetChildren()) do
     if tool:IsA("Tool") then
          adjustToolCooldown(tool)
@@ -715,7 +716,6 @@ LocalPlayer.Backpack.ChildAdded:Connect(function(child)
     end
 end)
 
--- Khi Character được thêm, kiểm tra các Tool hiện có trong nhân vật
 LocalPlayer.CharacterAdded:Connect(function(character)
     for _, tool in ipairs(character:GetChildren()) do
          if tool:IsA("Tool") then
