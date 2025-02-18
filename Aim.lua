@@ -1,13 +1,14 @@
 --[[    
-  Advanced Camera Gun Script - Siêu Nâng Cấp 2.0
+  Advanced Camera Gun Script - Siêu Nâng Cấp 3.0
   --------------------------------------------------
   Các cải tiến:
    1. Dự đoán mục tiêu dựa theo khoảng cách & tốc độ skill (1-2 giây dự đoán).
    2. Target lock cực nhanh, siêu chính xác, ưu tiên mục tiêu gần (không dùng yếu tố máu).
    3. Health Board được chỉnh sửa: chiều ngang kéo dài, chiều dọc thu nhỏ, cách head 1 stud.
-   4. Hitbox nâng cấp: khối vuông (80x80x80 mặc định) xung quanh mục tiêu, hiệu ứng flash đỏ khi nhận sát thương.
-   5. Shiftlock với BodyGyro ổn định.
-   6. GUI Settings siêu “chất”: hiệu ứng Tween cho panel, các nút hover/click, bo tròn, viền trắng, fade in/out.
+   4. Hitbox nâng cấp: khối vuông (80x80x80 mặc định) xung quanh mục tiêu, có hiệu ứng flash đỏ khi nhận sát thương.
+   5. Shiftlock cải tiến với BodyGyro ổn định.
+   6. GUI Settings “siêu chất”: panel cài đặt trượt ra vào mượt mà, các nút có hiệu ứng hover/click, bo tròn, viền trắng.
+   7. Skill Speed: Khi người chơi sử dụng các Tool có giá trị "Cooldown" (NumberValue), cooldown sẽ được giảm (ví dụ từ 2 giây xuống 0.3 giây).
 --]]    
 
 -------------------------------------
@@ -23,9 +24,9 @@ local PREDICTION_ENABLED = true   -- Bật/tắt dự đoán mục tiêu
 local CLOSE_RADIUS = 7
 local CAMERA_ROTATION_SPEED = 0.55
 local FAST_ROTATION_MULTIPLIER = 2
-local HEIGHT_DIFFERENCE_THRESHOLD = 7
+local HEIGHT_DIFFERENCE_THRESHOLD = 5
 local MOVEMENT_THRESHOLD = 0.1              
-local STATIONARY_TIMEOUT = 1               
+local STATIONARY_TIMEOUT = 5                
 
 -------------------------------------
 -- Dịch vụ và đối tượng --
@@ -69,13 +70,20 @@ local function addHoverEffect(button)
         tween:Play()
     end)
     button.MouseLeave:Connect(function()
-        local tween = TweenService:Create(button, TweenInfo.new(0.2, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {Size = UDim2.new(0, baseToggleSize.X, 0, baseToggleSize.Y)})
-        tween:Play()
+        -- Phục hồi kích thước ban đầu (dùng kích thước gốc tùy theo loại nút)
+        if button.Name == "ToggleButton" then
+            local tween = TweenService:Create(button, TweenInfo.new(0.2, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {Size = UDim2.new(0, baseToggleSize.X, 0, baseToggleSize.Y)})
+            tween:Play()
+        else
+            local tween = TweenService:Create(button, TweenInfo.new(0.2, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {Size = UDim2.new(0, baseCloseSize.X, 0, baseCloseSize.Y)})
+            tween:Play()
+        end
     end)
 end
 
 -- Nút Toggle (On/Off Aim)
 local toggleButton = Instance.new("TextButton")
+toggleButton.Name = "ToggleButton"
 toggleButton.Parent = screenGui
 toggleButton.Size = UDim2.new(0, baseToggleSize.X, 0, baseToggleSize.Y)
 toggleButton.Position = UDim2.new(0.85, 0, 0.03, 0)
@@ -140,9 +148,9 @@ local settingsFrame = Instance.new("Frame")
 settingsFrame.Name = "SettingsFrame"
 settingsFrame.Parent = screenGui
 settingsFrame.Size = UDim2.new(0, 250, 0, 200)
--- Vị trí mở: dưới nút settings; đóng: ngoài màn hình (Y âm)
-local settingsOpenPosition = UDim2.new(0.65, 0, 0.12, 0)
-local settingsClosedPosition = UDim2.new(0.65, 0, -0.5, 0)
+-- CHỈNH VỊ TRÍ: Giả sử ta muốn panel thẳng với cạnh trái của nút ⚙️ (dịch sang trái 15 pixel)
+local settingsOpenPosition = UDim2.new(0.65, -15, 0.12, 0)
+local settingsClosedPosition = UDim2.new(0.65, -15, -0.5, 0)
 settingsFrame.Position = settingsClosedPosition
 settingsFrame.BackgroundColor3 = Color3.new(0, 0, 0)
 settingsFrame.BackgroundTransparency = 0.2
@@ -429,8 +437,8 @@ local function updateHealthBoardForTarget(enemy)
     end
 
     local headSize = enemy.Head.Size
-    local boardWidth = headSize.X * 70   -- dài ra
-    local boardHeight = headSize.Y * 10    -- cao thấp lại
+    local boardWidth = headSize.X * 70   -- kéo dài theo bề ngang
+    local boardHeight = headSize.Y * 10    -- thu nhỏ theo chiều dọc
     if not healthBoards[enemy] then
         local billboard = Instance.new("BillboardGui")
         billboard.Name = "HealthBoard"
@@ -679,6 +687,39 @@ RunService.RenderStepped:Connect(function(delta)
                      bg:Destroy()
                  end
              end
+         end
+    end
+end)
+
+-------------------------------------
+-- CHỨC NĂNG SKILL SPEED: GIẢM COOLDOWN TOOL --
+-------------------------------------
+local function adjustToolCooldown(tool)
+    -- Nếu công cụ có con NumberValue tên "Cooldown", ta sẽ thiết lập giá trị này thành 0.3
+    local cooldownValue = tool:FindFirstChild("Cooldown")
+    if cooldownValue and cooldownValue:IsA("NumberValue") then
+         cooldownValue.Value = 0.3
+    end
+end
+
+-- Kiểm tra các công cụ trong Backpack
+for _, tool in ipairs(LocalPlayer.Backpack:GetChildren()) do
+    if tool:IsA("Tool") then
+         adjustToolCooldown(tool)
+    end
+end
+
+LocalPlayer.Backpack.ChildAdded:Connect(function(child)
+    if child:IsA("Tool") then
+         adjustToolCooldown(child)
+    end
+end)
+
+-- Khi Character được thêm, kiểm tra các Tool hiện có trong nhân vật
+LocalPlayer.CharacterAdded:Connect(function(character)
+    for _, tool in ipairs(character:GetChildren()) do
+         if tool:IsA("Tool") then
+              adjustToolCooldown(tool)
          end
     end
 end)
