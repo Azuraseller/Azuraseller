@@ -438,14 +438,14 @@ local function updateHealthBoardForTarget(enemy)
 
     local headSize = enemy.Head.Size
     local boardWidth = headSize.X * 70   -- kéo dài theo bề ngang
-    local boardHeight = headSize.Y * 10    -- thu nhỏ theo chiều dọc
+    local boardHeight = headSize.Y * 5    -- thu nhỏ theo chiều dọc
     if not healthBoards[enemy] then
         local billboard = Instance.new("BillboardGui")
         billboard.Name = "HealthBoard"
         billboard.Adornee = enemy.Head
         billboard.AlwaysOnTop = true
         billboard.Size = UDim2.new(0, boardWidth, 0, boardHeight)
-        billboard.StudsOffset = Vector3.new(0, 1, 0)  -- cách head 1 stud
+        billboard.StudsOffset = Vector3.new(0, 3, 0)  -- cách head 1 stud
         billboard.Parent = enemy
 
         local bg = Instance.new("Frame")
