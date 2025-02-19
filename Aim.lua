@@ -1,32 +1,34 @@
 --[[    
-  Advanced Camera Gun Script - Siêu Nâng Cấp 3.1
-  --------------------------------------------------
-  Các cải tiến:
-   1. Dự đoán mục tiêu dựa theo khoảng cách & tốc độ skill (1-2 giây dự đoán).
-   2. Target lock cực nhanh, siêu chính xác, ưu tiên mục tiêu gần (không dùng yếu tố máu).
-   3. Health Board chỉnh sửa: chiều ngang kéo dài, chiều dọc thu nhỏ, cách head 1 stud.
-   4. Hitbox nâng cấp: Khi ghim, hitbox của mục tiêu tăng thêm (80,80,80) xung quanh HRP, có màu xanh đậm với transparency cao, flash đỏ khi nhận sát thương.
-   5. Shiftlock cải tiến với BodyGyro ổn định.
-   6. GUI Settings “siêu chất”: panel settings ban đầu nhỏ (giống nút X) sẽ phóng to ra khi nhấn ⚙️, vị trí panel được dịch sang trái 1 chút.
-   7. Skill Speed: Các Tool có "Cooldown" sẽ được điều chỉnh giảm xuống (0.3 giây).
+  Advanced Camera Gun Script - Siêu Nâng Cấp 4.0 (Pro)
+  ----------------------------------------------------------
+  Các cải tiến Pro:
+   • Dự đoán mục tiêu nâng cao: sử dụng vận tốc & gia tốc (nếu có) để ước tính vị trí tương lai.
+   • Target lock nhanh, chính xác, kèm reticle hiển thị và khả năng chuyển mục tiêu (phím E).
+   • Hitbox cho mục tiêu bị ghim: kích thước mở rộng (80,80,80), màu xanh đậm trong suốt, flash đỏ khi nhận sát thương.
+   • GUI Settings Pro: Panel settings với UIGradient, tween chuyển động, hiệu ứng hover/click, vị trí căn chỉnh chính xác.
+   • Shiftlock mượt mà với BodyGyro.
+   • Skill Speed: Tool “Cooldown” giảm xuống 0.3 giây.
 --]]    
 
 -------------------------------------
--- Các biến cấu hình “điều chỉnh” --
+-- CẤU HÌNH CHÍNH (có thể chỉnh qua GUI) --
 -------------------------------------
-local SKILL_SPEED = 50            -- Tốc độ của skill (units/sec)
-local LOCK_RADIUS = 600           -- Bán kính ghim mục tiêu
+local SKILL_SPEED = 50            -- Tốc độ skill (units/sec)
+local LOCK_RADIUS = 600           -- Bán kính lock mục tiêu
 local HEALTH_BOARD_RADIUS = 900   -- Bán kính hiển thị Health Board
-local HITBOX_OFFSET = 80          -- Giá trị mở rộng hitbox (80,80,80)
-local PREDICTION_ENABLED = true   -- Bật/tắt dự đoán mục tiêu
+local HITBOX_OFFSET = 80          -- Mức mở rộng hitbox (80,80,80)
+local PREDICTION_ENABLED = true   -- Bật/tắt dự đoán
 
 -- Các tham số khác
 local CLOSE_RADIUS = 7
 local CAMERA_ROTATION_SPEED = 0.55
 local FAST_ROTATION_MULTIPLIER = 2
 local HEIGHT_DIFFERENCE_THRESHOLD = 3
-local MOVEMENT_THRESHOLD = 0.1              
-local STATIONARY_TIMEOUT = 5                
+local MOVEMENT_THRESHOLD = 0.1
+local STATIONARY_TIMEOUT = 5
+
+-- Hệ số dự đoán nâng cao (sử dụng gia tốc – ước tính đơn giản)
+local ACCELERATION_FACTOR = 0.5  -- Hệ số này có thể điều chỉnh (0.5 là mặc định)
 
 -------------------------------------
 -- Dịch vụ và đối tượng --
@@ -46,9 +48,12 @@ local aimActive = true         -- Script (và Shiftlock) bật
 local currentTarget = nil      -- Mục tiêu hiện tại
 local lastLocalPosition = nil  
 local lastMovementTime = tick()
+local previousVelocity = nil   -- Để tính gia tốc của target
 
 -- Bảng lưu Health Board (key = Character)
 local healthBoards = {}
+-- Bảng lưu reticle (để đánh dấu mục tiêu lock)
+local targetReticle = nil
 
 -- Biến lưu hitbox (khi Aim lock)
 local currentHitbox = nil
@@ -63,20 +68,15 @@ screenGui.Parent = game:GetService("CoreGui")
 local baseToggleSize = Vector2.new(100, 50)
 local baseCloseSize = Vector2.new(30, 30)
 
--- Hàm tạo hiệu ứng hover cho nút (scale tween)
-local function addHoverEffect(button)
+-- Hàm tạo hiệu ứng hover cho nút
+local function addHoverEffect(button, baseSize)
     button.MouseEnter:Connect(function()
-        local tween = TweenService:Create(button, TweenInfo.new(0.2, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {Size = UDim2.new(0, button.Size.X.Offset * 1.1, 0, button.Size.Y.Offset * 1.1)})
+        local tween = TweenService:Create(button, TweenInfo.new(0.2, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {Size = UDim2.new(0, baseSize.X * 1.1, 0, baseSize.Y * 1.1)})
         tween:Play()
     end)
     button.MouseLeave:Connect(function()
-        if button.Name == "ToggleButton" then
-            local tween = TweenService:Create(button, TweenInfo.new(0.2, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {Size = UDim2.new(0, baseToggleSize.X, 0, baseToggleSize.Y)})
-            tween:Play()
-        else
-            local tween = TweenService:Create(button, TweenInfo.new(0.2, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {Size = UDim2.new(0, baseCloseSize.X, 0, baseCloseSize.Y)})
-            tween:Play()
-        end
+        local tween = TweenService:Create(button, TweenInfo.new(0.2, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {Size = UDim2.new(0, baseSize.X, 0, baseSize.Y)})
+        tween:Play()
     end)
 end
 
@@ -99,7 +99,7 @@ local toggleUIStroke = Instance.new("UIStroke")
 toggleUIStroke.Color = Color3.fromRGB(255, 255, 255)
 toggleUIStroke.Thickness = 2
 toggleUIStroke.Parent = toggleButton
-addHoverEffect(toggleButton)
+addHoverEffect(toggleButton, baseToggleSize)
 
 -- Nút Close (X)
 local closeButton = Instance.new("TextButton")
@@ -107,7 +107,7 @@ closeButton.Parent = screenGui
 closeButton.Size = UDim2.new(0, baseCloseSize.X, 0, baseCloseSize.Y)
 closeButton.Position = UDim2.new(0.75, 0, 0.03, 0)
 closeButton.AnchorPoint = Vector2.new(0.5, 0.5)
-closeButton.Text = "✖️"
+closeButton.Text = "X"
 closeButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
 closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 closeButton.Font = Enum.Font.SourceSans
@@ -119,7 +119,7 @@ local closeUIStroke = Instance.new("UIStroke")
 closeUIStroke.Color = Color3.fromRGB(255, 255, 255)
 closeUIStroke.Thickness = 2
 closeUIStroke.Parent = closeButton
-addHoverEffect(closeButton)
+addHoverEffect(closeButton, baseCloseSize)
 
 -- Nút Settings (⚙️) – đặt bên trái nút X
 local settingsButton = Instance.new("TextButton")
@@ -140,12 +140,11 @@ local settingsUIStroke = Instance.new("UIStroke")
 settingsUIStroke.Color = Color3.fromRGB(255, 255, 255)
 settingsUIStroke.Thickness = 2
 settingsUIStroke.Parent = settingsButton
-addHoverEffect(settingsButton)
+addHoverEffect(settingsButton, baseCloseSize)
 
--- Panel Settings: Ban đầu ẩn đi với kích thước nhỏ (giống nút X)
+-- Panel Settings: Ban đầu ẩn đi (kích thước nhỏ giống nút X), vị trí căn chỉnh sang trái (offset X = -25)
 local settingsClosedSize = UDim2.new(0, baseCloseSize.X, 0, baseCloseSize.Y)
 local settingsOpenSize = UDim2.new(0, 250, 0, 200)
--- CHỈNH VỊ: Dịch panel sang trái 1 chút (offset X = -25)
 local settingsClosedPosition = UDim2.new(0.65, -25, 0.03, 0)
 local settingsOpenPosition = UDim2.new(0.65, -25, 0.12, 0)
 local settingsFrame = Instance.new("Frame")
@@ -153,7 +152,10 @@ settingsFrame.Name = "SettingsFrame"
 settingsFrame.Parent = screenGui
 settingsFrame.Size = settingsClosedSize
 settingsFrame.Position = settingsClosedPosition
-settingsFrame.BackgroundColor3 = Color3.new(0, 0, 0)
+-- Thêm UIGradient cho panel Settings
+local uiGrad = Instance.new("UIGradient")
+uiGrad.Color = ColorSequence.new({ColorSequenceKeypoint.new(0, Color3.fromRGB(30,30,30)), ColorSequenceKeypoint.new(1, Color3.fromRGB(0,0,0))})
+uiGrad.Parent = settingsFrame
 settingsFrame.BackgroundTransparency = 0.2
 local settingsFrameUICorner = Instance.new("UICorner")
 settingsFrameUICorner.CornerRadius = UDim.new(0, 10)
@@ -232,7 +234,7 @@ local function createSettingRow(parent, yPos, labelText, defaultValue, isToggle)
             else
                 local num = tonumber(textBox.Text)
                 if num then
-                    if labelText == "Skill Speed" then
+                    if labelText == "forecast Speed" then
                         SKILL_SPEED = num
                     elseif labelText == "Lock Radius" then
                         LOCK_RADIUS = num
@@ -251,13 +253,13 @@ local function createSettingRow(parent, yPos, labelText, defaultValue, isToggle)
 end
 
 -- Tạo các dòng cài đặt
-createSettingRow(settingsFrame, 10, "Skill Speed", SKILL_SPEED, false)
+createSettingRow(settingsFrame, 10, "forecast Speed", SKILL_SPEED, false)
 createSettingRow(settingsFrame, 50, "Lock Radius", LOCK_RADIUS, false)
 createSettingRow(settingsFrame, 90, "Health Board Radius", HEALTH_BOARD_RADIUS, false)
 createSettingRow(settingsFrame, 130, "Hitbox Offset", HITBOX_OFFSET, false)
 createSettingRow(settingsFrame, 170, "Prediction", PREDICTION_ENABLED, true)
 
--- Toggle Settings Frame bằng nút ⚙️: Tween cả vị trí và kích thước
+-- Tween Panel Settings khi nhấn nút ⚙️: thay đổi cả Position và Size
 settingsButton.MouseButton1Click:Connect(function()
     settingsOpen = not settingsOpen
     local goal = {}
@@ -336,7 +338,7 @@ local function getEnemiesInRadius(radius)
     return enemies
 end
 
--- Hàm chọn mục tiêu: dùng khoảng cách và góc lệch; nếu mục tiêu gần (<100) thì score giảm theo tỷ lệ.
+-- Hàm chọn mục tiêu: sử dụng khoảng cách và góc lệch.
 local function selectTarget()
     local enemies = getEnemiesInRadius(LOCK_RADIUS)
     if #enemies == 0 then return nil end
@@ -380,7 +382,7 @@ local function isValidTarget(target)
     return distance <= LOCK_RADIUS
 end
 
--- Hàm dự đoán vị trí mục tiêu dựa theo “skill travel time”
+-- Hàm dự đoán mục tiêu nâng cao: sử dụng vận tốc và ước tính gia tốc (nếu có)
 local function predictTargetPosition(target)
     local hrp = target:FindFirstChild("HumanoidRootPart")
     local head = target:FindFirstChild("Head")
@@ -393,7 +395,14 @@ local function predictTargetPosition(target)
     end
     local predictedTime = distance / SKILL_SPEED
     predictedTime = math.clamp(predictedTime, 1, 2)
-    local predictedPos = hrp.Position + hrp.Velocity * predictedTime
+    -- Ước tính gia tốc: nếu có sự thay đổi vận tốc từ frame trước
+    local currentVel = hrp.Velocity
+    local accel = Vector3.new(0,0,0)
+    if previousVelocity then
+        accel = (currentVel - previousVelocity) / deltaTime
+    end
+    previousVelocity = currentVel
+    local predictedPos = hrp.Position + currentVel * predictedTime + accel * predictedTime * predictedTime * ACCELERATION_FACTOR
     return predictedPos
 end
 
@@ -414,7 +423,30 @@ local function calculateCameraRotation(targetPosition)
     return newCFrame
 end
 
--- Health Board: chỉnh sửa kích thước (rộng hơn, cao thấp lại) và StudsOffset = (0,1,0)
+-- Tạo reticle cho mục tiêu lock (hiển thị trên head)
+local function createReticle(target)
+    if not target or not target:FindFirstChild("Head") then return end
+    local head = target.Head
+    local reticle = Instance.new("ImageLabel")
+    reticle.Name = "TargetReticle"
+    reticle.Size = UDim2.new(0, 50, 0, 50)
+    reticle.BackgroundTransparency = 1
+    reticle.Image = "rbxassetid://6034818372"  -- Ví dụ: ID asset của reticle
+    reticle.ImageColor3 = Color3.new(1, 0, 0)
+    reticle.Parent = head
+    return reticle
+end
+
+-- Xóa reticle nếu có
+local function removeReticle(target)
+    if target and target:FindFirstChild("Head") then
+        local head = target.Head
+        local reticle = head:FindFirstChild("TargetReticle")
+        if reticle then reticle:Destroy() end
+    end
+end
+
+-- Health Board: chỉnh sửa kích thước & vị trí (cách head 1 stud)
 local function updateHealthBoardForTarget(enemy)
     if not enemy or not enemy:FindFirstChild("Head") or not enemy:FindFirstChild("Humanoid") then
         return
@@ -440,15 +472,15 @@ local function updateHealthBoardForTarget(enemy)
     end
 
     local headSize = enemy.Head.Size
-    local boardWidth = headSize.X * 70   -- kéo dài theo bề ngang
-    local boardHeight = headSize.Y * 5    -- thu nhỏ theo chiều dọc
+    local boardWidth = headSize.X * 70
+    local boardHeight = headSize.Y * 5
     if not healthBoards[enemy] then
         local billboard = Instance.new("BillboardGui")
         billboard.Name = "HealthBoard"
         billboard.Adornee = enemy.Head
         billboard.AlwaysOnTop = true
         billboard.Size = UDim2.new(0, boardWidth, 0, boardHeight)
-        billboard.StudsOffset = Vector3.new(0, 10, 0)  -- cách head 1 stud
+        billboard.StudsOffset = Vector3.new(0, 20, 0)
         billboard.Parent = enemy
 
         local bg = Instance.new("Frame")
@@ -514,19 +546,42 @@ RunService.RenderStepped:Connect(function(deltaTime)
     if aimActive then
         updateLocalMovement()
         
-        -- Target lock liên tục: nếu mục tiêu không hợp lệ, chọn lại
+        -- Target Lock: Nếu mục tiêu không hợp lệ, chọn lại
         if not isValidTarget(currentTarget) then
+            removeReticle(currentTarget)
             local selected = selectTarget()
             if selected then
                 currentTarget = selected
                 locked = true
                 toggleButton.Text = "ON"
                 toggleButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+                -- Tạo reticle mới
+                removeReticle(currentTarget)
+                targetReticle = createReticle(currentTarget)
             else
                 currentTarget = nil
                 locked = false
                 toggleButton.Text = "OFF"
                 toggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+            end
+        end
+
+        -- Cho phép chuyển mục tiêu bằng phím E
+        if UserInputService:IsKeyDown(Enum.KeyCode.E) then
+            local candidates = getEnemiesInRadius(LOCK_RADIUS)
+            table.sort(candidates, function(a, b)
+                return (a.HumanoidRootPart.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude <
+                       (b.HumanoidRootPart.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude
+            end)
+            if #candidates > 1 then
+                for i, enemy in ipairs(candidates) do
+                    if enemy == currentTarget and candidates[i+1] then
+                        currentTarget = candidates[i+1]
+                        removeReticle(currentTarget)
+                        targetReticle = createReticle(currentTarget)
+                        break
+                    end
+                end
             end
         end
 
@@ -537,6 +592,7 @@ RunService.RenderStepped:Connect(function(deltaTime)
             if enemyHumanoid and enemyHRP and localHRP then
                 local distance = (enemyHRP.Position - localHRP.Position).Magnitude
                 if enemyHumanoid.Health <= 0 or distance > LOCK_RADIUS then
+                    removeReticle(currentTarget)
                     currentTarget = nil
                     locked = false
                     toggleButton.Text = "OFF"
@@ -556,7 +612,7 @@ RunService.RenderStepped:Connect(function(deltaTime)
             end
         end
 
-        -- ========== PHẦN HITBOX ==========
+        -- ========== HITBOX ==========
         if locked and currentTarget then
             local enemyHRP = currentTarget:FindFirstChild("HumanoidRootPart")
             local enemyHumanoid = currentTarget:FindFirstChild("Humanoid")
@@ -564,7 +620,7 @@ RunService.RenderStepped:Connect(function(deltaTime)
                 if not currentHitbox then
                     currentHitbox = Instance.new("Part")
                     currentHitbox.Name = "ExpandedHitbox"
-                    currentHitbox.Transparency = 0.9  -- siêu trong suốt
+                    currentHitbox.Transparency = 0.9
                     currentHitbox.CanCollide = false
                     currentHitbox.Anchored = false
                     currentHitbox.Color = Color3.new(0, 0, 0.5)  -- xanh dương đậm
@@ -623,6 +679,7 @@ Players.PlayerRemoving:Connect(function(player)
 end)
 
 LocalPlayer.CharacterRemoving:Connect(function(character)
+    removeReticle(currentTarget)
     currentTarget = nil
     locked = false
     if currentHitbox then
@@ -643,8 +700,8 @@ end)
 ----------------------------------------------------------------
 --        TÍNH NĂNG SHIFTLOCK CẢM ỨNG (CẢI TIẾN)                --
 ----------------------------------------------------------------
-local idleSpeedThreshold = 0.5   -- Nếu HRP dưới ngưỡng này, coi như đứng yên
-local angleThreshold = 5         -- Ngưỡng cập nhật xoay (độ)
+local idleSpeedThreshold = 0.5   -- Nếu HRP đứng yên
+local angleThreshold = 5         -- Ngưỡng xoay (độ)
 RunService.RenderStepped:Connect(function(delta)
     local character = LocalPlayer.Character
     if not character then return end
