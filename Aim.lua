@@ -1,34 +1,39 @@
 --[[    
-  Advanced Camera Gun Script - Siêu Nâng Cấp 4.0 (Pro)
+  Advanced Camera Gun Script - Siêu Nâng Cấp 4.1 (Pro+)
   ----------------------------------------------------------
-  Các cải tiến Pro:
-   • Dự đoán mục tiêu nâng cao: sử dụng vận tốc & gia tốc (nếu có) để ước tính vị trí tương lai.
-   • Target lock nhanh, chính xác, kèm reticle hiển thị và khả năng chuyển mục tiêu (phím E).
-   • Hitbox cho mục tiêu bị ghim: kích thước mở rộng (80,80,80), màu xanh đậm trong suốt, flash đỏ khi nhận sát thương.
-   • GUI Settings Pro: Panel settings với UIGradient, tween chuyển động, hiệu ứng hover/click, vị trí căn chỉnh chính xác.
-   • Shiftlock mượt mà với BodyGyro.
-   • Skill Speed: Tool “Cooldown” giảm xuống 0.3 giây.
+  Các nâng cấp:
+   • Hitbox nâng cao: nếu mục tiêu nhận sát thương hoặc di chuyển mạnh, hitbox flash đỏ nhanh hơn.
+   • Nếu mục tiêu di chuyển nhanh hoặc di chuyển ra sau Aim (góc lệch > 90°), camera sẽ xoay nhanh để theo kịp.
+   • Dự đoán vị trí được nâng cấp: sử dụng vận tốc và gia tốc với hệ số điều chỉnh.
+   • Panel Settings toggle (bấm nút ⚙️) từ kích thước nhỏ sang lớn và ngược lại, với tween chuyển động mới.
 --]]    
 
 -------------------------------------
--- CẤU HÌNH CHÍNH (có thể chỉnh qua GUI) --
+-- CẤU HÌNH (có thể chỉnh qua GUI) --
 -------------------------------------
 local SKILL_SPEED = 50            -- Tốc độ skill (units/sec)
 local LOCK_RADIUS = 600           -- Bán kính lock mục tiêu
 local HEALTH_BOARD_RADIUS = 900   -- Bán kính hiển thị Health Board
 local HITBOX_OFFSET = 80          -- Mức mở rộng hitbox (80,80,80)
-local PREDICTION_ENABLED = true   -- Bật/tắt dự đoán
+local PREDICTION_ENABLED = true   -- Bật/tắt dự đoán mục tiêu
 
 -- Các tham số khác
 local CLOSE_RADIUS = 7
 local CAMERA_ROTATION_SPEED = 0.55
 local FAST_ROTATION_MULTIPLIER = 2
 local HEIGHT_DIFFERENCE_THRESHOLD = 3
-local MOVEMENT_THRESHOLD = 0.1
+local MOVEMENT_THRESHOLD = 0.1              
 local STATIONARY_TIMEOUT = 5
 
--- Hệ số dự đoán nâng cao (sử dụng gia tốc – ước tính đơn giản)
-local ACCELERATION_FACTOR = 0.5  -- Hệ số này có thể điều chỉnh (0.5 là mặc định)
+-- Hệ số dự đoán nâng cao: sử dụng gia tốc (nếu có)
+local ACCELERATION_FACTOR = 0.5  
+
+-- Ngưỡng xoay “gấp tốc” nếu mục tiêu di chuyển nhanh hoặc nằm sau (90°)
+local QUICK_ROTATE_ANGLE = math.rad(90)
+local QUICK_ROTATE_SPEED = 1  -- Snap nhanh
+
+-- Ngưỡng tốc độ của target để coi là di chuyển nhanh (ví dụ > 30)
+local TARGET_FAST_SPEED = 30
 
 -------------------------------------
 -- Dịch vụ và đối tượng --
@@ -41,21 +46,20 @@ local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 
 -------------------------------------
--- Biến trạng thái toàn cục --
+-- BIẾN TRẠNG THÁI TOÀN CỤC --
 -------------------------------------
 local locked = false           -- Aim lock On/Off
 local aimActive = true         -- Script (và Shiftlock) bật
 local currentTarget = nil      -- Mục tiêu hiện tại
 local lastLocalPosition = nil  
 local lastMovementTime = tick()
-local previousVelocity = nil   -- Để tính gia tốc của target
+local previousVelocity = nil   -- Dùng để tính gia tốc của target
 
--- Bảng lưu Health Board (key = Character)
+-- Bảng lưu Health Board và reticle
 local healthBoards = {}
--- Bảng lưu reticle (để đánh dấu mục tiêu lock)
 local targetReticle = nil
 
--- Biến lưu hitbox (khi Aim lock)
+-- Biến lưu hitbox (chỉ khi Aim lock)
 local currentHitbox = nil
 
 -------------------------------------
@@ -68,7 +72,7 @@ screenGui.Parent = game:GetService("CoreGui")
 local baseToggleSize = Vector2.new(100, 50)
 local baseCloseSize = Vector2.new(30, 30)
 
--- Hàm tạo hiệu ứng hover cho nút
+-- Hàm tạo hiệu ứng hover cho nút (cho Toggle, Close, Settings)
 local function addHoverEffect(button, baseSize)
     button.MouseEnter:Connect(function()
         local tween = TweenService:Create(button, TweenInfo.new(0.2, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {Size = UDim2.new(0, baseSize.X * 1.1, 0, baseSize.Y * 1.1)})
@@ -152,9 +156,9 @@ settingsFrame.Name = "SettingsFrame"
 settingsFrame.Parent = screenGui
 settingsFrame.Size = settingsClosedSize
 settingsFrame.Position = settingsClosedPosition
--- Thêm UIGradient cho panel Settings
+-- Thêm UIGradient cho panel Settings (giao diện pro)
 local uiGrad = Instance.new("UIGradient")
-uiGrad.Color = ColorSequence.new({ColorSequenceKeypoint.new(0, Color3.fromRGB(30,30,30)), ColorSequenceKeypoint.new(1, Color3.fromRGB(0,0,0))})
+uiGrad.Color = ColorSequence.new({ColorSequenceKeypoint.new(0, Color3.fromRGB(20,20,20)), ColorSequenceKeypoint.new(1, Color3.fromRGB(0,0,0))})
 uiGrad.Parent = settingsFrame
 settingsFrame.BackgroundTransparency = 0.2
 local settingsFrameUICorner = Instance.new("UICorner")
@@ -234,7 +238,7 @@ local function createSettingRow(parent, yPos, labelText, defaultValue, isToggle)
             else
                 local num = tonumber(textBox.Text)
                 if num then
-                    if labelText == "forecast Speed" then
+                    if labelText == "Skill Speed" then
                         SKILL_SPEED = num
                     elseif labelText == "Lock Radius" then
                         LOCK_RADIUS = num
@@ -253,13 +257,13 @@ local function createSettingRow(parent, yPos, labelText, defaultValue, isToggle)
 end
 
 -- Tạo các dòng cài đặt
-createSettingRow(settingsFrame, 10, "forecast Speed", SKILL_SPEED, false)
+createSettingRow(settingsFrame, 10, "Skill Speed", SKILL_SPEED, false)
 createSettingRow(settingsFrame, 50, "Lock Radius", LOCK_RADIUS, false)
 createSettingRow(settingsFrame, 90, "Health Board Radius", HEALTH_BOARD_RADIUS, false)
 createSettingRow(settingsFrame, 130, "Hitbox Offset", HITBOX_OFFSET, false)
 createSettingRow(settingsFrame, 170, "Prediction", PREDICTION_ENABLED, true)
 
--- Tween Panel Settings khi nhấn nút ⚙️: thay đổi cả Position và Size
+-- Toggle Panel Settings khi nhấn nút ⚙️: Sử dụng tween mới (không dùng hiệu ứng cũ)
 settingsButton.MouseButton1Click:Connect(function()
     settingsOpen = not settingsOpen
     local goal = {}
@@ -338,7 +342,7 @@ local function getEnemiesInRadius(radius)
     return enemies
 end
 
--- Hàm chọn mục tiêu: sử dụng khoảng cách và góc lệch.
+-- Hàm chọn mục tiêu: sử dụng khoảng cách và góc lệch
 local function selectTarget()
     local enemies = getEnemiesInRadius(LOCK_RADIUS)
     if #enemies == 0 then return nil end
@@ -382,7 +386,8 @@ local function isValidTarget(target)
     return distance <= LOCK_RADIUS
 end
 
--- Hàm dự đoán mục tiêu nâng cao: sử dụng vận tốc và ước tính gia tốc (nếu có)
+-- Hàm dự đoán vị trí mục tiêu nâng cao:
+-- Sử dụng vận tốc và ước tính gia tốc. Nếu mục tiêu di chuyển nhanh, thời gian dự đoán được giảm.
 local function predictTargetPosition(target)
     local hrp = target:FindFirstChild("HumanoidRootPart")
     local head = target:FindFirstChild("Head")
@@ -395,13 +400,16 @@ local function predictTargetPosition(target)
     end
     local predictedTime = distance / SKILL_SPEED
     predictedTime = math.clamp(predictedTime, 1, 2)
-    -- Ước tính gia tốc: nếu có sự thay đổi vận tốc từ frame trước
     local currentVel = hrp.Velocity
     local accel = Vector3.new(0,0,0)
     if previousVelocity then
         accel = (currentVel - previousVelocity) / deltaTime
     end
     previousVelocity = currentVel
+    -- Nếu mục tiêu di chuyển nhanh (vượt qua TARGET_FAST_SPEED) hoặc nếu góc lệch > 90° thì giảm predictedTime để snap nhanh hơn.
+    if currentVel.Magnitude > TARGET_FAST_SPEED then
+        predictedTime = 0.5
+    end
     local predictedPos = hrp.Position + currentVel * predictedTime + accel * predictedTime * predictedTime * ACCELERATION_FACTOR
     return predictedPos
 end
@@ -423,7 +431,7 @@ local function calculateCameraRotation(targetPosition)
     return newCFrame
 end
 
--- Tạo reticle cho mục tiêu lock (hiển thị trên head)
+-- Tạo reticle hiển thị trên head của mục tiêu lock
 local function createReticle(target)
     if not target or not target:FindFirstChild("Head") then return end
     local head = target.Head
@@ -431,13 +439,12 @@ local function createReticle(target)
     reticle.Name = "TargetReticle"
     reticle.Size = UDim2.new(0, 50, 0, 50)
     reticle.BackgroundTransparency = 1
-    reticle.Image = "rbxassetid://6034818372"  -- Ví dụ: ID asset của reticle
+    reticle.Image = "rbxassetid://6034818372"  -- ID asset của reticle
     reticle.ImageColor3 = Color3.new(1, 0, 0)
     reticle.Parent = head
     return reticle
 end
 
--- Xóa reticle nếu có
 local function removeReticle(target)
     if target and target:FindFirstChild("Head") then
         local head = target.Head
@@ -459,7 +466,6 @@ local function updateHealthBoardForTarget(enemy)
         end
         return
     end
-
     local localCharacter = LocalPlayer.Character
     if not localCharacter or not localCharacter:FindFirstChild("HumanoidRootPart") then return end
     local distance = (enemy.HumanoidRootPart.Position - localCharacter.HumanoidRootPart.Position).Magnitude
@@ -470,7 +476,6 @@ local function updateHealthBoardForTarget(enemy)
         end
         return
     end
-
     local headSize = enemy.Head.Size
     local boardWidth = headSize.X * 70
     local boardHeight = headSize.Y * 5
@@ -480,25 +485,21 @@ local function updateHealthBoardForTarget(enemy)
         billboard.Adornee = enemy.Head
         billboard.AlwaysOnTop = true
         billboard.Size = UDim2.new(0, boardWidth, 0, boardHeight)
-        billboard.StudsOffset = Vector3.new(0, 20, 0)
+        billboard.StudsOffset = Vector3.new(0, 25, 0)
         billboard.Parent = enemy
-
         local bg = Instance.new("Frame")
         bg.Name = "Background"
         bg.Size = UDim2.new(1, 0, 1, 0)
         bg.BackgroundColor3 = Color3.new(0, 0, 0)
         bg.BorderSizePixel = 0
         bg.Parent = billboard
-
         local bgStroke = Instance.new("UIStroke")
         bgStroke.Color = Color3.fromRGB(255, 255, 255)
         bgStroke.Thickness = 2
         bgStroke.Parent = bg
-
         local bgCorner = Instance.new("UICorner")
         bgCorner.CornerRadius = UDim.new(0, 10)
         bgCorner.Parent = bg
-
         local healthFill = Instance.new("Frame")
         healthFill.Name = "HealthFill"
         local ratio = math.clamp(humanoid.Health / humanoid.MaxHealth, 0, 1)
@@ -506,11 +507,9 @@ local function updateHealthBoardForTarget(enemy)
         healthFill.BackgroundColor3 = (ratio > 0.7 and Color3.fromRGB(0,255,0)) or (ratio > 0.25 and Color3.fromRGB(255,255,0)) or Color3.fromRGB(255,0,0)
         healthFill.BorderSizePixel = 0
         healthFill.Parent = bg
-
         local fillCorner = Instance.new("UICorner")
         fillCorner.CornerRadius = UDim.new(0, 10)
         fillCorner.Parent = healthFill
-
         healthBoards[enemy] = billboard
     else
         local billboard = healthBoards[enemy]
@@ -546,7 +545,7 @@ RunService.RenderStepped:Connect(function(deltaTime)
     if aimActive then
         updateLocalMovement()
         
-        -- Target Lock: Nếu mục tiêu không hợp lệ, chọn lại
+        -- Nếu mục tiêu không hợp lệ, chọn lại và tạo reticle
         if not isValidTarget(currentTarget) then
             removeReticle(currentTarget)
             local selected = selectTarget()
@@ -555,7 +554,6 @@ RunService.RenderStepped:Connect(function(deltaTime)
                 locked = true
                 toggleButton.Text = "ON"
                 toggleButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
-                -- Tạo reticle mới
                 removeReticle(currentTarget)
                 targetReticle = createReticle(currentTarget)
             else
@@ -566,7 +564,7 @@ RunService.RenderStepped:Connect(function(deltaTime)
             end
         end
 
-        -- Cho phép chuyển mục tiêu bằng phím E
+        -- Cho phép chuyển mục tiêu bằng phím E (sắp xếp theo khoảng cách)
         if UserInputService:IsKeyDown(Enum.KeyCode.E) then
             local candidates = getEnemiesInRadius(LOCK_RADIUS)
             table.sort(candidates, function(a, b)
@@ -600,12 +598,18 @@ RunService.RenderStepped:Connect(function(deltaTime)
                 else
                     local predictedPos = predictTargetPosition(currentTarget)
                     if predictedPos then
+                        -- Nếu mục tiêu di chuyển ra sau hoặc có góc lệch lớn (>90°) thì snap camera nhanh
+                        local camDir = Camera.CFrame.LookVector
+                        local targetDir = (predictedPos - localHRP.Position).Unit
+                        local angleDiff = math.acos(math.clamp(camDir:Dot(targetDir), -1, 1))
+                        local dynamicSpeed = CAMERA_ROTATION_SPEED + (angleDiff / math.pi) * (FAST_ROTATION_MULTIPLIER - CAMERA_ROTATION_SPEED)
+                        if angleDiff > QUICK_ROTATE_ANGLE or enemyHRP.Velocity.Magnitude > TARGET_FAST_SPEED then
+                            dynamicSpeed = QUICK_ROTATE_SPEED  -- Snap nhanh
+                        end
                         if distance <= CLOSE_RADIUS then
                             predictedPos = Vector3.new(predictedPos.X, Camera.CFrame.Position.Y, predictedPos.Z)
                         end
                         local targetCFrame = calculateCameraRotation(predictedPos)
-                        local angleDiff = math.acos(math.clamp(Camera.CFrame.LookVector:Dot((predictedPos - Camera.CFrame.Position).Unit), -1, 1))
-                        local dynamicSpeed = CAMERA_ROTATION_SPEED + (angleDiff / math.pi) * (FAST_ROTATION_MULTIPLIER - CAMERA_ROTATION_SPEED)
                         Camera.CFrame = Camera.CFrame:Lerp(targetCFrame, dynamicSpeed)
                     end
                 end
@@ -623,7 +627,7 @@ RunService.RenderStepped:Connect(function(deltaTime)
                     currentHitbox.Transparency = 0.9
                     currentHitbox.CanCollide = false
                     currentHitbox.Anchored = false
-                    currentHitbox.Color = Color3.new(0, 0, 0.5)  -- xanh dương đậm
+                    currentHitbox.Color = Color3.new(0, 0, 0.5)
                     currentHitbox.Size = enemyHRP.Size + Vector3.new(HITBOX_OFFSET, HITBOX_OFFSET, HITBOX_OFFSET)
                     currentHitbox.Parent = currentTarget
                     local weld = Instance.new("WeldConstraint")
@@ -634,10 +638,14 @@ RunService.RenderStepped:Connect(function(deltaTime)
                 else
                     currentHitbox.Size = enemyHRP.Size + Vector3.new(HITBOX_OFFSET, HITBOX_OFFSET, HITBOX_OFFSET)
                     local lastHealth = currentHitbox:GetAttribute("LastHealth") or enemyHumanoid.Health
+                    local flashTime = 0.1
+                    if enemyHRP.Velocity.Magnitude > TARGET_FAST_SPEED then
+                        flashTime = 0.05
+                    end
                     if enemyHumanoid.Health < lastHealth then
                         local originalColor = currentHitbox.Color
-                        currentHitbox.Color = Color3.new(1, 0, 0)  -- flash đỏ
-                        task.delay(0.1, function()
+                        currentHitbox.Color = Color3.new(1, 0, 0)
+                        task.delay(flashTime, function()
                             if currentHitbox then
                                 currentHitbox.Color = originalColor
                             end
@@ -654,7 +662,7 @@ RunService.RenderStepped:Connect(function(deltaTime)
         end
         -- ========== END HITBOX ==========
 
-        -- Hiệu ứng oscilla cho nút Toggle khi lock
+        -- Hiệu ứng oscilla cho nút Toggle khi lock (giữ nguyên)
         if locked then
             local oscillation = 0.05 * math.sin(tick() * 5)
             local newWidth = baseToggleSize.X * (1 + oscillation)
@@ -698,7 +706,7 @@ LocalPlayer.CharacterAdded:Connect(function(character)
 end)
 
 ----------------------------------------------------------------
---        TÍNH NĂNG SHIFTLOCK CẢM ỨNG (CẢI TIẾN)                --
+-- TÍNH NĂNG SHIFTLOCK CẢM ỨNG (CẢI TIẾN) --
 ----------------------------------------------------------------
 local idleSpeedThreshold = 0.5   -- Nếu HRP đứng yên
 local angleThreshold = 5         -- Ngưỡng xoay (độ)
@@ -707,12 +715,10 @@ RunService.RenderStepped:Connect(function(delta)
     if not character then return end
     local humanoid = character:FindFirstChild("Humanoid")
     if not humanoid then return end
-
-    if aimActive then  -- Khi Aim bật, Shiftlock được cải tiến
+    if aimActive then
          humanoid.AutoRotate = false
          local hrp = character:FindFirstChild("HumanoidRootPart")
          if not hrp then return end
-
          local bg = hrp:FindFirstChild("ShiftlockBodyGyro")
          if not bg then
               bg = Instance.new("BodyGyro")
@@ -722,13 +728,11 @@ RunService.RenderStepped:Connect(function(delta)
               bg.P = 3000
               bg.D = 500
          end
-
          local _, cameraYawRad, _ = Camera.CFrame:ToEulerAnglesYXZ()
          local desiredYaw = math.deg(cameraYawRad)
          local currentYaw = hrp.Orientation.Y
          local diff = math.abs(currentYaw - desiredYaw)
          if diff > 180 then diff = 360 - diff end
-
          if hrp.Velocity.Magnitude < idleSpeedThreshold then
              if diff > angleThreshold then
                  bg.CFrame = CFrame.new(hrp.Position) * CFrame.Angles(0, math.rad(desiredYaw), 0)
