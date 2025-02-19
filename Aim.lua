@@ -1,12 +1,11 @@
 --[[    
-  Advanced Camera Gun Script - Siêu Nâng Cấp 4.2 (Pro Final)
-  -----------------------------------------------------------
-  Các nâng cấp mới:
-   • Hitbox nâng cao: Nếu mục tiêu di chuyển nhanh hoặc nhận sát thương, hitbox flash đỏ nhanh hơn.
-   • Nếu mục tiêu di chuyển nhanh hoặc nằm sau Aim (góc lệch > 90°), camera sẽ xoay nhanh để theo kịp.
-   • Dự đoán vị trí được nâng cao: sử dụng vận tốc và ước tính gia tốc với hệ số điều chỉnh.
-   • Panel Settings của nút ⚙️ khi bấm sẽ từ kích thước nhỏ (ẩn) phóng to ra (250×200) hiển thị các thông số; bấm lại sẽ thu nhỏ và ẩn hoàn toàn.
-   • Các chức năng khác (Shiftlock, Skill Speed, …) giữ nguyên và được cải tiến.
+  Advanced Camera Gun Script - Siêu Nâng Cấp 4.1 (Pro+)
+  ----------------------------------------------------------
+  Các nâng cấp:
+   • Hitbox nâng cao: nếu mục tiêu nhận sát thương hoặc di chuyển mạnh, hitbox flash đỏ nhanh hơn.
+   • Nếu mục tiêu di chuyển nhanh hoặc di chuyển ra sau Aim (góc lệch > 90°), camera sẽ xoay nhanh để theo kịp.
+   • Dự đoán vị trí được nâng cấp: sử dụng vận tốc và gia tốc với hệ số điều chỉnh.
+   • Panel Settings toggle (bấm nút ⚙️) từ kích thước nhỏ sang lớn và ngược lại, với tween chuyển động mới.
 --]]    
 
 -------------------------------------
@@ -47,7 +46,7 @@ local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 
 -------------------------------------
--- BIẾN TRẠNG TOÀN CỤC --
+-- BIẾN TRẠNG THÁI TOÀN CỤC --
 -------------------------------------
 local locked = false           -- Aim lock On/Off
 local aimActive = true         -- Script (và Shiftlock) bật
@@ -112,7 +111,7 @@ closeButton.Parent = screenGui
 closeButton.Size = UDim2.new(0, baseCloseSize.X, 0, baseCloseSize.Y)
 closeButton.Position = UDim2.new(0.75, 0, 0.03, 0)
 closeButton.AnchorPoint = Vector2.new(0.5, 0.5)
-closeButton.Text = "X"
+closeButton.Text = "✖️"
 closeButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
 closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 closeButton.Font = Enum.Font.SourceSans
@@ -147,7 +146,7 @@ settingsUIStroke.Thickness = 2
 settingsUIStroke.Parent = settingsButton
 addHoverEffect(settingsButton, baseCloseSize)
 
--- Panel Settings: Ban đầu ẩn đi (kích thước nhỏ bằng nút ⚙️), vị trí căn chỉnh (offset X = -25)
+-- Panel Settings: Ban đầu ẩn đi (kích thước nhỏ giống nút X), vị trí căn chỉnh sang trái (offset X = -25)
 local settingsClosedSize = UDim2.new(0, baseCloseSize.X, 0, baseCloseSize.Y)
 local settingsOpenSize = UDim2.new(0, 250, 0, 200)
 local settingsClosedPosition = UDim2.new(0.65, -25, 0.03, 0)
@@ -169,21 +168,130 @@ settingsFrameUICorner.Parent = settingsFrame
 local settingsOpen = false
 local tweenInfoSettings = TweenInfo.new(0.3, Enum.EasingStyle.Sine, Enum.EasingDirection.Out)
 
--- Chức năng toggle panel Settings: Khi bấm ⚙️, nếu panel đang ẩn, mở ra (với tween); nếu đang mở, thu nhỏ về 0 và ẩn.
-settingsButton.MouseButton1Click:Connect(function()
-    if settingsOpen then
-        -- Thu nhỏ panel Settings về 0 và ẩn
-        local tween = TweenService:Create(settingsFrame, tweenInfoSettings, {Size = UDim2.new(0, 0, 0, 0)})
-        tween:Play()
-        tween.Completed:Connect(function()
-            settingsFrame.Visible = false
-            settingsOpen = false
+-- Hàm tạo dòng cài đặt (label + TextBox hoặc Toggle)
+local function createSettingRow(parent, yPos, labelText, defaultValue, isToggle)
+    local rowFrame = Instance.new("Frame")
+    rowFrame.Parent = parent
+    rowFrame.Size = UDim2.new(1, -10, 0, 30)
+    rowFrame.Position = UDim2.new(0, 5, 0, yPos)
+    rowFrame.BackgroundTransparency = 1
+
+    -- Thêm UIScale để tạo hiệu ứng phóng to/thu nhỏ
+    local uiScale = Instance.new("UIScale")
+    -- Ban đầu ẩn (scale = 0) vì panel đang ở trạng thái đóng
+    uiScale.Scale = 0
+    uiScale.Parent = rowFrame
+
+    local label = Instance.new("TextLabel")
+    label.Parent = rowFrame
+    label.Size = UDim2.new(0.5, -5, 1, 0)
+    label.Position = UDim2.new(0, 0, 0, 0)
+    label.BackgroundTransparency = 1
+    label.Text = labelText .. ":"
+    label.Font = Enum.Font.SourceSans
+    label.TextSize = 18
+    label.TextColor3 = Color3.new(1,1,1)
+
+    if isToggle then
+        local toggleBtn = Instance.new("TextButton")
+        toggleBtn.Parent = rowFrame
+        toggleBtn.Size = UDim2.new(0.5, -5, 1, 0)
+        toggleBtn.Position = UDim2.new(0.5, 5, 0, 0)
+        toggleBtn.BackgroundColor3 = Color3.fromRGB(255,255,255)
+        toggleBtn.TextColor3 = Color3.new(0,0,0)
+        toggleBtn.Font = Enum.Font.SourceSans
+        toggleBtn.TextSize = 18
+        toggleBtn.Text = defaultValue and "On" or "Off"
+        toggleBtn.AutoButtonColor = true
+        local uicorner = Instance.new("UICorner")
+        uicorner.CornerRadius = UDim.new(0, 10)
+        uicorner.Parent = toggleBtn
+        local uistroke = Instance.new("UIStroke")
+        uistroke.Color = Color3.new(1,1,1)
+        uistroke.Thickness = 2
+        uistroke.Parent = toggleBtn
+
+        toggleBtn.MouseButton1Click:Connect(function()
+            defaultValue = not defaultValue
+            toggleBtn.Text = defaultValue and "On" or "Off"
+            if labelText == "Prediction" then
+                PREDICTION_ENABLED = defaultValue
+            end
         end)
     else
-        settingsFrame.Visible = true
-        local tween = TweenService:Create(settingsFrame, tweenInfoSettings, {Size = settingsOpenSize, Position = settingsOpenPosition})
-        tween:Play()
-        settingsOpen = true
+        local textBox = Instance.new("TextBox")
+        textBox.Parent = rowFrame
+        textBox.Size = UDim2.new(0.5, -5, 1, 0)
+        textBox.Position = UDim2.new(0.5, 5, 0, 0)
+        textBox.BackgroundColor3 = Color3.fromRGB(255,255,255)
+        textBox.TextColor3 = Color3.new(0,0,0)
+        textBox.Font = Enum.Font.SourceSans
+        textBox.TextSize = 18
+        textBox.Text = tostring(defaultValue)
+        textBox.ClearTextOnFocus = true
+        textBox.PlaceholderText = tostring(defaultValue)
+        local uicorner = Instance.new("UICorner")
+        uicorner.CornerRadius = UDim.new(0, 10)
+        uicorner.Parent = textBox
+        local uistroke = Instance.new("UIStroke")
+        uistroke.Color = Color3.new(1,1,1)
+        uistroke.Thickness = 2
+        uistroke.Parent = textBox
+
+        textBox.FocusLost:Connect(function(enterPressed)
+            if textBox.Text == "" then
+                textBox.Text = tostring(defaultValue)
+            else
+                local num = tonumber(textBox.Text)
+                if num then
+                    if labelText == "Skill Speed" then
+                        SKILL_SPEED = num
+                    elseif labelText == "Lock Radius" then
+                        LOCK_RADIUS = num
+                    elseif labelText == "Health Board Radius" then
+                        HEALTH_BOARD_RADIUS = num
+                    elseif labelText == "Hitbox Offset" then
+                        HITBOX_OFFSET = num
+                    end
+                    defaultValue = num
+                else
+                    textBox.Text = tostring(defaultValue)
+                end
+            end
+        end)
+    end
+end
+
+-- Tạo các dòng cài đặt
+createSettingRow(settingsFrame, 10, "Skill Speed", SKILL_SPEED, false)
+createSettingRow(settingsFrame, 50, "Lock Radius", LOCK_RADIUS, false)
+createSettingRow(settingsFrame, 90, "Health Board Radius", HEALTH_BOARD_RADIUS, false)
+createSettingRow(settingsFrame, 130, "Hitbox Offset", HITBOX_OFFSET, false)
+createSettingRow(settingsFrame, 170, "Prediction", PREDICTION_ENABLED, true)
+
+-- Toggle Panel Settings khi nhấn nút ⚙️: Sử dụng tween mới cho panel và cho từng dòng cài đặt
+settingsButton.MouseButton1Click:Connect(function()
+    settingsOpen = not settingsOpen
+    local goal = {}
+    if settingsOpen then
+        goal.Position = settingsOpenPosition
+        goal.Size = settingsOpenSize
+    else
+        goal.Position = settingsClosedPosition
+        goal.Size = settingsClosedSize
+    end
+    local tween = TweenService:Create(settingsFrame, tweenInfoSettings, goal)
+    tween:Play()
+    
+    -- Tween các dòng cài đặt (hiệu ứng scale: từ 0 -> 1 khi mở, 1 -> 0 khi đóng)
+    for _, child in ipairs(settingsFrame:GetChildren()) do
+        if child:IsA("Frame") then
+            local uiScale = child:FindFirstChildOfClass("UIScale")
+            if uiScale then
+                local tweenScale = TweenService:Create(uiScale, tweenInfoSettings, {Scale = settingsOpen and 1 or 0})
+                tweenScale:Play()
+            end
+        end
     end
 end)
 
@@ -251,7 +359,7 @@ local function getEnemiesInRadius(radius)
     return enemies
 end
 
--- Hàm chọn mục tiêu: sử dụng khoảng cách và góc lệch.
+-- Hàm chọn mục tiêu: sử dụng khoảng cách và góc lệch
 local function selectTarget()
     local enemies = getEnemiesInRadius(LOCK_RADIUS)
     if #enemies == 0 then return nil end
@@ -295,7 +403,8 @@ local function isValidTarget(target)
     return distance <= LOCK_RADIUS
 end
 
--- Hàm dự đoán vị trí mục tiêu nâng cao: sử dụng vận tốc và gia tốc.
+-- Hàm dự đoán vị trí mục tiêu nâng cao:
+-- Sử dụng vận tốc và ước tính gia tốc. Nếu mục tiêu di chuyển nhanh, thời gian dự đoán được giảm.
 local function predictTargetPosition(target)
     local hrp = target:FindFirstChild("HumanoidRootPart")
     local head = target:FindFirstChild("Head")
@@ -314,6 +423,7 @@ local function predictTargetPosition(target)
         accel = (currentVel - previousVelocity) / deltaTime
     end
     previousVelocity = currentVel
+    -- Nếu mục tiêu di chuyển nhanh (vượt qua TARGET_FAST_SPEED) hoặc nếu góc lệch > 90° thì giảm predictedTime để snap nhanh hơn.
     if currentVel.Magnitude > TARGET_FAST_SPEED then
         predictedTime = 0.5
     end
@@ -346,7 +456,7 @@ local function createReticle(target)
     reticle.Name = "TargetReticle"
     reticle.Size = UDim2.new(0, 50, 0, 50)
     reticle.BackgroundTransparency = 1
-    reticle.Image = "rbxassetid://6034818372"
+    reticle.Image = "rbxassetid://6034818372"  -- ID asset của reticle
     reticle.ImageColor3 = Color3.new(1, 0, 0)
     reticle.Parent = head
     return reticle
@@ -385,14 +495,14 @@ local function updateHealthBoardForTarget(enemy)
     end
     local headSize = enemy.Head.Size
     local boardWidth = headSize.X * 70
-    local boardHeight = headSize.Y * 5
+    local boardHeight = headSize.Y * 10
     if not healthBoards[enemy] then
         local billboard = Instance.new("BillboardGui")
         billboard.Name = "HealthBoard"
         billboard.Adornee = enemy.Head
         billboard.AlwaysOnTop = true
         billboard.Size = UDim2.new(0, boardWidth, 0, boardHeight)
-        billboard.StudsOffset = Vector3.new(0, 30, 0)
+        billboard.StudsOffset = Vector3.new(0, 1, 0)
         billboard.Parent = enemy
         local bg = Instance.new("Frame")
         bg.Name = "Background"
@@ -505,12 +615,13 @@ RunService.RenderStepped:Connect(function(deltaTime)
                 else
                     local predictedPos = predictTargetPosition(currentTarget)
                     if predictedPos then
+                        -- Nếu mục tiêu di chuyển ra sau hoặc có góc lệch lớn (>90°) thì snap camera nhanh
                         local camDir = Camera.CFrame.LookVector
                         local targetDir = (predictedPos - localHRP.Position).Unit
                         local angleDiff = math.acos(math.clamp(camDir:Dot(targetDir), -1, 1))
                         local dynamicSpeed = CAMERA_ROTATION_SPEED + (angleDiff / math.pi) * (FAST_ROTATION_MULTIPLIER - CAMERA_ROTATION_SPEED)
                         if angleDiff > QUICK_ROTATE_ANGLE or enemyHRP.Velocity.Magnitude > TARGET_FAST_SPEED then
-                            dynamicSpeed = QUICK_ROTATE_SPEED
+                            dynamicSpeed = QUICK_ROTATE_SPEED  -- Snap nhanh
                         end
                         if distance <= CLOSE_RADIUS then
                             predictedPos = Vector3.new(predictedPos.X, Camera.CFrame.Position.Y, predictedPos.Z)
@@ -568,7 +679,7 @@ RunService.RenderStepped:Connect(function(deltaTime)
         end
         -- ========== END HITBOX ==========
 
-        -- Hiệu ứng oscilla cho nút Toggle khi lock
+        -- Hiệu ứng oscilla cho nút Toggle khi lock (giữ nguyên)
         if locked then
             local oscillation = 0.05 * math.sin(tick() * 5)
             local newWidth = baseToggleSize.X * (1 + oscillation)
@@ -609,56 +720,6 @@ LocalPlayer.CharacterAdded:Connect(function(character)
     local humanoid = character:WaitForChild("Humanoid")
     Camera.CameraSubject = humanoid
     Camera.CameraType = Enum.CameraType.Custom
-end)
-
-----------------------------------------------------------------
--- TÍNH NĂNG SHIFTLOCK CẢM ỨNG (CẢI TIẾN) --
-----------------------------------------------------------------
-local idleSpeedThreshold = 0.5   -- Nếu HRP đứng yên
-local angleThreshold = 5         -- Ngưỡng xoay (độ)
-RunService.RenderStepped:Connect(function(delta)
-    local character = LocalPlayer.Character
-    if not character then return end
-    local humanoid = character:FindFirstChild("Humanoid")
-    if not humanoid then return end
-    if aimActive then
-         humanoid.AutoRotate = false
-         local hrp = character:FindFirstChild("HumanoidRootPart")
-         if not hrp then return end
-         local bg = hrp:FindFirstChild("ShiftlockBodyGyro")
-         if not bg then
-              bg = Instance.new("BodyGyro")
-              bg.Name = "ShiftlockBodyGyro"
-              bg.Parent = hrp
-              bg.MaxTorque = Vector3.new(0, math.huge, 0)
-              bg.P = 3000
-              bg.D = 500
-         end
-         local _, cameraYawRad, _ = Camera.CFrame:ToEulerAnglesYXZ()
-         local desiredYaw = math.deg(cameraYawRad)
-         local currentYaw = hrp.Orientation.Y
-         local diff = math.abs(currentYaw - desiredYaw)
-         if diff > 180 then diff = 360 - diff end
-         if hrp.Velocity.Magnitude < idleSpeedThreshold then
-             if diff > angleThreshold then
-                 bg.CFrame = CFrame.new(hrp.Position) * CFrame.Angles(0, math.rad(desiredYaw), 0)
-             end
-         else
-             bg.CFrame = CFrame.new(hrp.Position) * CFrame.Angles(0, math.rad(desiredYaw), 0)
-         end
-    else
-         humanoid.AutoRotate = true
-         local character = LocalPlayer.Character
-         if character then
-             local hrp = character:FindFirstChild("HumanoidRootPart")
-             if hrp then
-                 local bg = hrp:FindFirstChild("ShiftlockBodyGyro")
-                 if bg then
-                     bg:Destroy()
-                 end
-             end
-         end
-    end
 end)
 
 -------------------------------------
