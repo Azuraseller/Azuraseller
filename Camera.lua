@@ -1,13 +1,14 @@
 ------------------------------------------------------------
--- Script Clone Camera 360° (Roblox Lua)
+-- Upgraded Clone Camera Script (Roblox Lua)
 -- Yêu cầu:
--- 1. Khi bật script, camera của người chơi chuyển sang cloneCamera.
--- 2. cloneCamera di chuyển theo vị trí của nhân vật nhưng không bị ràng buộc bởi hướng của head.
--- 3. Cho phép xoay 360° tự do (góc nhìn độc lập với hướng của nhân vật).
--- 4. Hệ thống chống can hiệp (anti-tamper) tích hợp.
+-- 1. Camera clone mô phỏng camera third-person mặc định đi theo player.
+-- 2. Sửa lỗi camera “cứng”: cho phép xoay 360° và zoom mượt.
+-- 3. Không bị can thiệp bởi bất cứ thứ gì, kể cả ShiftLock.
+-- 4. Khi bật, camera có khả năng xoay tự do, không ghim vào head.
+-- 5. Hỗ trợ xoay & zoom qua vuốt (touch) trên điện thoại.
+-- 6. Hành vi giống như camera trong hầu hết game Roblox.
 ------------------------------------------------------------
 
--- Dịch vụ cần dùng
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -15,84 +16,196 @@ local UserInputService = game:GetService("UserInputService")
 local player = Players.LocalPlayer
 if not player then return end
 
--- Đợi nhân vật load xong
+-- Lấy nhân vật và phần cần theo dõi (HumanoidRootPart hoặc Head)
 local character = player.Character or player.CharacterAdded:Wait()
-local head = character:WaitForChild("Head")
-local rootPart = character:FindFirstChild("HumanoidRootPart") or head
+local rootPart = character:WaitForChild("HumanoidRootPart") or character:WaitForChild("Head")
 
--- Lấy camera gốc và tạo cloneCamera
+-- Lấy camera gốc và tạo cloneCamera mới
 local originalCamera = workspace.CurrentCamera
 
 local cloneCamera = Instance.new("Camera")
 cloneCamera.Name = "CloneCamera"
 cloneCamera.FieldOfView = originalCamera.FieldOfView
 cloneCamera.CameraType = Enum.CameraType.Scriptable
-
--- Chuyển sang cloneCamera
 workspace.CurrentCamera = cloneCamera
 
--- Các biến điều khiển camera
-local cameraRotation = Vector2.new(0, 0)   -- Góc xoay tự do (x: yaw, y: pitch)
-local cameraDistance = 10                  -- Khoảng cách mặc định từ nhân vật
-local sensitivity = 0.2                    -- Độ nhạy chuột
-
-local minDistance = 1
+------------------------------------------------------------
+-- CÁC THAM SỐ ĐIỀU KHIỂN CAMERA
+------------------------------------------------------------
+local yaw = 0           -- Góc xoay ngang (đơn vị: độ)
+local pitch = 10        -- Góc xoay dọc (đơn vị: độ), mặc định hơi nghiêng xuống
+local cameraDistance = 10
+local minDistance = 5
 local maxDistance = 1000
 
--- HÀM: Tính toán CFrame mong muốn cho camera clone dựa trên vị trí của nhân vật và góc xoay tự do
+-- Độ nhạy điều khiển trên PC
+local rotationSensitivity = 0.3  -- xoay bằng chuột
+local zoomSensitivity = 1        -- zoom bằng MouseWheel
+
+-- Độ nhạy điều khiển trên mobile (touch)
+local touchRotationSensitivity = 0.2  -- xoay bằng vuốt
+local touchZoomSensitivity = 0.05       -- zoom bằng pinch
+
+-- Hệ số smoothing (làm mượt chuyển động)
+local smoothing = 0.2
+
+------------------------------------------------------------
+-- BIẾN HỖ TRỢ INPUT
+------------------------------------------------------------
+-- Cho PC (chuột)
+local isRotating = false
+local lastMousePos = nil
+
+-- Cho mobile (touch)
+local activeTouches = {}          -- Bảng lưu vị trí các ngón đang chạm (key: TouchId)
+local lastTouchPositions = {}     -- Lưu vị trí trước đó cho mỗi TouchId
+local lastPinchDistance = nil      -- Khoảng cách pinch trước đó
+
+-- Hàm đếm số phần tử trong bảng (dành cho bảng dạng từ điển)
+local function countTable(t)
+    local count = 0
+    for _ in pairs(t) do
+        count = count + 1
+    end
+    return count
+end
+
+------------------------------------------------------------
+-- HÀM XỬ LÝ VỊ TRÍ MỤC TIÊU (nhân vật)
+------------------------------------------------------------
+local function getTargetPosition()
+    -- Cập nhật lại nhân vật nếu cần (trường hợp respawn)
+    if not character or not character.Parent then
+        character = player.Character or player.CharacterAdded:Wait()
+        rootPart = character:FindFirstChild("HumanoidRootPart") or character:FindFirstChild("Head")
+    end
+    local offset = Vector3.new(0, 2, 0)  -- Dịch chuyển nhẹ lên trên
+    return rootPart.Position + offset
+end
+
+------------------------------------------------------------
+-- HÀM TÍNH TOÁN CFrame MONG MUỐN CHO CAMERA
+------------------------------------------------------------
 local function getDesiredCFrame()
-    -- Luôn cập nhật rootPart (trường hợp respawn)
-    rootPart = character:FindFirstChild("HumanoidRootPart") or head
-    local basePosition = rootPart.Position
-    -- Tạo offset theo khoảng cách mong muốn (trục Z dương theo không gian của CFrame xoay)
-    local offset = CFrame.new(0, 0, cameraDistance)
-    -- Tạo CFrame xoay tự do: lưu ý thứ tự các góc để đảm bảo xoay đúng
-    local rotationCFrame = CFrame.Angles(math.rad(cameraRotation.Y), math.rad(cameraRotation.X), 0)
-    -- Dùng vị trí của nhân vật làm gốc, áp dụng góc xoay tự do và dịch chuyển theo offset
-    local desiredCFrame = CFrame.new(basePosition) * rotationCFrame * offset
+    local target = getTargetPosition()
+    pitch = math.clamp(pitch, -89, 89)  -- Giới hạn pitch để tránh lộn
+    local radPitch = math.rad(pitch)
+    local radYaw = math.rad(yaw)
+    local rotationCFrame = CFrame.Angles(radPitch, radYaw, 0)
+    -- Đặt camera phía sau target: dùng dịch chuyển âm theo trục Z
+    local desiredCFrame = CFrame.new(target) * rotationCFrame * CFrame.new(0, 0, -cameraDistance)
     return desiredCFrame
 end
 
--- HÀM: Cập nhật cloneCamera
+------------------------------------------------------------
+-- HÀM CẬP NHẬT CAMERA VỚI SMOOTHING
+------------------------------------------------------------
+local currentCameraCFrame = cloneCamera.CFrame
 local function updateCamera()
     local desiredCFrame = getDesiredCFrame()
-    cloneCamera.CFrame = desiredCFrame
-    -- Đặt Focus vào vị trí của nhân vật
-    cloneCamera.Focus = CFrame.new(rootPart.Position)
+    currentCameraCFrame = currentCameraCFrame:Lerp(desiredCFrame, smoothing)
+    cloneCamera.CFrame = currentCameraCFrame
+    cloneCamera.Focus = CFrame.new(getTargetPosition())
 end
 
--- Lắng nghe sự thay đổi của chuột để xoay camera 360°
-UserInputService.InputChanged:Connect(function(input, gameProcessed)
-    if gameProcessed then return end
-    if input.UserInputType == Enum.UserInputType.MouseMovement then
-        -- Cộng dồn delta để xoay camera theo chuột (cho phép xem 360°)
-        cameraRotation = cameraRotation + Vector2.new(-input.Delta.X * sensitivity, -input.Delta.Y * sensitivity)
-        updateCamera()
-    elseif input.UserInputType == Enum.UserInputType.MouseWheel then
-        -- Điều chỉnh zoom
-        cameraDistance = math.clamp(cameraDistance - input.Position.Z, minDistance, maxDistance)
-        updateCamera()
-    end
-end)
-
--- HỆ THỐNG CHỐNG CAN HIỆP (Anti-Tamper):
--- Nếu có ai đó thay đổi workspace.CurrentCamera, tự động reset về cloneCamera.
+------------------------------------------------------------
+-- HỆ THỐNG CHỐNG CAN HIỆP (ANTI-TAMPER)
+------------------------------------------------------------
 workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
     if workspace.CurrentCamera ~= cloneCamera then
         workspace.CurrentCamera = cloneCamera
-        warn("Anti-Tamper: Reset CurrentCamera về cloneCamera")
+        warn("Anti-Tamper: Reset CurrentCamera to cloneCamera")
     end
 end)
 
--- Cập nhật camera liên tục để theo dõi vị trí của nhân vật
+------------------------------------------------------------
+-- XỬ LÝ INPUT (PC & Mobile)
+------------------------------------------------------------
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+
+    -- Cho PC: khi nhấn chuột phải (MouseButton2)
+    if input.UserInputType == Enum.UserInputType.MouseButton2 then
+        isRotating = true
+        lastMousePos = input.Position
+    end
+
+    -- Cho mobile: khi chạm màn hình
+    if input.UserInputType == Enum.UserInputType.Touch then
+        activeTouches[input.TouchId] = input.Position
+        lastTouchPositions[input.TouchId] = input.Position
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input, gameProcessed)
+    if input.UserInputType == Enum.UserInputType.MouseButton2 then
+        isRotating = false
+        lastMousePos = nil
+    end
+
+    if input.UserInputType == Enum.UserInputType.Touch then
+        activeTouches[input.TouchId] = nil
+        lastTouchPositions[input.TouchId] = nil
+        if countTable(activeTouches) < 2 then
+            lastPinchDistance = nil
+        end
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+
+    -- Xử lý chuột (PC)
+    if input.UserInputType == Enum.UserInputType.MouseMovement and isRotating then
+        if lastMousePos then
+            local delta = input.Position - lastMousePos
+            yaw = yaw - delta.X * rotationSensitivity
+            pitch = pitch - delta.Y * rotationSensitivity
+            lastMousePos = input.Position
+        end
+    end
+
+    if input.UserInputType == Enum.UserInputType.MouseWheel then
+        cameraDistance = math.clamp(cameraDistance - input.Position.Z * zoomSensitivity, minDistance, maxDistance)
+    end
+
+    -- Xử lý cảm ứng (Mobile)
+    if input.UserInputType == Enum.UserInputType.Touch then
+        local previousPos = lastTouchPositions[input.TouchId]
+        lastTouchPositions[input.TouchId] = input.Position
+        activeTouches[input.TouchId] = input.Position
+
+        local touchCount = countTable(activeTouches)
+        if touchCount == 1 and previousPos then
+            -- Vuốt đơn: xoay camera
+            local delta = input.Position - previousPos
+            yaw = yaw - delta.X * touchRotationSensitivity
+            pitch = pitch - delta.Y * touchRotationSensitivity
+        elseif touchCount >= 2 then
+            -- Pinch: zoom camera
+            local touches = {}
+            for _, pos in pairs(activeTouches) do
+                table.insert(touches, pos)
+            end
+            if #touches >= 2 then
+                local currentDistance = (touches[1] - touches[2]).Magnitude
+                if lastPinchDistance then
+                    local deltaDistance = currentDistance - lastPinchDistance
+                    cameraDistance = math.clamp(cameraDistance - deltaDistance * touchZoomSensitivity, minDistance, maxDistance)
+                end
+                lastPinchDistance = currentDistance
+            end
+        end
+    end
+end)
+
+------------------------------------------------------------
+-- CẬP NHẬT CAMERA MỖI KHUNG Hình
+------------------------------------------------------------
 RunService.RenderStepped:Connect(function(deltaTime)
     updateCamera()
 end)
 
 ------------------------------------------------------------
--- Ghi chú:
--- Script này đảm bảo camera clone:
--- 1. Luôn theo dõi vị trí của nhân vật (dựa trên HumanoidRootPart hoặc Head).
--- 2. Cho phép xoay 360° tự do, không phụ thuộc vào hướng của nhân vật.
--- 3. Không bị ảnh hưởng bởi các script khác.
+-- KẾT THÚC SCRIPT
 ------------------------------------------------------------
