@@ -7,7 +7,7 @@ local character = player.Character or player.CharacterAdded:Wait()
 local hrp = character:WaitForChild("HumanoidRootPart")
 local camera = workspace.CurrentCamera
 
--- Biến điều khiển chế độ camera custom
+-- Khởi tạo custom camera
 local customCameraEnabled = true
 camera.CameraType = Enum.CameraType.Scriptable
 
@@ -16,32 +16,32 @@ local cameraDistance = 10         -- Khoảng cách giữa camera và nhân vậ
 local cameraYaw = 0               -- Góc xoay ngang (yaw)
 local cameraPitch = 20            -- Góc xoay dọc (pitch)
 local rotateSpeed = 0.2           -- Tốc độ xoay camera
-local zoomSpeed = 0.1             -- Tốc độ zoom (điều chỉnh phù hợp)
-local minDistance = 5             -- Zoom tối thiểu
-local maxDistance = 50            -- Zoom tối đa
+local zoomSpeed = 0.1             -- Tốc độ zoom
+local minDistance = 5             -- Khoảng cách zoom tối thiểu
+local maxDistance = 50            -- Khoảng cách zoom tối đa
 
 local isTouchDevice = UserInputService.TouchEnabled
 
----------------------------
--- Xử lý nhập liệu Desktop
----------------------------
+--------------------------------------------------
+-- Xử lý nhập liệu cho Desktop (sử dụng chuột)
+--------------------------------------------------
 if not isTouchDevice then
-    -- Khóa chuột để nhận input chính xác
+    -- Nếu gặp lỗi với việc khóa chuột, bạn có thể tạm thời bỏ qua 2 dòng dưới đây.
     UserInputService.MouseBehavior = Enum.MouseBehavior.LockCenter
     UserInputService.MouseIconEnabled = false
 
-    -- Xoay camera bằng di chuyển chuột
+    -- Xoay camera bằng chuột
     UserInputService.InputChanged:Connect(function(input, gameProcessed)
         if gameProcessed then return end
         if customCameraEnabled and input.UserInputType == Enum.UserInputType.MouseMovement then
             local delta = input.Delta
             cameraYaw = cameraYaw - delta.X * rotateSpeed
             cameraPitch = cameraPitch - delta.Y * rotateSpeed
-            cameraPitch = math.clamp(cameraPitch, -89, 89)
+            cameraPitch = math.clamp(cameraPitch, -80, 80)
         end
     end)
 
-    -- Nhận các phím và sự kiện cuộn chuột
+    -- Zoom bằng chuột cuộn và các phím chức năng
     UserInputService.InputBegan:Connect(function(input, gameProcessed)
         if gameProcessed then return end
         if input.UserInputType == Enum.UserInputType.MouseWheel then
@@ -50,7 +50,7 @@ if not isTouchDevice then
             end
         elseif input.UserInputType == Enum.UserInputType.Keyboard then
             if input.KeyCode == Enum.KeyCode.V then
-                -- Toggle chuyển đổi giữa custom camera và camera mặc định
+                -- Chuyển đổi giữa custom camera và camera mặc định
                 customCameraEnabled = not customCameraEnabled
                 if customCameraEnabled then
                     camera.CameraType = Enum.CameraType.Scriptable
@@ -58,7 +58,7 @@ if not isTouchDevice then
                     camera.CameraType = Enum.CameraType.Custom
                 end
             elseif input.KeyCode == Enum.KeyCode.R then
-                -- Reset góc quay và zoom về mặc định
+                -- Reset góc quay và khoảng cách zoom về mặc định
                 cameraYaw = 0
                 cameraPitch = 20
                 cameraDistance = 10
@@ -67,9 +67,9 @@ if not isTouchDevice then
     end)
 end
 
----------------------------
--- Xử lý nhập liệu Mobile
----------------------------
+--------------------------------------------------
+-- Xử lý nhập liệu cho Mobile (sử dụng cảm ứng)
+--------------------------------------------------
 if isTouchDevice then
     local activeTouches = {}   -- Lưu trữ các cảm ứng đang hoạt động
     local lastTouchDistance = nil
@@ -108,11 +108,11 @@ if isTouchDevice then
             for _, data in pairs(activeTouches) do
                 cameraYaw = cameraYaw - data.delta.X * rotateSpeed
                 cameraPitch = cameraPitch - data.delta.Y * rotateSpeed
-                cameraPitch = math.clamp(cameraPitch, -89, 89)
+                cameraPitch = math.clamp(cameraPitch, -80, 80)
                 data.delta = Vector2.new(0,0)
             end
         elseif touchCount >= 2 and customCameraEnabled then
-            -- Với 2 ngón: pinch zoom
+            -- Với 2 ngón: pinch để zoom
             local touchesList = {}
             for _, data in pairs(activeTouches) do
                 table.insert(touchesList, data)
@@ -131,17 +131,25 @@ if isTouchDevice then
     end)
 end
 
------------------------------------
--- Cập nhật vị trí & góc nhìn camera
------------------------------------
+--------------------------------------------------
+-- Cập nhật vị trí & góc nhìn của camera mỗi frame
+--------------------------------------------------
 RunService.RenderStepped:Connect(function()
     if customCameraEnabled and character and hrp then
-        local pivot = hrp.Position  -- Điểm xoay của camera là vị trí của HumanoidRootPart
-        local offset = Vector3.new(0, 0, cameraDistance)
-        local rotation = CFrame.Angles(math.rad(cameraPitch), math.rad(cameraYaw), 0)
-        local cameraOffset = rotation * offset
-        local cameraPosition = pivot + cameraOffset
-        -- Đặt camera sao cho luôn nhìn về pivot (nhân vật)
-        camera.CFrame = CFrame.new(cameraPosition, pivot)
+        -- Đảm bảo camera đang ở chế độ Scriptable
+        if camera.CameraType ~= Enum.CameraType.Scriptable then
+            camera.CameraType = Enum.CameraType.Scriptable
+        end
+
+        local pivot = hrp.Position
+
+        -- Tính toán offset bằng cách nhân các CFrame để xoay theo pitch và yaw
+        local cameraOffset = CFrame.new(0, 0, cameraDistance) *
+                             CFrame.Angles(math.rad(cameraPitch), 0, 0) *
+                             CFrame.Angles(0, math.rad(cameraYaw), 0)
+        local cameraPosition = pivot + cameraOffset.Position
+
+        -- Dùng CFrame.lookAt để đảm bảo camera luôn hướng về nhân vật
+        camera.CFrame = CFrame.lookAt(cameraPosition, pivot)
     end
 end)
