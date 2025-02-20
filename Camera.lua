@@ -1,170 +1,147 @@
---[[
-  Advanced Anti-Interference Camera Clone Script for Roblox
-
-  Mô tả:
-  - Clone camera gốc và chuyển góc nhìn qua camera clone.
-  - Thiết lập camera ban đầu sang Scriptable, khóa CameraMode và MouseBehavior để vô hiệu hóa shiftlock hay can thiệp từ bên ngoài.
-  - Hệ thống "chống can hiệp": Theo dõi các thuộc tính quan trọng (CameraType, CameraMode, MouseBehavior)
-    và tự động khôi phục nếu có sự thay đổi từ các script khác.
-  - Hỗ trợ smooth transition giữa camera gốc và camera clone.
-  - Cung cấp một controller để mở rộng thêm các tính năng (di chuyển, thay đổi FOV, …).
---]]
-
 local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
 
 local player = Players.LocalPlayer
-local originalCamera = workspace.CurrentCamera
+local character = player.Character or player.CharacterAdded:Wait()
+local hrp = character:WaitForChild("HumanoidRootPart")
+local camera = workspace.CurrentCamera
 
---------------------------
--- Thiết lập ban đầu:
---------------------------
--- Chuyển camera gốc sang chế độ Scriptable để hoàn toàn tự điều khiển
-originalCamera.CameraType = Enum.CameraType.Scriptable
+-- Biến điều khiển chế độ camera custom
+local customCameraEnabled = true
+camera.CameraType = Enum.CameraType.Scriptable
 
--- Khóa CameraMode của người chơi (ví dụ: LockFirstPerson) để vô hiệu shiftlock mặc định
-player.CameraMode = Enum.CameraMode.LockFirstPerson
+-- Các thông số camera
+local cameraDistance = 10         -- Khoảng cách giữa camera và nhân vật (zoom)
+local cameraYaw = 0               -- Góc xoay ngang (yaw)
+local cameraPitch = 20            -- Góc xoay dọc (pitch)
+local rotateSpeed = 0.2           -- Tốc độ xoay camera
+local zoomSpeed = 0.1             -- Tốc độ zoom (điều chỉnh phù hợp)
+local minDistance = 5             -- Zoom tối thiểu
+local maxDistance = 50            -- Zoom tối đa
 
--- Đặt MouseBehavior thành LockCenter để hạn chế can thiệp từ input mặc định
-UserInputService.MouseBehavior = Enum.MouseBehavior.LockCenter
+local isTouchDevice = UserInputService.TouchEnabled
 
--- Nếu có thuộc tính DevEnableMouseLock (dành cho một số game), tắt nó đi
-if player.DevEnableMouseLock then
-    player.DevEnableMouseLock = false
+---------------------------
+-- Xử lý nhập liệu Desktop
+---------------------------
+if not isTouchDevice then
+    -- Khóa chuột để nhận input chính xác
+    UserInputService.MouseBehavior = Enum.MouseBehavior.LockCenter
+    UserInputService.MouseIconEnabled = false
+
+    -- Xoay camera bằng di chuyển chuột
+    UserInputService.InputChanged:Connect(function(input, gameProcessed)
+        if gameProcessed then return end
+        if customCameraEnabled and input.UserInputType == Enum.UserInputType.MouseMovement then
+            local delta = input.Delta
+            cameraYaw = cameraYaw - delta.X * rotateSpeed
+            cameraPitch = cameraPitch - delta.Y * rotateSpeed
+            cameraPitch = math.clamp(cameraPitch, -89, 89)
+        end
+    end)
+
+    -- Nhận các phím và sự kiện cuộn chuột
+    UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        if gameProcessed then return end
+        if input.UserInputType == Enum.UserInputType.MouseWheel then
+            if customCameraEnabled then
+                cameraDistance = math.clamp(cameraDistance - input.Position.Z * zoomSpeed, minDistance, maxDistance)
+            end
+        elseif input.UserInputType == Enum.UserInputType.Keyboard then
+            if input.KeyCode == Enum.KeyCode.V then
+                -- Toggle chuyển đổi giữa custom camera và camera mặc định
+                customCameraEnabled = not customCameraEnabled
+                if customCameraEnabled then
+                    camera.CameraType = Enum.CameraType.Scriptable
+                else
+                    camera.CameraType = Enum.CameraType.Custom
+                end
+            elseif input.KeyCode == Enum.KeyCode.R then
+                -- Reset góc quay và zoom về mặc định
+                cameraYaw = 0
+                cameraPitch = 20
+                cameraDistance = 10
+            end
+        end
+    end)
 end
 
---------------------------
--- Clone và cấu hình cameraClone:
---------------------------
-local cameraClone = originalCamera:Clone()
-cameraClone.Name = "CameraClone"
-cameraClone.Parent = workspace  -- Đảm bảo luôn nằm trong workspace
+---------------------------
+-- Xử lý nhập liệu Mobile
+---------------------------
+if isTouchDevice then
+    local activeTouches = {}   -- Lưu trữ các cảm ứng đang hoạt động
+    local lastTouchDistance = nil
 
--- Bảng lưu trữ trạng thái mong muốn của cameraClone (có thể mở rộng thêm nếu cần)
-local desiredState = {
-    CFrame = cameraClone.CFrame,
-    FieldOfView = cameraClone.FieldOfView,
-    CameraSubject = cameraClone.CameraSubject,
-    Focus = cameraClone.Focus,
-}
+    UserInputService.TouchStarted:Connect(function(touch, processed)
+        if processed then return end
+        activeTouches[touch.FingerId] = {position = touch.Position, delta = Vector2.new(0,0)}
+    end)
 
---------------------------
--- Cấu hình Smooth Transition:
---------------------------
-local useSmoothTransition = true
-local smoothSpeed = 10  -- Điều chỉnh tốc độ chuyển mượt (cao hơn = nhanh hơn)
+    UserInputService.TouchMoved:Connect(function(touch, processed)
+        if processed then return end
+        local data = activeTouches[touch.FingerId]
+        if data then
+            local newPos = touch.Position
+            data.delta = newPos - data.position
+            data.position = newPos
+        end
+    end)
 
---------------------------
--- Hàm cập nhật camera mỗi frame:
---------------------------
-local function updateCamera(dt)
-    -- Bảo vệ thuộc tính: Nếu ai đó thay đổi, tự động khôi phục lại giá trị
-    if originalCamera.CameraType ~= Enum.CameraType.Scriptable then
-        originalCamera.CameraType = Enum.CameraType.Scriptable
-    end
-    if player.CameraMode ~= Enum.CameraMode.LockFirstPerson then
-        player.CameraMode = Enum.CameraMode.LockFirstPerson
-    end
-    if UserInputService.MouseBehavior ~= Enum.MouseBehavior.LockCenter then
-        UserInputService.MouseBehavior = Enum.MouseBehavior.LockCenter
-    end
+    UserInputService.TouchEnded:Connect(function(touch, processed)
+        if processed then return end
+        activeTouches[touch.FingerId] = nil
+        if next(activeTouches) == nil then
+            lastTouchDistance = nil
+        end
+    end)
 
-    -- Cập nhật góc nhìn theo cameraClone (có smooth transition hoặc trực tiếp)
-    if useSmoothTransition then
-        originalCamera.CFrame = originalCamera.CFrame:Lerp(cameraClone.CFrame, math.clamp(dt * smoothSpeed, 0, 1))
-        originalCamera.FieldOfView = originalCamera.FieldOfView + (cameraClone.FieldOfView - originalCamera.FieldOfView) * math.clamp(dt * smoothSpeed, 0, 1)
-    else
-        originalCamera.CFrame = cameraClone.CFrame
-        originalCamera.FieldOfView = cameraClone.FieldOfView
-    end
+    RunService.RenderStepped:Connect(function()
+        local touchCount = 0
+        for _, _ in pairs(activeTouches) do
+            touchCount = touchCount + 1
+        end
 
-    -- Đồng bộ các thuộc tính khác
-    originalCamera.CameraSubject = cameraClone.CameraSubject
-    originalCamera.Focus = cameraClone.Focus
+        if touchCount == 1 and customCameraEnabled then
+            -- Với 1 ngón: xoay camera
+            for _, data in pairs(activeTouches) do
+                cameraYaw = cameraYaw - data.delta.X * rotateSpeed
+                cameraPitch = cameraPitch - data.delta.Y * rotateSpeed
+                cameraPitch = math.clamp(cameraPitch, -89, 89)
+                data.delta = Vector2.new(0,0)
+            end
+        elseif touchCount >= 2 and customCameraEnabled then
+            -- Với 2 ngón: pinch zoom
+            local touchesList = {}
+            for _, data in pairs(activeTouches) do
+                table.insert(touchesList, data)
+            end
+            if #touchesList >= 2 then
+                local pos1 = touchesList[1].position
+                local pos2 = touchesList[2].position
+                local currentDistance = (pos1 - pos2).Magnitude
+                if lastTouchDistance then
+                    local deltaDistance = currentDistance - lastTouchDistance
+                    cameraDistance = math.clamp(cameraDistance - deltaDistance * zoomSpeed, minDistance, maxDistance)
+                end
+                lastTouchDistance = currentDistance
+            end
+        end
+    end)
 end
 
-local renderSteppedConnection = RunService.RenderStepped:Connect(function(dt)
-    updateCamera(dt)
-end)
-
---------------------------
--- Hệ thống chống can hiệp: Sử dụng GetPropertyChangedSignal để theo dõi thay đổi
---------------------------
--- Bảo vệ cameraClone (nếu bị gỡ khỏi workspace, tự động gán lại)
-cameraClone:GetPropertyChangedSignal("Parent"):Connect(function()
-    if cameraClone.Parent ~= workspace then
-        cameraClone.Parent = workspace
+-----------------------------------
+-- Cập nhật vị trí & góc nhìn camera
+-----------------------------------
+RunService.RenderStepped:Connect(function()
+    if customCameraEnabled and character and hrp then
+        local pivot = hrp.Position  -- Điểm xoay của camera là vị trí của HumanoidRootPart
+        local offset = Vector3.new(0, 0, cameraDistance)
+        local rotation = CFrame.Angles(math.rad(cameraPitch), math.rad(cameraYaw), 0)
+        local cameraOffset = rotation * offset
+        local cameraPosition = pivot + cameraOffset
+        -- Đặt camera sao cho luôn nhìn về pivot (nhân vật)
+        camera.CFrame = CFrame.new(cameraPosition, pivot)
     end
 end)
-
--- Theo dõi các thuộc tính của cameraClone để cập nhật trạng thái mong muốn
-cameraClone:GetPropertyChangedSignal("CFrame"):Connect(function()
-    desiredState.CFrame = cameraClone.CFrame
-end)
-cameraClone:GetPropertyChangedSignal("FieldOfView"):Connect(function()
-    desiredState.FieldOfView = cameraClone.FieldOfView
-end)
-cameraClone:GetPropertyChangedSignal("CameraSubject"):Connect(function()
-    desiredState.CameraSubject = cameraClone.CameraSubject
-end)
-cameraClone:GetPropertyChangedSignal("Focus"):Connect(function()
-    desiredState.Focus = cameraClone.Focus
-end)
-
--- Ngoài ra, giám sát camera gốc và các thuộc tính quan trọng của người chơi:
-originalCamera:GetPropertyChangedSignal("CameraType"):Connect(function()
-    if originalCamera.CameraType ~= Enum.CameraType.Scriptable then
-        originalCamera.CameraType = Enum.CameraType.Scriptable
-    end
-end)
-player:GetPropertyChangedSignal("CameraMode"):Connect(function()
-    if player.CameraMode ~= Enum.CameraMode.LockFirstPerson then
-        player.CameraMode = Enum.CameraMode.LockFirstPerson
-    end
-end)
-UserInputService:GetPropertyChangedSignal("MouseBehavior"):Connect(function()
-    if UserInputService.MouseBehavior ~= Enum.MouseBehavior.LockCenter then
-        UserInputService.MouseBehavior = Enum.MouseBehavior.LockCenter
-    end
-end)
-
---------------------------
--- Controller: Cung cấp các hàm điều khiển mở rộng cho cameraClone
---------------------------
-local CameraController = {}
-
--- Cho phép bật/tắt chuyển mượt và điều chỉnh tốc độ
-function CameraController:SetSmoothTransition(enable, speed)
-    useSmoothTransition = enable
-    if speed then
-        smoothSpeed = speed
-    end
-end
-
--- Di chuyển cameraClone đến vị trí mới (có thể kết hợp tweening, input, v.v.)
-function CameraController:MoveCamera(newCFrame)
-    cameraClone.CFrame = newCFrame
-end
-
--- Thay đổi FieldOfView của cameraClone
-function CameraController:SetFOV(newFOV)
-    cameraClone.FieldOfView = newFOV
-end
-
--- Hàm hủy bỏ script, giải phóng kết nối và reset lại camera gốc
-function CameraController:Destroy()
-    if renderSteppedConnection then
-        renderSteppedConnection:Disconnect()
-        renderSteppedConnection = nil
-    end
-    originalCamera.CameraType = Enum.CameraType.Custom  -- Reset lại chế độ mặc định
-    if cameraClone and cameraClone.Parent then
-        cameraClone:Destroy()
-    end
-end
-
-print("Advanced Anti-Interference Camera Clone Script đã được kích hoạt.")
-
--- Nếu dùng dạng ModuleScript, return đối tượng controller để sử dụng lại ở các script khác.
-return CameraController
