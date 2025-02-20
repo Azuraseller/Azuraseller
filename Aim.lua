@@ -1,11 +1,12 @@
 --[[    
-  Advanced Camera Gun Script - Pro Edition 5.0
+  Advanced Camera Gun Script - Pro Edition 6.0
   --------------------------------------------------
   Cải tiến:
-   1. Nếu mục tiêu nằm sau (hoặc thay đổi đột ngột), camera xoay ngay lập tức để lock chính xác.
-   2. Tự điều chỉnh liên tục sao cho lock luôn ghim chính xác vào mục tiêu.
-   3. GUI được tối giản: panel cài đặt chứa 5 dòng (Lock Radius, Health Board, Hitbox Offset, Prediction, Hitbox) theo bố cục dọc.
-   4. Panel Settings có hiệu ứng phóng to/thu nhỏ mượt mà (cùng tween TextTransparency của các control).
+   1. Lock luôn ghim vào head mục tiêu – không lệch, không giật.
+   2. Dự đoán vị trí chỉ hoạt động nếu khoảng cách từ LocalPlayer đến mục tiêu ≥350.
+   3. Auto lock: nếu mục tiêu trong bán kính 600 trong hơn 5 giây, Aim tự động bật.
+   4. Panel cài đặt được thu gọn với text nhỏ hơn, nằm ngay dưới nút ⚙️.
+   5. Code được cải tiến nhằm đảm bảo hoạt động ổn định và không lỗi.
 --]]    
 
 -------------------------------------
@@ -17,13 +18,17 @@ local HITBOX_OFFSET = 80              -- Mức mở rộng hitbox (mặc định
 local PREDICTION_ENABLED = true       -- Bật/tắt dự đoán mục tiêu
 local HITBOX_ENABLED = true           -- Bật/tắt hitbox
 
-local CAMERA_SMOOTH_FACTOR = 8        -- Hệ số mượt cho camera
+local CAMERA_SMOOTH_FACTOR = 8        -- Hệ số mượt cho camera (cao = mượt hơn)
 
 -- Các tham số khác
 local CLOSE_RADIUS = 7                -- Khi mục tiêu gần, giữ Y của camera
-local HEIGHT_DIFFERENCE_THRESHOLD = 3 -- Ngưỡng chênh độ cao giữa camera & mục tiêu
-local MOVEMENT_THRESHOLD = 0.1       
+local HEIGHT_DIFFERENCE_THRESHOLD = 3 -- Ngưỡng chênh lệch độ cao giữa camera & mục tiêu
+local MOVEMENT_THRESHOLD = 0.1
 local STATIONARY_TIMEOUT = 5
+
+-- Auto Lock: nếu mục tiêu trong bán kính (600) trong hơn 5 giây
+local AUTO_LOCK_RADIUS = 600
+local AUTO_LOCK_TIME = 5
 
 -------------------------------------
 -- Dịch vụ & Đối tượng --
@@ -42,6 +47,7 @@ local locked = false            -- Aim lock On/Off
 local currentTarget = nil       -- Mục tiêu hiện tại
 local lastLocalPosition = nil  
 local lastMovementTime = tick()
+local targetInRangeStart = nil  -- Thời gian bắt đầu khi mục tiêu trong bán kính auto lock
 
 -- Bảng lưu Health Board (key = Character)
 local healthBoards = {}
@@ -129,28 +135,30 @@ settingsUIStroke.Color = Color3.new(1,1,1)
 settingsUIStroke.Thickness = 2
 addHoverEffect(settingsButton, baseButtonSize)
 
--- Panel Settings (tối giản, hiệu ứng phóng to/thu nhỏ)
+-- Panel Settings (thu gọn, xuất hiện ngay dưới nút ⚙️)
 local settingsFrame = Instance.new("Frame")
 settingsFrame.Name = "SettingsFrame"
 settingsFrame.Parent = screenGui
-settingsFrame.Size = UDim2.new(0, 250, 0, 260) -- chứa 5 dòng
-settingsFrame.Position = UDim2.new(0.65, -15, -0.5, 0) -- ban đầu ẩn
+settingsFrame.Size = UDim2.new(0, 250, 0, 220)  -- chứa 5 dòng nhỏ gọn
+-- Đặt panel mở ngay dưới nút Settings (vị trí open: dưới  ⚙️)
+local settingsOpenPosition = UDim2.new(0.65, 0, 0.10, 0)
+local settingsClosedPosition = UDim2.new(0.65, 0, -0.5, 0)
+settingsFrame.Position = settingsClosedPosition
 settingsFrame.BackgroundColor3 = Color3.fromRGB(20,20,20)
 settingsFrame.BackgroundTransparency = 1
 local settingsFrameUICorner = Instance.new("UICorner", settingsFrame)
 settingsFrameUICorner.CornerRadius = UDim.new(0, 10)
--- Thêm UIScale để tạo hiệu ứng phóng to/thu nhỏ
 local settingsUIScale = Instance.new("UIScale", settingsFrame)
 settingsUIScale.Scale = 0
 
--- Tạo danh sách panel theo bố cục dọc, mỗi dòng gồm label (trên) và control (dưới)
+-- Hàm tạo dòng cài đặt theo bố cục dọc (mỗi dòng gồm label trên, control bên dưới)
 local function createSettingRow(parent, yPos, labelText, defaultValue, isToggle)
     local rowFrame = Instance.new("Frame")
     rowFrame.Parent = parent
-    rowFrame.Size = UDim2.new(1, -10, 0, 50)
+    rowFrame.Size = UDim2.new(1, -10, 0, 40)
     rowFrame.Position = UDim2.new(0, 5, 0, yPos)
     rowFrame.BackgroundTransparency = 1
-    
+
     local label = Instance.new("TextLabel")
     label.Parent = rowFrame
     label.Size = UDim2.new(1, 0, 0.5, 0)
@@ -158,7 +166,7 @@ local function createSettingRow(parent, yPos, labelText, defaultValue, isToggle)
     label.BackgroundTransparency = 1
     label.Text = labelText
     label.Font = Enum.Font.GothamSemibold
-    label.TextSize = 18
+    label.TextSize = 14
     label.TextColor3 = Color3.new(1,1,1)
     
     local control
@@ -170,14 +178,14 @@ local function createSettingRow(parent, yPos, labelText, defaultValue, isToggle)
         control.BackgroundColor3 = Color3.fromRGB(200,200,200)
         control.TextColor3 = Color3.new(0,0,0)
         control.Font = Enum.Font.GothamBold
-        control.TextSize = 18
+        control.TextSize = 14
         control.Text = defaultValue and "On" or "Off"
         local uicorner = Instance.new("UICorner", control)
         uicorner.CornerRadius = UDim.new(0, 10)
         local uistroke = Instance.new("UIStroke", control)
         uistroke.Color = Color3.new(1,1,1)
         uistroke.Thickness = 2
-        
+
         control.MouseButton1Click:Connect(function()
             defaultValue = not defaultValue
             control.Text = defaultValue and "On" or "Off"
@@ -195,7 +203,7 @@ local function createSettingRow(parent, yPos, labelText, defaultValue, isToggle)
         control.BackgroundColor3 = Color3.fromRGB(230,230,230)
         control.TextColor3 = Color3.new(0,0,0)
         control.Font = Enum.Font.Gotham
-        control.TextSize = 18
+        control.TextSize = 14
         control.Text = tostring(defaultValue)
         control.ClearTextOnFocus = true
         control.PlaceholderText = tostring(defaultValue)
@@ -204,7 +212,7 @@ local function createSettingRow(parent, yPos, labelText, defaultValue, isToggle)
         local uistroke = Instance.new("UIStroke", control)
         uistroke.Color = Color3.new(1,1,1)
         uistroke.Thickness = 2
-        
+
         control.FocusLost:Connect(function(enterPressed)
             if control.Text == "" then
                 control.Text = tostring(defaultValue)
@@ -225,7 +233,7 @@ local function createSettingRow(parent, yPos, labelText, defaultValue, isToggle)
             end
         end)
     end
-    -- Ban đầu các text của row ẩn (TextTransparency = 1)
+    -- Ban đầu các text ẩn (TextTransparency = 1)
     for _, obj in ipairs(rowFrame:GetDescendants()) do
         if obj:IsA("TextLabel") or obj:IsA("TextButton") or obj:IsA("TextBox") then
             obj.TextTransparency = 1
@@ -233,19 +241,18 @@ local function createSettingRow(parent, yPos, labelText, defaultValue, isToggle)
     end
 end
 
--- Tạo các dòng cài đặt (danh sách 5 dòng theo thứ tự)
+-- Tạo 5 dòng cài đặt: Lock Radius, Health Board, Hitbox Offset, Prediction, Hitbox
 createSettingRow(settingsFrame, 10, "Lock Radius", LOCK_RADIUS, false)
-createSettingRow(settingsFrame, 70, "Health Board", HEALTH_BOARD_RADIUS, false)
-createSettingRow(settingsFrame, 130, "Hitbox Offset", HITBOX_OFFSET, false)
-createSettingRow(settingsFrame, 190, "Prediction", PREDICTION_ENABLED, true)
-createSettingRow(settingsFrame, 250, "Hitbox", HITBOX_ENABLED, true)
+createSettingRow(settingsFrame, 60, "Health Board", HEALTH_BOARD_RADIUS, false)
+createSettingRow(settingsFrame, 110, "Hitbox Offset", HITBOX_OFFSET, false)
+createSettingRow(settingsFrame, 160, "Prediction", PREDICTION_ENABLED, true)
+createSettingRow(settingsFrame, 210, "Hitbox", HITBOX_ENABLED, true)
 
 -- Hàm tween text transparency cho tất cả control trong panel
 local function tweenPanelText(transparency)
     for _, obj in ipairs(settingsFrame:GetDescendants()) do
         if (obj:IsA("TextLabel") or obj:IsA("TextButton") or obj:IsA("TextBox")) and obj.Parent ~= settingsFrame then
-            local tween = TweenService:Create(obj, TweenInfo.new(0.35, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {TextTransparency = transparency})
-            tween:Play()
+            TweenService:Create(obj, TweenInfo.new(0.35, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {TextTransparency = transparency}):Play()
         end
     end
 end
@@ -279,6 +286,7 @@ closeButton.MouseButton1Click:Connect(function()
         toggleButton.BackgroundColor3 = Color3.fromRGB(220,20,60)
         locked = false
         currentTarget = nil
+        targetInRangeStart = nil
     else
         toggleButton.Text = "ON"
         toggleButton.BackgroundColor3 = Color3.fromRGB(0,200,0)
@@ -294,6 +302,7 @@ toggleButton.MouseButton1Click:Connect(function()
         toggleButton.Text = "OFF"
         toggleButton.BackgroundColor3 = Color3.fromRGB(220,20,60)
         currentTarget = nil
+        targetInRangeStart = nil
     end
 end)
 
@@ -314,7 +323,9 @@ end
 local function getEnemiesInRadius(radius)
     local enemies = {}
     local character = LocalPlayer.Character
-    if not character or not character:FindFirstChild("HumanoidRootPart") then return enemies end
+    if not character or not character:FindFirstChild("HumanoidRootPart") then
+        return enemies
+    end
     local localPos = character.HumanoidRootPart.Position
     for _, player in ipairs(Players:GetPlayers()) do
         if player ~= LocalPlayer then
@@ -337,7 +348,9 @@ local function selectTarget()
     local enemies = getEnemiesInRadius(LOCK_RADIUS)
     if #enemies == 0 then return nil end
     local localCharacter = LocalPlayer.Character
-    if not localCharacter or not localCharacter:FindFirstChild("HumanoidRootPart") then return nil end
+    if not localCharacter or not localCharacter:FindFirstChild("HumanoidRootPart") then
+        return nil
+    end
     local localPos = localCharacter.HumanoidRootPart.Position
     local bestTarget, bestScore = nil, math.huge
     for _, enemy in ipairs(enemies) do
@@ -374,15 +387,17 @@ local function isValidTarget(target)
     return distance <= LOCK_RADIUS
 end
 
--- Hàm dự đoán vị trí mục tiêu (sử dụng Head khi gần, dùng dự đoán khi xa)
+-- Hàm dự đoán vị trí mục tiêu: nếu khoảng cách <350, luôn dùng head.Position; nếu ≥350 và Prediction bật thì dự đoán.
 local function predictTargetPosition(target)
     local hrp = target:FindFirstChild("HumanoidRootPart")
     local head = target:FindFirstChild("Head")
     if not hrp or not head then return nil end
     local localCharacter = LocalPlayer.Character
-    if not localCharacter or not localCharacter:FindFirstChild("HumanoidRootPart") then return nil end
+    if not localCharacter or not localCharacter:FindFirstChild("HumanoidRootPart") then
+        return nil
+    end
     local distance = (hrp.Position - localCharacter.HumanoidRootPart.Position).Magnitude
-    if (not PREDICTION_ENABLED) or (distance <= 300) then
+    if (not PREDICTION_ENABLED) or (distance < 350) then
         return head.Position
     end
     local predictedTime = distance / 50
@@ -422,7 +437,9 @@ local function updateHealthBoardForTarget(enemy)
     end
 
     local localCharacter = LocalPlayer.Character
-    if not localCharacter or not localCharacter:FindFirstChild("HumanoidRootPart") then return end
+    if not localCharacter or not localCharacter:FindFirstChild("HumanoidRootPart") then
+        return
+    end
     local distance = (enemy.HumanoidRootPart.Position - localCharacter.HumanoidRootPart.Position).Magnitude
     if distance > HEALTH_BOARD_RADIUS then
         if healthBoards[enemy] then
@@ -433,8 +450,8 @@ local function updateHealthBoardForTarget(enemy)
     end
 
     local headSize = enemy.Head.Size
-    local boardWidth = headSize.X * 70  
-    local boardHeight = headSize.Y * 5  
+    local boardWidth = headSize.X * 70
+    local boardHeight = headSize.Y * 10
     if not healthBoards[enemy] then
         local billboard = Instance.new("BillboardGui")
         billboard.Name = "HealthBoard"
@@ -502,19 +519,30 @@ RunService.RenderStepped:Connect(function(deltaTime)
     if aimActive then
         updateLocalMovement()
         
+        -- Nếu không có mục tiêu hợp lệ, chọn mục tiêu mới
         if not isValidTarget(currentTarget) then
-            local selected = selectTarget()
-            if selected then
-                currentTarget = selected
-                locked = true
-                toggleButton.Text = "ON"
-                toggleButton.BackgroundColor3 = Color3.fromRGB(0,200,0)
+            currentTarget = selectTarget()
+            targetInRangeStart = currentTarget and tick() or nil
+        end
+
+        -- Nếu có mục tiêu hợp lệ, kiểm tra auto lock:
+        if currentTarget and isValidTarget(currentTarget) then
+            local localPos = LocalPlayer.Character.HumanoidRootPart.Position
+            local targetPos = currentTarget.HumanoidRootPart.Position
+            local distance = (targetPos - localPos).Magnitude
+            if distance <= AUTO_LOCK_RADIUS then
+                if not targetInRangeStart then
+                    targetInRangeStart = tick()
+                elseif tick() - targetInRangeStart >= AUTO_LOCK_TIME then
+                    locked = true
+                    toggleButton.Text = "ON"
+                    toggleButton.BackgroundColor3 = Color3.fromRGB(0,200,0)
+                end
             else
-                currentTarget = nil
-                locked = false
-                toggleButton.Text = "OFF"
-                toggleButton.BackgroundColor3 = Color3.fromRGB(220,20,60)
+                targetInRangeStart = nil
             end
+        else
+            targetInRangeStart = nil
         end
 
         if currentTarget and locked then
@@ -528,15 +556,14 @@ RunService.RenderStepped:Connect(function(deltaTime)
                     locked = false
                     toggleButton.Text = "OFF"
                     toggleButton.BackgroundColor3 = Color3.fromRGB(220,20,60)
+                    targetInRangeStart = nil
                 else
                     local predictedPos = predictTargetPosition(currentTarget)
                     if predictedPos then
-                        if distance <= CLOSE_RADIUS then
-                            predictedPos = Vector3.new(predictedPos.X, Camera.CFrame.Position.Y, predictedPos.Z)
-                        end
+                        -- Luôn lock vào Head của mục tiêu (đảm bảo không lệch)
                         local targetCFrame = calculateCameraRotation(predictedPos)
                         local angleDiff = math.acos(math.clamp(Camera.CFrame.LookVector:Dot((predictedPos - Camera.CFrame.Position).Unit), -1, 1))
-                        -- Nếu mục tiêu nằm sau (dot < 0) hoặc lệch quá 90° thì xoay ngay lập tức
+                        -- Nếu mục tiêu nằm sau hoặc lệch >90° thì cập nhật ngay tức thì
                         if Camera.CFrame.LookVector:Dot((predictedPos - Camera.CFrame.Position).Unit) < 0 or angleDiff > math.rad(90) then
                             Camera.CFrame = targetCFrame
                         else
@@ -548,7 +575,7 @@ RunService.RenderStepped:Connect(function(deltaTime)
             end
         end
 
-        -- PHẦN HITBOX (chỉ áp dụng khi Hitbox Enabled)
+        -- PHẦN HITBOX (áp dụng khi HITBOX_ENABLED)
         if locked and currentTarget and HITBOX_ENABLED then
             local enemyHRP = currentTarget:FindFirstChild("HumanoidRootPart")
             local enemyHumanoid = currentTarget:FindFirstChild("Humanoid")
@@ -588,7 +615,7 @@ RunService.RenderStepped:Connect(function(deltaTime)
             end
         end
 
-        -- Hiệu ứng cho nút Toggle (oscillation)
+        -- Hiệu ứng nhỏ cho nút Toggle khi lock
         if locked then
             local oscillation = 0.05 * math.sin(tick() * 5)
             local newWidth = baseToggleSize.X * (1 + oscillation)
@@ -615,6 +642,7 @@ end)
 LocalPlayer.CharacterRemoving:Connect(function(character)
     currentTarget = nil
     locked = false
+    targetInRangeStart = nil
     if currentHitbox then
         currentHitbox:Destroy()
         currentHitbox = nil
@@ -625,6 +653,7 @@ LocalPlayer.CharacterAdded:Connect(function(character)
     local hrp = character:WaitForChild("HumanoidRootPart")
     lastLocalPosition = hrp.Position
     lastMovementTime = tick()
+    targetInRangeStart = nil
     local humanoid = character:WaitForChild("Humanoid")
     Camera.CameraSubject = humanoid
     Camera.CameraType = Enum.CameraType.Custom
