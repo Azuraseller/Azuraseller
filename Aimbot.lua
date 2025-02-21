@@ -1,128 +1,152 @@
---[[  
-  Advanced Camera Gun Script - Phiên bản nâng cấp chuyên sâu (v5)
---]]  
+--[[    
+  Advanced Camera Gun Script - Pro Edition 6.4
+  --------------------------------------------------
+  Cải tiến:
+   1. Aim–Target lock luôn ghim vào head mục tiêu với độ chính xác cao và cập nhật ngay tức thì.
+   2. Nếu có mục tiêu trong bán kính 600, Aim luôn bật (locked = true).
+   3. Nếu mục tiêu ở gần (≤15) trong ít nhất 1 giây, người dùng có thể vuốt xuống để kích hoạt hành động đặc biệt (ví dụ: tiêu diệt mục tiêu).
+   4. Chức năng Hitbox đã bị loại bỏ.
+--]]    
 
--------------------------------  
--- Services & Cấu hình chung --  
--------------------------------  
+-------------------------------------
+-- CẤU HÌNH (có thể điều chỉnh) --
+-------------------------------------
+local LOCK_RADIUS = 600               -- Bán kính ghim mục tiêu
+local HEALTH_BOARD_RADIUS = 900       -- Bán kính hiển thị Health Board
+local PREDICTION_ENABLED = true        -- Bật/tắt dự đoán mục tiêu
+
+-- Dự đoán chỉ hoạt động nếu khoảng cách ≥350; nếu nhỏ hơn luôn dùng head.Position
+local MIN_PREDICTION_DISTANCE = 350
+
+-- Các tham số khác
+local CLOSE_RADIUS = 7                -- Khi mục tiêu gần, giữ Y của camera
+local HEIGHT_DIFFERENCE_THRESHOLD = 5 -- Ngưỡng chênh lệch độ cao giữa camera & mục tiêu
+local MOVEMENT_THRESHOLD = 0.1
+local STATIONARY_TIMEOUT = 5
+
+-- Cấu hình cho swipe down:
+local NEAR_DISTANCE = 15              -- Mục tiêu cách ≤15 đơn vị
+local SWIPE_WAIT_TIME = 1             -- Phải duy trì khoảng cách này ít nhất 1 giây
+local SWIPE_THRESHOLD = 50            -- Ngưỡng vuốt xuống (pixel theo trục Y)
+
+-------------------------------------
+-- Dịch vụ & Đối tượng --
+-------------------------------------
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 
--- Các tham số cấu hình  
-local PREDICTION_TIME = 0.1               -- Thời gian dự đoán (giây)
-local LOCK_RADIUS = 600                   -- Bán kính ghim mục tiêu
-local CLOSE_RADIUS = 7                    -- Nếu mục tiêu quá gần, lock theo ngang
-local PRIORITY_HOLD_TIME = 3              -- Thời gian ưu tiên (giây)
-local HEALTH_PRIORITY_THRESHOLD = 0.3     -- HP dưới 30% được ưu tiên
-local CAMERA_ROTATION_SPEED = 0.55        -- Tốc độ xoay cơ bản
-local FAST_ROTATION_MULTIPLIER = 2        -- Tốc độ xoay nhanh tối đa
-local HEALTH_BOARD_RADIUS = 900           -- Bán kính hiển thị Health Board
-local HEIGHT_DIFFERENCE_THRESHOLD = 20    -- Ngưỡng chênh lệch theo trục Y
-
--- Các thông số chuyển động của LocalPlayer  
-local MOVEMENT_THRESHOLD = 0.1            
-local STATIONARY_TIMEOUT = 5              
-
--------------------------------  
--- Biến trạng thái toàn cục --  
--------------------------------  
-local locked = false                    -- Trạng thái ghim mục tiêu (ON/OFF)
-local aimActive = true                  -- Script có đang hoạt động
-local currentTarget = nil               -- Mục tiêu hiện tại
-local targetTimeTracker = {}            -- Thời gian mục tiêu ở trong vùng
-
-local lastLocalPosition = nil
+-------------------------------------
+-- Biến trạng thái toàn cục --
+-------------------------------------
+local aimActive = true          -- Script hoạt động
+local locked = false            -- Aim lock On/Off
+local currentTarget = nil       -- Mục tiêu hiện tại
+local lastLocalPosition = nil  
 local lastMovementTime = tick()
 
--- Bảng lưu Health Board (key = Character)
+-- Các biến hỗ trợ swipe down:
+local swipeAvailable = false
+local swipeAvailableStartTime = nil
+local swipeStartPos = nil
+local swipeStartTime = nil
+
+-- Bảng lưu Health Board (vẫn giữ lại nếu cần hiển thị; có thể xoá nếu không cần)
 local healthBoards = {}
 
--------------------------------  
--- Thiết lập GUI  
--------------------------------  
+-------------------------------------
+-- GIAO DIỆN GUI (tối giản: chỉ gồm nút Toggle & Close) --
+-------------------------------------
 local screenGui = Instance.new("ScreenGui")
 screenGui.Parent = game:GetService("CoreGui")
+screenGui.Name = "AdvancedCameraGUI"
 
+-- Kích thước nút
 local baseToggleSize = Vector2.new(100, 50)
-local baseCloseSize = Vector2.new(30, 30)
+local baseButtonSize = Vector2.new(30, 30)
 
--- Nút Toggle (On/Off)
+-- Hàm hiệu ứng hover (scale tween)
+local function addHoverEffect(button, baseSize)
+    button.MouseEnter:Connect(function()
+        local tween = TweenService:Create(button, TweenInfo.new(0.2, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {Size = UDim2.new(0, baseSize.X * 1.1, 0, baseSize.Y * 1.1)})
+        tween:Play()
+    end)
+    button.MouseLeave:Connect(function()
+        local tween = TweenService:Create(button, TweenInfo.new(0.2, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {Size = UDim2.new(0, baseSize.X, 0, baseSize.Y)})
+        tween:Play()
+    end)
+end
+
+-- Nút Toggle (Aim On/Off)
 local toggleButton = Instance.new("TextButton")
+toggleButton.Name = "ToggleButton"
 toggleButton.Parent = screenGui
 toggleButton.Size = UDim2.new(0, baseToggleSize.X, 0, baseToggleSize.Y)
-toggleButton.Position = UDim2.new(0.85, 0, 0.03, 0) -- dời lên trên một chút
+toggleButton.Position = UDim2.new(0.85, 0, 0.03, 0)
 toggleButton.AnchorPoint = Vector2.new(0.5, 0.5)
 toggleButton.Text = "OFF"
-toggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-toggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-toggleButton.Font = Enum.Font.SourceSans
-toggleButton.TextSize = 18
-
-local toggleUICorner = Instance.new("UICorner")
+toggleButton.Font = Enum.Font.GothamBold
+toggleButton.TextSize = 20
+toggleButton.BackgroundColor3 = Color3.fromRGB(220,20,60)
+toggleButton.TextColor3 = Color3.new(1,1,1)
+local toggleUICorner = Instance.new("UICorner", toggleButton)
 toggleUICorner.CornerRadius = UDim.new(0, 10)
-toggleUICorner.Parent = toggleButton
-
-local toggleUIStroke = Instance.new("UIStroke")
-toggleUIStroke.Color = Color3.fromRGB(255, 255, 255)
+local toggleUIStroke = Instance.new("UIStroke", toggleButton)
+toggleUIStroke.Color = Color3.new(1,1,1)
 toggleUIStroke.Thickness = 2
-toggleUIStroke.Parent = toggleButton
+addHoverEffect(toggleButton, baseToggleSize)
 
 -- Nút Close (X)
 local closeButton = Instance.new("TextButton")
+closeButton.Name = "CloseButton"
 closeButton.Parent = screenGui
-closeButton.Size = UDim2.new(0, baseCloseSize.X, 0, baseCloseSize.Y)
-closeButton.Position = UDim2.new(0.75, 0, 0.03, 0)  -- đặt gần nút Toggle
+closeButton.Size = UDim2.new(0, baseButtonSize.X, 0, baseButtonSize.Y)
+closeButton.Position = UDim2.new(0.75, 0, 0.03, 0)
 closeButton.AnchorPoint = Vector2.new(0.5, 0.5)
 closeButton.Text = "X"
-closeButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-closeButton.Font = Enum.Font.SourceSans
+closeButton.Font = Enum.Font.GothamBold
 closeButton.TextSize = 18
-
-local closeUICorner = Instance.new("UICorner")
+closeButton.BackgroundColor3 = Color3.fromRGB(220,20,60)
+closeButton.TextColor3 = Color3.new(1,1,1)
+local closeUICorner = Instance.new("UICorner", closeButton)
 closeUICorner.CornerRadius = UDim.new(0, 10)
-closeUICorner.Parent = closeButton
-
-local closeUIStroke = Instance.new("UIStroke")
-closeUIStroke.Color = Color3.fromRGB(255, 255, 255)
+local closeUIStroke = Instance.new("UIStroke", closeButton)
+closeUIStroke.Color = Color3.new(1,1,1)
 closeUIStroke.Thickness = 2
-closeUIStroke.Parent = closeButton
+addHoverEffect(closeButton, baseButtonSize)
 
--------------------------------------  
--- Sự kiện GUI --  
--------------------------------------  
+-------------------------------------
+-- Sự kiện GUI cho Toggle & Close --
+-------------------------------------
 closeButton.MouseButton1Click:Connect(function()
     aimActive = not aimActive
     toggleButton.Visible = aimActive
     if not aimActive then
         toggleButton.Text = "OFF"
-        toggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+        toggleButton.BackgroundColor3 = Color3.fromRGB(220,20,60)
         locked = false
         currentTarget = nil
+        swipeAvailable = false
+        swipeAvailableStartTime = nil
     else
         toggleButton.Text = "ON"
-        toggleButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+        toggleButton.BackgroundColor3 = Color3.fromRGB(0,200,0)
     end
 end)
 
+-- Khi bấm Toggle, bật Aim (locked luôn true)
 toggleButton.MouseButton1Click:Connect(function()
-    locked = not locked
-    if locked then
-        toggleButton.Text = "ON"
-        toggleButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
-    else
-        toggleButton.Text = "OFF"
-        toggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-        currentTarget = nil
-    end
+    locked = true
+    toggleButton.Text = "ON"
+    toggleButton.BackgroundColor3 = Color3.fromRGB(0,200,0)
 end)
 
--------------------------------------  
--- Hàm tiện ích & logic --  
--------------------------------------  
+-------------------------------------
+-- Các hàm tiện ích cho Camera Gun --
+-------------------------------------
 local function updateLocalMovement()
     local character = LocalPlayer.Character
     if character and character:FindFirstChild("HumanoidRootPart") then
@@ -137,7 +161,9 @@ end
 local function getEnemiesInRadius(radius)
     local enemies = {}
     local character = LocalPlayer.Character
-    if not character or not character:FindFirstChild("HumanoidRootPart") then return enemies end
+    if not character or not character:FindFirstChild("HumanoidRootPart") then
+        return enemies
+    end
     local localPos = character.HumanoidRootPart.Position
     for _, player in ipairs(Players:GetPlayers()) do
         if player ~= LocalPlayer then
@@ -155,95 +181,80 @@ local function getEnemiesInRadius(radius)
     return enemies
 end
 
-local function updateTargetTimers(deltaTime)
-    local enemies = getEnemiesInRadius(LOCK_RADIUS)
-    local newTracker = {}
-    for _, enemy in ipairs(enemies) do
-        if targetTimeTracker[enemy] then
-            newTracker[enemy] = targetTimeTracker[enemy] + deltaTime
-        else
-            newTracker[enemy] = deltaTime
-        end
-    end
-    targetTimeTracker = newTracker
-end
-
--- Cải tiến target priority: kết hợp khoảng cách, thời gian nằm trong vùng, tỉ lệ HP và góc lệch so với hướng camera
+-- Hàm chọn mục tiêu với ưu tiên theo máu:
+-- Ưu tiên mục tiêu có Health của mục tiêu ≥ 70% của máu LocalPlayer.
 local function selectTarget()
     local enemies = getEnemiesInRadius(LOCK_RADIUS)
-    if #enemies == 0 then
+    if #enemies == 0 then return nil end
+    local localChar = LocalPlayer.Character
+    if not localChar or not localChar:FindFirstChild("HumanoidRootPart") or not localChar:FindFirstChild("Humanoid") then
         return nil
     end
-    local localCharacter = LocalPlayer.Character
-    if not localCharacter or not localCharacter:FindFirstChild("HumanoidRootPart") then return nil end
-    local localPos = localCharacter.HumanoidRootPart.Position
-    local bestTarget = nil
-    local bestScore = math.huge
+    local localPos = localChar.HumanoidRootPart.Position
+    local localHealth = localChar.Humanoid.Health
+    local prioritized = {}
+    local others = {}
     for _, enemy in ipairs(enemies) do
-        if enemy and enemy:FindFirstChild("HumanoidRootPart") and enemy:FindFirstChild("Humanoid") then
-            local enemyHumanoid = enemy.Humanoid
-            if enemyHumanoid.Health > 0 then
-                local timeInRange = targetTimeTracker[enemy] or 0
-                local distance = (enemy.HumanoidRootPart.Position - localPos).Magnitude
-                local healthRatio = enemyHumanoid.Health / enemyHumanoid.MaxHealth
-                local dirToEnemy = (enemy.HumanoidRootPart.Position - localPos).Unit
-                local angleDiff = math.acos(math.clamp(Camera.CFrame.LookVector:Dot(dirToEnemy), -1, 1))
-                local angleScore = angleDiff * 100  -- yếu tố góc có trọng số 100
-                local score = 0
-                if timeInRange >= PRIORITY_HOLD_TIME or healthRatio <= HEALTH_PRIORITY_THRESHOLD then
-                    score = distance + angleScore + (healthRatio * 500)
-                else
-                    score = distance + angleScore + 500
-                end
-                if score < bestScore then
-                    bestScore = score
-                    bestTarget = enemy
-                end
+        local enemyHumanoid = enemy:FindFirstChild("Humanoid")
+        local enemyHRP = enemy:FindFirstChild("HumanoidRootPart")
+        if enemyHumanoid and enemyHRP and enemyHumanoid.Health > 0 then
+            local score = (enemyHRP.Position - localPos).Magnitude
+            local dirToEnemy = (enemyHRP.Position - localPos).Unit
+            local angleDiff = math.acos(math.clamp(Camera.CFrame.LookVector:Dot(dirToEnemy), -1, 1))
+            score = score + angleDiff * 100
+            if enemyHumanoid.Health >= localHealth * 0.7 then
+                table.insert(prioritized, {enemy = enemy, score = score})
+            else
+                table.insert(others, {enemy = enemy, score = score})
             end
         end
     end
-    return bestTarget
+    local best = nil
+    local bestScore = math.huge
+    local function selectFrom(list)
+        for _, data in ipairs(list) do
+            if data.score < bestScore then
+                bestScore = data.score
+                best = data.enemy
+            end
+        end
+    end
+    if #prioritized > 0 then
+        selectFrom(prioritized)
+    else
+        selectFrom(others)
+    end
+    return best
 end
 
 local function isValidTarget(target)
     if not target then return false end
     local hrp = target:FindFirstChild("HumanoidRootPart")
     local humanoid = target:FindFirstChild("Humanoid")
-    local localCharacter = LocalPlayer.Character
-    if not hrp or not humanoid or not localCharacter or not localCharacter:FindFirstChild("HumanoidRootPart") then
+    local localChar = LocalPlayer.Character
+    if not hrp or not humanoid or not localChar or not localChar:FindFirstChild("HumanoidRootPart") then
         return false
     end
     if humanoid.Health <= 0 then return false end
-    local distance = (hrp.Position - localCharacter.HumanoidRootPart.Position).Magnitude
+    local distance = (hrp.Position - localChar.HumanoidRootPart.Position).Magnitude
     return distance <= LOCK_RADIUS
 end
 
+-- Hàm dự đoán vị trí mục tiêu:
+-- Nếu khoảng cách < MIN_PREDICTION_DISTANCE, dùng head.Position; nếu ≥ và Prediction bật thì dự đoán theo vận tốc.
 local function predictTargetPosition(target)
     local hrp = target:FindFirstChild("HumanoidRootPart")
-    if not hrp then return nil end
-    local basePrediction = hrp.Position + hrp.Velocity * PREDICTION_TIME
-    local offset = Vector3.new(0, 0, 0)
-    if tick() - lastMovementTime <= STATIONARY_TIMEOUT then
-        if hrp.Velocity.Magnitude > 1 then
-            local right = hrp.CFrame.RightVector
-            local up = hrp.CFrame.UpVector
-            local forward = hrp.CFrame.LookVector
-            local threshold = 1
-            local dotRight = hrp.Velocity:Dot(right)
-            if math.abs(dotRight) > threshold then
-                offset = offset + right * 5 * (dotRight > 0 and 1 or -1)
-            end
-            local dotUp = hrp.Velocity:Dot(up)
-            if math.abs(dotUp) > threshold then
-                offset = offset + up * 5 * (dotUp > 0 and 1 or -1)
-            end
-            local dotForward = hrp.Velocity:Dot(forward)
-            if math.abs(dotForward) > threshold then
-                offset = offset + forward * 5 * (dotForward > 0 and 1 or -1)
-            end
-        end
+    local head = target:FindFirstChild("Head")
+    if not hrp or not head then return nil end
+    local localChar = LocalPlayer.Character
+    if not localChar or not localChar:FindFirstChild("HumanoidRootPart") then return nil end
+    local distance = (hrp.Position - localChar.HumanoidRootPart.Position).Magnitude
+    if (not PREDICTION_ENABLED) or (distance < MIN_PREDICTION_DISTANCE) then
+        return head.Position
     end
-    return basePrediction + offset
+    local predictedTime = distance / 50
+    predictedTime = math.clamp(predictedTime, 1, 2)
+    return hrp.Position + hrp.Velocity * predictedTime
 end
 
 local function calculateCameraRotation(targetPosition)
@@ -263,9 +274,7 @@ local function calculateCameraRotation(targetPosition)
     return newCFrame
 end
 
--- Health Board: Thanh nhỏ dựa trên enemy.Head với kích thước cố định (không bị ảnh hưởng bởi zoom)
--- Kích thước được giảm lại (boardWidth = headSize.X * 50, boardHeight = headSize.Y * 15)
--- Và thanh luôn được đặt cách đầu mục tiêu 2 studs.
+-- Health Board: hiển thị thanh máu của mục tiêu (không thay đổi)
 local function updateHealthBoardForTarget(enemy)
     if not enemy or not enemy:FindFirstChild("Head") or not enemy:FindFirstChild("Humanoid") then
         return
@@ -278,10 +287,11 @@ local function updateHealthBoardForTarget(enemy)
         end
         return
     end
-
-    local localCharacter = LocalPlayer.Character
-    if not localCharacter or not localCharacter:FindFirstChild("HumanoidRootPart") then return end
-    local distance = (enemy.HumanoidRootPart.Position - localCharacter.HumanoidRootPart.Position).Magnitude
+    local localChar = LocalPlayer.Character
+    if not localChar or not localChar:FindFirstChild("HumanoidRootPart") then
+        return
+    end
+    local distance = (enemy.HumanoidRootPart.Position - localChar.HumanoidRootPart.Position).Magnitude
     if distance > HEALTH_BOARD_RADIUS then
         if healthBoards[enemy] then
             healthBoards[enemy]:Destroy()
@@ -289,53 +299,46 @@ local function updateHealthBoardForTarget(enemy)
         end
         return
     end
-
     local headSize = enemy.Head.Size
-    local boardWidth = headSize.X * 50   -- giảm kích thước so với phiên bản trước
-    local boardHeight = headSize.Y * 15    -- chiều cao nhỏ hơn
-
+    local boardWidth = headSize.X * 60
+    local boardHeight = headSize.Y * 5
     if not healthBoards[enemy] then
         local billboard = Instance.new("BillboardGui")
         billboard.Name = "HealthBoard"
         billboard.Adornee = enemy.Head
         billboard.AlwaysOnTop = true
         billboard.Size = UDim2.new(0, boardWidth, 0, boardHeight)
-        billboard.StudsOffset = Vector3.new(0, 2, 0)  -- luôn cách đầu mục tiêu 2 studs
+        billboard.StudsOffset = Vector3.new(0, 50, 0)
         billboard.Parent = enemy
 
-        local bg = Instance.new("Frame")
+        local bg = Instance.new("Frame", billboard)
         bg.Name = "Background"
         bg.Size = UDim2.new(1, 0, 1, 0)
         bg.BackgroundColor3 = Color3.new(0, 0, 0)
         bg.BorderSizePixel = 0
-        bg.Parent = billboard
 
-        local bgStroke = Instance.new("UIStroke")
-        bgStroke.Color = Color3.fromRGB(255, 255, 255)
+        local bgStroke = Instance.new("UIStroke", bg)
+        bgStroke.Color = Color3.fromRGB(255,255,255)
         bgStroke.Thickness = 2
-        bgStroke.Parent = bg
 
-        local bgCorner = Instance.new("UICorner")
+        local bgCorner = Instance.new("UICorner", bg)
         bgCorner.CornerRadius = UDim.new(0, 10)
-        bgCorner.Parent = bg
 
-        local healthFill = Instance.new("Frame")
+        local healthFill = Instance.new("Frame", bg)
         healthFill.Name = "HealthFill"
         local ratio = math.clamp(humanoid.Health / humanoid.MaxHealth, 0, 1)
         healthFill.Size = UDim2.new(ratio, 0, 1, 0)
         healthFill.BackgroundColor3 = (ratio > 0.7 and Color3.fromRGB(0,255,0)) or (ratio > 0.25 and Color3.fromRGB(255,255,0)) or Color3.fromRGB(255,0,0)
         healthFill.BorderSizePixel = 0
-        healthFill.Parent = bg
 
-        local fillCorner = Instance.new("UICorner")
+        local fillCorner = Instance.new("UICorner", healthFill)
         fillCorner.CornerRadius = UDim.new(0, 10)
-        fillCorner.Parent = healthFill
 
         healthBoards[enemy] = billboard
     else
         local billboard = healthBoards[enemy]
         billboard.Size = UDim2.new(0, boardWidth, 0, boardHeight)
-        billboard.StudsOffset = Vector3.new(0, 2, 0)
+        billboard.StudsOffset = Vector3.new(0, 1, 0)
         local bg = billboard:FindFirstChild("Background")
         if bg then
             local healthFill = bg:FindFirstChild("HealthFill")
@@ -359,27 +362,48 @@ local function updateAllHealthBoards()
     end
 end
 
--------------------------------------  
--- Main Loop: RenderStepped Update --  
--------------------------------------  
+-------------------------------------
+-- Main Loop: RenderStepped Update --
+-------------------------------------
 RunService.RenderStepped:Connect(function(deltaTime)
     if aimActive then
         updateLocalMovement()
-        updateTargetTimers(deltaTime)
         
         if not isValidTarget(currentTarget) then
-            local selected = selectTarget()
-            if selected then
-                currentTarget = selected
-                locked = true
-                toggleButton.Text = "ON"
-                toggleButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
-            else
-                currentTarget = nil
-                locked = false
-                toggleButton.Text = "OFF"
-                toggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+            currentTarget = selectTarget()
+        end
+
+        -- Khi có mục tiêu, tự bật Aim (locked luôn true) nếu có mục tiêu trong bán kính
+        if currentTarget then
+            locked = true
+            toggleButton.Text = "ON"
+            toggleButton.BackgroundColor3 = Color3.fromRGB(0,200,0)
+        else
+            locked = false
+            toggleButton.Text = "OFF"
+            toggleButton.BackgroundColor3 = Color3.fromRGB(220,20,60)
+        end
+
+        -- Cập nhật tính năng swipe down:
+        if currentTarget and isValidTarget(currentTarget) then
+            local localHRP = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+            local enemyHRP = currentTarget:FindFirstChild("HumanoidRootPart")
+            if localHRP and enemyHRP then
+                local dist = (enemyHRP.Position - localHRP.Position).Magnitude
+                if dist <= NEAR_DISTANCE then
+                    if not swipeAvailableStartTime then
+                        swipeAvailableStartTime = tick()
+                    elseif tick() - swipeAvailableStartTime >= SWIPE_WAIT_TIME then
+                        swipeAvailable = true
+                    end
+                else
+                    swipeAvailableStartTime = nil
+                    swipeAvailable = false
+                end
             end
+        else
+            swipeAvailableStartTime = nil
+            swipeAvailable = false
         end
 
         if currentTarget and locked then
@@ -392,23 +416,18 @@ RunService.RenderStepped:Connect(function(deltaTime)
                     currentTarget = nil
                     locked = false
                     toggleButton.Text = "OFF"
-                    toggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+                    toggleButton.BackgroundColor3 = Color3.fromRGB(220,20,60)
                 else
                     local predictedPos = predictTargetPosition(currentTarget)
                     if predictedPos then
-                        if distance <= CLOSE_RADIUS then
-                            predictedPos = Vector3.new(predictedPos.X, Camera.CFrame.Position.Y, predictedPos.Z)
-                        end
-                        local targetCFrame = calculateCameraRotation(predictedPos)
-                        local angleDiff = math.acos(math.clamp(Camera.CFrame.LookVector:Dot((predictedPos - Camera.CFrame.Position).Unit), -1, 1))
-                        local dynamicSpeed = CAMERA_ROTATION_SPEED + (angleDiff / math.pi) * (FAST_ROTATION_MULTIPLIER - CAMERA_ROTATION_SPEED)
-                        Camera.CFrame = Camera.CFrame:Lerp(targetCFrame, dynamicSpeed)
+                        -- Luôn lock vào head của mục tiêu và cập nhật ngay tức thì
+                        Camera.CFrame = calculateCameraRotation(predictedPos)
                     end
                 end
             end
         end
 
-        -- Hiệu ứng oscilla cho nút Toggle khi lock
+        -- Hiệu ứng cho nút Toggle (oscillation)
         if locked then
             local oscillation = 0.05 * math.sin(tick() * 5)
             local newWidth = baseToggleSize.X * (1 + oscillation)
@@ -422,9 +441,41 @@ RunService.RenderStepped:Connect(function(deltaTime)
     updateAllHealthBoards()
 end)
 
--------------------------------------  
--- Xử lý sự kiện khi Character/Player rời server --  
--------------------------------------  
+-------------------------------------
+-- Xử lý Input: Phát hiện vuốt xuống (swipe down) --
+-------------------------------------
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    -- Chỉ bắt đầu ghi nhận nếu khả năng swipe đã được mở
+    if swipeAvailable and (input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1) then
+        swipeStartPos = input.Position
+        swipeStartTime = tick()
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    if swipeStartPos and (input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1) then
+        local endPos = input.Position
+        local deltaY = endPos.Y - swipeStartPos.Y  -- Y tăng xuống dưới
+        if deltaY >= SWIPE_THRESHOLD then
+            -- Vuốt xuống được phát hiện
+            print("Swipe Down Detected!")
+            -- Thực thi hành động đặc biệt: Ví dụ, tiêu diệt mục tiêu
+            local enemyHumanoid = currentTarget and currentTarget:FindFirstChild("Humanoid")
+            if enemyHumanoid and enemyHumanoid.Health > 0 then
+                enemyHumanoid.Health = 0
+                print("Target eliminated by swipe down!")
+            end
+        end
+        swipeStartPos = nil
+        swipeStartTime = nil
+    end
+end)
+
+-------------------------------------
+-- Xử lý khi Player/Character rời server --
+-------------------------------------
 Players.PlayerRemoving:Connect(function(player)
     if player ~= LocalPlayer and player.Character and healthBoards[player.Character] then
         healthBoards[player.Character]:Destroy()
@@ -435,10 +486,18 @@ end)
 LocalPlayer.CharacterRemoving:Connect(function(character)
     currentTarget = nil
     locked = false
+    swipeAvailable = false
+    swipeAvailableStartTime = nil
 end)
 
 LocalPlayer.CharacterAdded:Connect(function(character)
     local hrp = character:WaitForChild("HumanoidRootPart")
     lastLocalPosition = hrp.Position
     lastMovementTime = tick()
+    currentTarget = nil
+    swipeAvailable = false
+    swipeAvailableStartTime = nil
+    local humanoid = character:WaitForChild("Humanoid")
+    Camera.CameraSubject = humanoid
+    Camera.CameraType = Enum.CameraType.Custom
 end)
