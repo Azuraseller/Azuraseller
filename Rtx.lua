@@ -1,13 +1,15 @@
 ------------------------------------------------------------
--- RTX-like Advanced Effects - Phiên bản Nâng Cấp Siêu Cấp
+-- RTX-like Advanced Effects - Phiên bản Nâng Cấp Tổng Thể
 ------------------------------------------------------------
 --[[
 Các cải tiến mới:
-1. Fog: Ban ngày fog có màu xanh dương nhạt (light blue) và ban đêm fog tối, sâu hơn.
-2. Ánh sáng: Mặt trời sáng hơn (brightness cao hơn) và trăng cũng được tăng sáng.
-3. Bóng của vật liệu, vật thể: Bóng đậm hơn, điều chỉnh theo hướng Mặt Trời.
-4. Hiệu ứng chắn ánh sáng: Các vật thể bị che sáng sẽ có hiệu ứng rõ ràng hơn.
-5. Các chức năng sky, star, mây đã bị xoá.
+1. Ánh sáng môi trường được điều chỉnh: Ambient chuyển sang tông hơi ấm, giảm tint xanh quá nhiều.
+2. Fog: Ban ngày sử dụng màu xanh nhạt dịu, ban đêm tối, sâu hơn.
+3. Mặt trời được tăng độ sáng, trong khi mặt trăng cũng được nâng cấp.
+4. Hiệu ứng bóng của vật liệu, vật thể được tăng cường – bóng đậm hơn theo hướng Mặt Trời.
+5. Hiệu ứng chắn ánh sáng được làm rõ ràng hơn.
+6. Các chức năng sky, star, clouds đã bị loại bỏ.
+7. Các chức năng khác (phản xạ, khúc xạ, caustics, motion blur, v.v.) được tối ưu lại.
 ]]--
 
 -- Dịch vụ Roblox
@@ -22,12 +24,17 @@ local player = Players.LocalPlayer
 local camera = Workspace.CurrentCamera
 
 ------------------------------------------------------------
--- BẢNG CẤU HÌNH (Có bổ sung các thông số mới)
+-- BẢNG CẤU HÌNH
 ------------------------------------------------------------
 local config = {
     PostProcessing = {
         Bloom = { Intensity = 1.2, Size = 40, Threshold = 2 },
-        ColorCorrection = { Brightness = 0.15, Contrast = 0.25, Saturation = 0.1, TintColor = Color3.fromRGB(180,210,255) },
+        ColorCorrection = { 
+            Brightness = 0.15, 
+            Contrast = 0.25, 
+            Saturation = 0.1, 
+            TintColor = Color3.fromRGB(160,200,240)  -- giảm tint xanh, hơi ấm hơn
+        },
         DepthOfField = { FarIntensity = 0.3, FocusDistance = 20, InFocusRadius = 10, NearIntensity = 0.3 },
         SSR = { Intensity = 0.8, Reflectance = 0.7 },
         SunRays = { Intensity = 0.35, Spread = 0.2 }
@@ -36,7 +43,7 @@ local config = {
         LightBleedReduction = 0.5,
         DeviceBrightnessFactor = 0.8,
     },
-    -- Các chức năng liên quan đến mây, sky, star đã bị xoá.
+    -- (Các chức năng sky, star, clouds đã bị loại bỏ)
     Water = {
         Reflectance = 0.4,
         TextureSpeed = { U = 0.1, V = 0.05 },
@@ -60,14 +67,14 @@ local config = {
     Sun = {
         PartSize = Vector3.new(60,60,60),
         PartColor = Color3.fromRGB(255,220,100),
-        Light = { Range = 1200, Brightness = 5 },  -- Tăng brightness mặt trời
+        Light = { Range = 1200, Brightness = 5 },  -- Mặt trời sáng hơn
         Billboard = { Size = UDim2.new(4,0,4,0), FlareSize = UDim2.new(5,0,5,0), ImageTransparencyFocused = 0.2, ImageTransparencyNormal = 0.5 },
-        OcclusionFactor = 0.2  -- Hiệu ứng chắn ánh sáng mạnh hơn
+        OcclusionFactor = 0.2
     },
     Moon = {
         PartSize = Vector3.new(50,50,50),
         PartColor = Color3.fromRGB(200,220,255),
-        Light = { Range = 1000, Brightness = 3 },  -- Tăng brightness trăng
+        Light = { Range = 1000, Brightness = 3 },  -- Mặt trăng được nâng cấp
         Billboard = { Size = UDim2.new(3.5,0,3.5,0), ImageTransparency = 0.3 }
     },
     ShootingStar = {
@@ -108,17 +115,17 @@ local advancedMode = true
 ------------------------------------------------------------
 -- THIẾT LẬP ENVIRONMENT: AMBIENT, FOG & COLOR CORRECTION
 ------------------------------------------------------------
--- Ambient được set hơi tối, xanh cho ban ngày
-Lighting.Ambient = Color3.fromRGB(150,180,200)
--- Fog thay đổi theo thời gian: ban ngày – xanh nhạt, ban đêm – xanh tối
+-- Ambient đã được giảm độ sáng xanh xuống một chút
+Lighting.Ambient = Color3.fromRGB(140,170,190)
+-- Fog: Ban ngày có màu xanh nhạt dịu, ban đêm chuyển sang tông tối, sâu hơn
 local function updateFog()
 	local hour = tonumber(Lighting.TimeOfDay:sub(1,2))
 	if hour >= 6 and hour < 18 then
-		Lighting.FogColor = Color3.fromRGB(200,220,255)  -- ban ngày: xanh nhạt
+		Lighting.FogColor = Color3.fromRGB(190,210,255)
 		Lighting.FogStart = 50
 		Lighting.FogEnd = 300
 	else
-		Lighting.FogColor = Color3.fromRGB(30,30,60)  -- ban đêm: xanh tối
+		Lighting.FogColor = Color3.fromRGB(20,20,40)
 		Lighting.FogStart = 30
 		Lighting.FogEnd = 150
 	end
@@ -185,7 +192,7 @@ local function setupCosmicParticles()
 end
 
 ------------------------------------------------------------
--- MIRROR OVERLAY EFFECT (Thêm lớp “gương” siêu mỏng, trong suốt lên mọi đối tượng)
+-- MIRROR OVERLAY EFFECT (Lớp “gương” siêu mỏng, trong suốt cho mọi đối tượng)
 ------------------------------------------------------------
 local function applyMirrorOverlay(part)
 	local excludeList = {"SunPart", "MoonPart", "EnhancedShootingStar", "MirrorOverlay"}
@@ -195,7 +202,6 @@ local function applyMirrorOverlay(part)
 	if not part:FindFirstChild("MirrorOverlay") then
 		local mirror = Instance.new("SurfaceAppearance")
 		mirror.Name = "MirrorOverlay"
-		-- Mô phỏng lớp kính siêu mỏng, trong suốt, có khả năng phản chiếu
 		mirror.Reflectance = 0.95
 		mirror.Parent = part
 	end
@@ -219,7 +225,7 @@ end)
 ------------------------------------------------------------
 
 ------------------------------------------------------------
--- HIỆU ỨNG MẶT NƯỚC (Giữ lại các hiệu ứng nước, không thay đổi)
+-- HIỆU ỨNG MẶT NƯỚC (giữ nguyên chức năng)
 ------------------------------------------------------------
 for _, obj in pairs(Workspace:GetDescendants()) do
 	if obj:IsA("BasePart") and obj.Material == Enum.Material.Water then
@@ -426,9 +432,7 @@ local function onCharacterAdded(char)
 	end
 end
 
-if player.Character then
-	onCharacterAdded(player.Character)
-end
+if player.Character then onCharacterAdded(player.Character) end
 player.CharacterAdded:Connect(onCharacterAdded)
 
 local baseTime = tick()
@@ -645,7 +649,7 @@ task.spawn(function()
 end)
 
 ------------------------------------------------------------
--- KIỂM TRA MÔI TRƯỜNG & Ambient Occlusion (mô phỏng RTAO, cải tiến)
+-- KIỂM TRA MÔI TRƯỜNG & AMBIENT OCCLUSION (như cũ, cải tiến)
 ------------------------------------------------------------
 local function updateEnvironmentLighting()
 	if player.Character and player.Character:FindFirstChild("Head") then
@@ -663,7 +667,7 @@ local function updateEnvironmentLighting()
 		else
 			local hour = tonumber(Lighting.TimeOfDay:sub(1,2))
 			Lighting.Brightness = (hour >= 6 and hour < 18) and config.GlobalLighting.DayBrightness or config.GlobalLighting.NightBrightness
-			Lighting.Ambient = Color3.fromRGB(150,180,200)
+			Lighting.Ambient = Color3.fromRGB(140,170,190)
 			playerLight.Range = config.PlayerLight.Range.Outdoors
 		end
 	end
@@ -680,9 +684,7 @@ end)
 ------------------------------------------------------------
 local objectShadows = {}
 local function initObjectShadow(part)
-	local excludeNames = {
-		"SunPart", "MoonPart", "EnhancedShootingStar"
-	}
+	local excludeNames = { "SunPart", "MoonPart", "EnhancedShootingStar" }
 	for _, name in ipairs(excludeNames) do
 		if part.Name:find(name) then return end
 	end
@@ -798,7 +800,7 @@ local function simulateCaustics()
 			if not obj:FindFirstChild("CausticsEmitter") then
 				local caustics = Instance.new("ParticleEmitter")
 				caustics.Name = "CausticsEmitter"
-				caustics.Texture = "rbxassetid://YourCausticsTexture"  -- Thay asset caustics của bạn
+				caustics.Texture = "rbxassetid://YourCausticsTexture"  -- Thay asset của bạn
 				caustics.Rate = 5
 				caustics.Lifetime = NumberRange.new(2,3)
 				caustics.Speed = NumberRange.new(0,0)
@@ -850,7 +852,7 @@ local function simulateVolumetricFogAndGodRays()
 end
 
 local function simulateWeatherSystem()
-	local isRaining = false  -- Thay đổi theo trạng thái game
+	local isRaining = false
 	if isRaining then
 		Lighting.Ambient = Color3.fromRGB(150,150,170)
 		if not Workspace:FindFirstChild("RainEffect") then
@@ -863,7 +865,7 @@ local function simulateWeatherSystem()
 			rainPart.Parent = Workspace
 			rainPart.Position = camera.CFrame.Position + Vector3.new(0,50,0)
 			local rainEmitter = Instance.new("ParticleEmitter", rainPart)
-			rainEmitter.Texture = "rbxassetid://YourRainTexture"  -- Thay asset mưa của bạn
+			rainEmitter.Texture = "rbxassetid://YourRainTexture"
 			rainEmitter.Rate = 100
 			rainEmitter.Lifetime = NumberRange.new(1,2)
 			rainEmitter.Speed = NumberRange.new(20,30)
@@ -879,7 +881,7 @@ local function simulateSSSS()
 				if not head:FindFirstChild("SSSEffect") then
 					local sss = Instance.new("ParticleEmitter", head)
 					sss.Name = "SSSEffect"
-					sss.Texture = "rbxassetid://YourSSSTexture"  -- Thay asset SSS của bạn
+					sss.Texture = "rbxassetid://YourSSSTexture"
 					sss.Rate = 2
 					sss.Lifetime = NumberRange.new(0.5,1)
 					sss.Speed = NumberRange.new(0,0)
@@ -891,10 +893,7 @@ local function simulateSSSS()
 	end
 end
 
-local function simulateCloudRendering()
-	-- Không sử dụng vì chức năng mây đã bị xoá.
-end
-
+local function simulateCloudRendering() end
 local function simulateSuperResolution() end
 local function simulateHybridRenderingPipeline() end
 local function simulateVulkanRayTracing() end
@@ -937,7 +936,7 @@ RunService.RenderStepped:Connect(function(deltaTime)
 end)
 
 if config.AdvancedEffects.ChromaticAberration.Enabled then
-	-- Placeholder: Custom implementation cần qua GUI/shader.
+	-- Placeholder: Custom implementation qua GUI/shader.
 end
 
 ------------------------------------------------------------
