@@ -3,13 +3,11 @@
 ------------------------------------------------------------
 --[[
 Các cải tiến mới:
-1. Hiệu ứng môi trường được điều chỉnh (Ambient tối, xanh, có Fog)
-2. Tối ưu tổng thể script (cấu trúc, modular, comment rõ ràng)
-3. Thêm hiệu ứng "cosmic particles" quanh nguồn sáng (như vũ trụ, liên kết với 1 hạt màu)
-4. Thêm hiệu ứng “mirror overlay”: phủ lên mọi đối tượng một lớp kính siêu mỏng, trong suốt với khả năng phản chiếu
-5. Điều chỉnh hiệu ứng bóng của vật thể: bóng đậm hơn theo hướng mặt trời
-6. Hiệu ứng môi trường tổng thể trở nên chân thực, đẹp mắt hơn (ambient, fog,…)
-7. Hiệu ứng chắn ánh sáng được cải tiến, vùng sáng tối rõ ràng hơn
+1. Fog: Ban ngày fog có màu xanh dương nhạt (light blue) và ban đêm fog tối, sâu hơn.
+2. Ánh sáng: Mặt trời sáng hơn (brightness cao hơn) và trăng cũng được tăng sáng.
+3. Bóng của vật liệu, vật thể: Bóng đậm hơn, điều chỉnh theo hướng Mặt Trời.
+4. Hiệu ứng chắn ánh sáng: Các vật thể bị che sáng sẽ có hiệu ứng rõ ràng hơn.
+5. Các chức năng sky, star, mây đã bị xoá.
 ]]--
 
 -- Dịch vụ Roblox
@@ -38,29 +36,7 @@ local config = {
         LightBleedReduction = 0.5,
         DeviceBrightnessFactor = 0.8,
     },
-    Clouds = {
-        PartTransparency = { Day = 0.7, Night = 1 },
-        OffsetSpeed = { U = 0.07, V = 0.03 },
-        StudsPerTile = 500
-    },
-    Skybox = {
-        Day = {
-            SkyboxBk = "rbxassetid://1234567890",
-            SkyboxDn = "rbxassetid://1234567891",
-            SkyboxFt = "rbxassetid://1234567892",
-            SkyboxLf = "rbxassetid://1234567893",
-            SkyboxRt = "rbxassetid://1234567894",
-            SkyboxUp = "rbxassetid://1234567895"
-        },
-        Night = {
-            SkyboxBk = "rbxassetid://2234567890",
-            SkyboxDn = "rbxassetid://2234567891",
-            SkyboxFt = "rbxassetid://2234567892",
-            SkyboxLf = "rbxassetid://2234567893",
-            SkyboxRt = "rbxassetid://2234567894",
-            SkyboxUp = "rbxassetid://2234567895"
-        }
-    },
+    -- Các chức năng liên quan đến mây, sky, star đã bị xoá.
     Water = {
         Reflectance = 0.4,
         TextureSpeed = { U = 0.1, V = 0.05 },
@@ -75,23 +51,23 @@ local config = {
         Offsets = { offsetDistance = 3 },
         Smoothing = 0.2,
         Layers = {
-            { Name = "ShadowCore", Multiplier = 1, Transparency = 0.2 },  -- giảm base transparency để bóng đậm hơn
-            { Name = "ShadowBlur1", Multiplier = 1.1, Transparency = 0.4, ExtraOffset = Vector3.new(0.2,0,0.2) },
-            { Name = "ShadowBlur2", Multiplier = 1.2, Transparency = 0.6, ExtraOffset = Vector3.new(-0.2,0,-0.2) }
+            { Name = "ShadowCore", Multiplier = 1, Transparency = 0.1 },
+            { Name = "ShadowBlur1", Multiplier = 1.1, Transparency = 0.3, ExtraOffset = Vector3.new(0.2,0,0.2) },
+            { Name = "ShadowBlur2", Multiplier = 1.2, Transparency = 0.5, ExtraOffset = Vector3.new(-0.2,0,-0.2) }
         }
     },
     PlayerLight = { Range = { Outdoors = 500, Indoors = 250 }, BaseBrightness = 1.5, Color = Color3.fromRGB(255,230,200) },
     Sun = {
         PartSize = Vector3.new(60,60,60),
         PartColor = Color3.fromRGB(255,220,100),
-        Light = { Range = 1200, Brightness = 3 },
+        Light = { Range = 1200, Brightness = 5 },  -- Tăng brightness mặt trời
         Billboard = { Size = UDim2.new(4,0,4,0), FlareSize = UDim2.new(5,0,5,0), ImageTransparencyFocused = 0.2, ImageTransparencyNormal = 0.5 },
-        OcclusionFactor = 0.3  -- làm giảm hơn nếu có vật cản
+        OcclusionFactor = 0.2  -- Hiệu ứng chắn ánh sáng mạnh hơn
     },
     Moon = {
         PartSize = Vector3.new(50,50,50),
         PartColor = Color3.fromRGB(200,220,255),
-        Light = { Range = 1000, Brightness = 2 },
+        Light = { Range = 1000, Brightness = 3 },  -- Tăng brightness trăng
         Billboard = { Size = UDim2.new(3.5,0,3.5,0), ImageTransparency = 0.3 }
     },
     ShootingStar = {
@@ -130,15 +106,25 @@ local config = {
 local advancedMode = true
 
 ------------------------------------------------------------
--- THIẾT LẬP ENVIRONMENT: AMBIENT, FOG & COLOR CORRECTION (Nâng cấp môi trường)
+-- THIẾT LẬP ENVIRONMENT: AMBIENT, FOG & COLOR CORRECTION
 ------------------------------------------------------------
-Lighting.GlobalShadows = true
-Lighting.ShadowSoftness = 0.6
--- Áp dụng môi trường tối, xanh
+-- Ambient được set hơi tối, xanh cho ban ngày
 Lighting.Ambient = Color3.fromRGB(150,180,200)
-Lighting.FogColor = Color3.fromRGB(100,120,140)
-Lighting.FogStart = 50
-Lighting.FogEnd = 300
+-- Fog thay đổi theo thời gian: ban ngày – xanh nhạt, ban đêm – xanh tối
+local function updateFog()
+	local hour = tonumber(Lighting.TimeOfDay:sub(1,2))
+	if hour >= 6 and hour < 18 then
+		Lighting.FogColor = Color3.fromRGB(200,220,255)  -- ban ngày: xanh nhạt
+		Lighting.FogStart = 50
+		Lighting.FogEnd = 300
+	else
+		Lighting.FogColor = Color3.fromRGB(30,30,60)  -- ban đêm: xanh tối
+		Lighting.FogStart = 30
+		Lighting.FogEnd = 150
+	end
+end
+updateFog()
+RunService.RenderStepped:Connect(function() updateFog() end)
 
 local colorCorrection = Instance.new("ColorCorrectionEffect")
 colorCorrection.Brightness = config.PostProcessing.ColorCorrection.Brightness
@@ -148,7 +134,7 @@ colorCorrection.TintColor = config.PostProcessing.ColorCorrection.TintColor
 colorCorrection.Parent = Lighting
 
 ------------------------------------------------------------
--- POST-PROCESSING EFFECTS (Bloom, DOF, SSR, SunRays)
+-- POST-PROCESSING EFFECTS: Bloom, DOF, SSR, SunRays
 ------------------------------------------------------------
 local bloom = Instance.new("BloomEffect")
 bloom.Intensity = config.PostProcessing.Bloom.Intensity
@@ -182,14 +168,13 @@ sunRays.Spread = config.PostProcessing.SunRays.Spread
 sunRays.Parent = Lighting
 
 ------------------------------------------------------------
--- COSMIC PARTICLE EFFECTS (Thêm hạt vũ trụ quanh nguồn sáng)
+-- COSMIC PARTICLE EFFECTS (Thêm hạt “vũ trụ” quanh nguồn sáng)
 ------------------------------------------------------------
 local function setupCosmicParticles()
-	-- Thêm ParticleEmitter vào sunPart để tạo hiệu ứng hạt vũ trụ
 	if sunPart and not sunPart:FindFirstChild("CosmicParticles") then
 		local cosmicEmitter = Instance.new("ParticleEmitter")
 		cosmicEmitter.Name = "CosmicParticles"
-		cosmicEmitter.Texture = "rbxassetid://YourCosmicParticleTexture"  -- Thay bằng asset hạt vũ trụ của bạn
+		cosmicEmitter.Texture = "rbxassetid://YourCosmicParticleTexture"  -- Thay bằng asset của bạn
 		cosmicEmitter.Rate = 10
 		cosmicEmitter.Lifetime = NumberRange.new(2,3)
 		cosmicEmitter.Speed = NumberRange.new(0,0)
@@ -200,28 +185,22 @@ local function setupCosmicParticles()
 end
 
 ------------------------------------------------------------
--- MIRROR OVERLAY EFFECT (Thêm lớp kính mỏng, trong suốt lên mọi đối tượng)
+-- MIRROR OVERLAY EFFECT (Thêm lớp “gương” siêu mỏng, trong suốt lên mọi đối tượng)
 ------------------------------------------------------------
 local function applyMirrorOverlay(part)
-	-- Loại trừ một số đối tượng không cần overlay
-	local excludeList = {"CloudLayer", "SunPart", "MoonPart", "StarField", "EnhancedShootingStar", "MirrorOverlay"}
+	local excludeList = {"SunPart", "MoonPart", "EnhancedShootingStar", "MirrorOverlay"}
 	for _, str in ipairs(excludeList) do
 		if part.Name:find(str) then return end
 	end
-	-- Nếu chưa có overlay, thêm SurfaceAppearance với thuộc tính "mirror"
 	if not part:FindFirstChild("MirrorOverlay") then
 		local mirror = Instance.new("SurfaceAppearance")
 		mirror.Name = "MirrorOverlay"
-		-- Thiết lập để mô phỏng lớp kính mỏng: cực kỳ trong suốt, reflectance cao
-		mirror.ColorMap = ""  -- Không cần texture màu
-		mirror.NormalMap = ""  -- Không sử dụng NormalMap
+		-- Mô phỏng lớp kính siêu mỏng, trong suốt, có khả năng phản chiếu
 		mirror.Reflectance = 0.95
-		-- Roblox không hỗ trợ RefractionMap riêng, nên sử dụng các thuộc tính sẵn có
 		mirror.Parent = part
 	end
 end
 
--- Áp dụng mirror overlay cho tất cả các BasePart trong Workspace
 for _, obj in pairs(Workspace:GetDescendants()) do
 	if obj:IsA("BasePart") then
 		applyMirrorOverlay(obj)
@@ -236,62 +215,11 @@ Workspace.DescendantAdded:Connect(function(child)
 end)
 
 ------------------------------------------------------------
--- HIỆU ỨNG MÂY DI CHUYỂN (như cũ)
+-- (Các chức năng sky, star, mây đã bị xoá)
 ------------------------------------------------------------
-local cloudLayer = Instance.new("Part")
-cloudLayer.Name = "CloudLayer"
-cloudLayer.Size = Vector3.new(10000,1,10000)
-cloudLayer.Anchored = true
-cloudLayer.CanCollide = false
-cloudLayer.Material = Enum.Material.SmoothPlastic
-cloudLayer.Transparency = config.Clouds.PartTransparency.Day
-cloudLayer.Parent = Workspace
-cloudLayer.CFrame = CFrame.new(0,300,0) * CFrame.Angles(math.rad(90),0,0)
-
-local cloudTexture = Instance.new("Texture")
-cloudTexture.Face = Enum.NormalId.Top
-cloudTexture.Texture = "rbxassetid://412757221"  -- Asset của mây
-cloudTexture.StudsPerTileU = config.Clouds.StudsPerTile
-cloudTexture.StudsPerTileV = config.Clouds.StudsPerTile
-cloudTexture.Parent = cloudLayer
-
-task.spawn(function()
-	while true do
-		cloudTexture.OffsetStudsU = (cloudTexture.OffsetStudsU + config.Clouds.OffsetSpeed.U) % config.Clouds.StudsPerTile
-		cloudTexture.OffsetStudsV = (cloudTexture.OffsetStudsV + config.Clouds.OffsetSpeed.V) % config.Clouds.StudsPerTile
-		task.wait(0.1)
-	end
-end)
 
 ------------------------------------------------------------
--- SKYBOX & HIỆU ỨNG SAO/CHIẾU (như cũ)
-------------------------------------------------------------
-local sky = Lighting:FindFirstChildOfClass("Sky") or Instance.new("Sky", Lighting)
-local function updateSkyAndClouds()
-	local timeOfDay = Lighting.TimeOfDay
-	local hour = tonumber(timeOfDay:sub(1,2))
-	if hour >= 6 and hour < 18 then
-		for key, asset in pairs(config.Skybox.Day) do
-			sky[key] = asset
-		end
-		cloudLayer.Transparency = config.Clouds.PartTransparency.Day
-	else
-		for key, asset in pairs(config.Skybox.Night) do
-			sky[key] = asset
-		end
-		cloudLayer.Transparency = config.Clouds.PartTransparency.Night
-	end
-end
-
-task.spawn(function()
-	while true do
-		updateSkyAndClouds()
-		task.wait(10)
-	end
-end)
-
-------------------------------------------------------------
--- HIỆU ỨNG MẶT NƯỚC (như cũ, cộng thêm khúc xạ)
+-- HIỆU ỨNG MẶT NƯỚC (Giữ lại các hiệu ứng nước, không thay đổi)
 ------------------------------------------------------------
 for _, obj in pairs(Workspace:GetDescendants()) do
 	if obj:IsA("BasePart") and obj.Material == Enum.Material.Water then
@@ -351,7 +279,7 @@ RunService.RenderStepped:Connect(function()
 end)
 
 ------------------------------------------------------------
--- GLOBAL LIGHTING (như cũ, với điều chỉnh cho môi trường)
+-- GLOBAL LIGHTING (với điều chỉnh cho môi trường)
 ------------------------------------------------------------
 local function updateGlobalLighting()
 	local hour = tonumber(Lighting.TimeOfDay:sub(1,2))
@@ -384,7 +312,7 @@ task.spawn(function()
 end)
 
 ------------------------------------------------------------
--- HIỆU ỨNG BÓNG NHÂN VẬT (Adaptive Shadows – mô phỏng “ray-traced shadows”)
+-- HIỆU ỨNG BÓNG NHÂN VẬT (Adaptive Shadows – nâng cấp)
 ------------------------------------------------------------
 local shadowLayers = {}
 local function createShadowLayer(layerConfig)
@@ -405,7 +333,6 @@ for _, layer in ipairs(config.Shadow.Layers) do
 end
 
 local previousShadowCFrame = nil
-
 local function getSunDirection()
 	local timeOfDay = Lighting.TimeOfDay
 	local hour = tonumber(timeOfDay:sub(1,2))
@@ -413,7 +340,7 @@ local function getSunDirection()
 		local t = (hour - 6) / 12
 		local elevation = math.sin(t * math.pi) * (math.pi/2)
 		local azimuth = t * math.pi
-		local sunDir = Vector3.new(math.cos(azimuth) * math.cos(elevation), math.sin(elevation), math.sin(azimuth) * math.cos(elevation))
+		local sunDir = Vector3.new(math.cos(azimuth)*math.cos(elevation), math.sin(elevation), math.sin(azimuth)*math.cos(elevation))
 		return sunDir, elevation
 	else
 		return Vector3.new(1,0,0), 0.1
@@ -464,8 +391,7 @@ local function updateAdvancedShadows()
 			local extraOffset = layer.ExtraOffset or Vector3.new(0,0,0)
 			local shadow = shadowLayers[layer.Name]
 			shadow.Size = Vector3.new(baseSize * multiplier, 0.2, baseSize * multiplier)
-			-- Điều chỉnh độ đậm của bóng theo góc mặt trời (bóng càng gần, càng đậm)
-			shadow.Transparency = math.clamp(0.2 + (1 - math.sin(elevation))*0.6, 0.2, 0.8)
+			shadow.Transparency = math.clamp(0.1 + (1 - math.sin(elevation))*0.5, 0.1, 0.7)
 			shadow.CFrame = targetCFrame * CFrame.new(extraOffset)
 		end
 	end
@@ -490,7 +416,7 @@ local function onCharacterAdded(char)
 		local halo = Instance.new("ParticleEmitter")
 		halo.Name = "HaloEmitter"
 		halo.Parent = head
-		halo.Texture = "rbxassetid://YourHaloTexture"  -- Thay bằng asset của bạn
+		halo.Texture = "rbxassetid://YourHaloTexture"  -- Thay asset của bạn
 		halo.Rate = 5
 		halo.Lifetime = NumberRange.new(1,2)
 		halo.Speed = NumberRange.new(0,0)
@@ -539,7 +465,7 @@ sunBillboard.Parent = sunPart
 local sunImage = Instance.new("ImageLabel")
 sunImage.Size = UDim2.new(1,0,1,0)
 sunImage.BackgroundTransparency = 1
-sunImage.Image = "rbxassetid://YourSunCoronaImage"  -- Thay bằng asset của bạn
+sunImage.Image = "rbxassetid://YourSunCoronaImage"  -- Thay asset của bạn
 sunImage.ImageTransparency = config.Sun.Billboard.ImageTransparencyNormal
 sunImage.Parent = sunBillboard
 
@@ -578,7 +504,7 @@ moonBillboard.Parent = moonPart
 local moonImage = Instance.new("ImageLabel")
 moonImage.Size = UDim2.new(1,0,1,0)
 moonImage.BackgroundTransparency = 1
-moonImage.Image = "rbxassetid://YourMoonCoronaImage"  -- Thay bằng asset của bạn
+moonImage.Image = "rbxassetid://YourMoonCoronaImage"  -- Thay asset của bạn
 moonImage.ImageTransparency = config.Moon.Billboard.ImageTransparency
 moonImage.Parent = moonBillboard
 
@@ -618,7 +544,7 @@ local function updateSunOcclusion()
 		rayParams.FilterType = Enum.RaycastFilterType.Blacklist
 		local rayResult = Workspace:Raycast(sunPart.Position, (headPos - sunPart.Position), rayParams)
 		if rayResult then
-			sunLight.Brightness = config.Sun.Light.Brightness * config.Sun.OcclusionFactor
+			sunLight.Brightness = config.Sun.Light.Brightness * 0.2
 		else
 			sunLight.Brightness = config.Sun.Light.Brightness
 		end
@@ -750,13 +676,12 @@ task.spawn(function()
 end)
 
 ------------------------------------------------------------
--- ENHANCED OBJECT SHADOWS (như cũ)
+-- ENHANCED OBJECT SHADOWS (như cũ, nâng cấp)
 ------------------------------------------------------------
 local objectShadows = {}
 local function initObjectShadow(part)
 	local excludeNames = {
-		"CloudLayer", "SunPart", "MoonPart", "StarField",
-		"ShadowCore", "ShadowBlur1", "ShadowBlur2", "EnhancedShootingStar"
+		"SunPart", "MoonPart", "EnhancedShootingStar"
 	}
 	for _, name in ipairs(excludeNames) do
 		if part.Name:find(name) then return end
@@ -798,7 +723,7 @@ local function updateObjectShadow(part, shadowPart, sunDir, elevation)
 	factor = math.clamp(factor, 1, 3)
 	shadowPart.Size = Vector3.new(part.Size.X * factor, 0.1, part.Size.Z * factor)
 	shadowPart.CFrame = CFrame.new(hitPos)
-	shadowPart.Transparency = math.clamp(0.2 + (1 - math.sin(elevation))*0.6, 0.2, 0.8)
+	shadowPart.Transparency = math.clamp(0.1 + (1 - math.sin(elevation))*0.5, 0.1, 0.7)
 end
 
 for _, obj in pairs(Workspace:GetDescendants()) do
@@ -840,7 +765,7 @@ RunService.RenderStepped:Connect(function()
 end)
 
 ------------------------------------------------------------
--- HIỆU ỨNG “RAY-TRACED” & VẬT LIỆU (mô phỏng nâng cấp)
+-- HIỆU ỨNG “RAY-TRACED” & VẬT LIỆU (nâng cấp mô phỏng)
 ------------------------------------------------------------
 local function simulateRTGI()
 	if config.AdvancedEffects.RTGI.Enabled then
@@ -967,8 +892,7 @@ local function simulateSSSS()
 end
 
 local function simulateCloudRendering()
-	cloudTexture.OffsetStudsU = (cloudTexture.OffsetStudsU + 0.01) % config.Clouds.StudsPerTile
-	cloudTexture.OffsetStudsV = (cloudTexture.OffsetStudsV + 0.01) % config.Clouds.StudsPerTile
+	-- Không sử dụng vì chức năng mây đã bị xoá.
 end
 
 local function simulateSuperResolution() end
@@ -992,7 +916,6 @@ RunService.RenderStepped:Connect(function(deltaTime)
 	simulateHybridRenderingPipeline()
 	simulateVulkanRayTracing()
 	simulateDenoising()
-	-- Cập nhật cosmic particles nếu cần
 	setupCosmicParticles()
 end)
 
@@ -1014,7 +937,7 @@ RunService.RenderStepped:Connect(function(deltaTime)
 end)
 
 if config.AdvancedEffects.ChromaticAberration.Enabled then
-	-- Placeholder: Custom implementation cần được tạo qua GUI/shader.
+	-- Placeholder: Custom implementation cần qua GUI/shader.
 end
 
 ------------------------------------------------------------
