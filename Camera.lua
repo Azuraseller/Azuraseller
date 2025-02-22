@@ -1,143 +1,127 @@
--- LocalScript đặt trong StarterPlayerScripts
+-- LocalScript (StarterPlayerScripts)
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 
 local player = Players.LocalPlayer
-local originalCamera = workspace.CurrentCamera
+local character = player.Character or player.CharacterAdded:Wait()
+local rootPart = character:WaitForChild("HumanoidRootPart")
 
--- Tạo ra camera clone và sao chép một số thuộc tính cơ bản
+-- 🔹 Camera Clone
 local cloneCamera = Instance.new("Camera")
-cloneCamera.FieldOfView = originalCamera.FieldOfView
-cloneCamera.CameraType = Enum.CameraType.Scriptable  -- Cho phép điều khiển hoàn toàn qua script
-
--- Chuyển sang camera clone (chỉ áp dụng cho client hiện hành)
+cloneCamera.Name = "CloneCamera"
+cloneCamera.CameraType = Enum.CameraType.Scriptable
 workspace.CurrentCamera = cloneCamera
 
--- Các biến điều khiển xoay và zoom
-local rotationX = 20      -- Góc nâng/cúi ban đầu (pitch)
-local rotationY = 0       -- Góc xoay ngang ban đầu (yaw)
-local zoomDistance = 20   -- Khoảng cách zoom ban đầu
+-- 🔹 Biến điều khiển Camera
+local rotationX = 20      -- Góc nhìn lên/xuống
+local rotationY = 0       -- Góc xoay ngang
+local zoomDistance = 20   -- Khoảng cách từ nhân vật đến camera
 
 local MIN_ZOOM = 5
-local MAX_ZOOM = 100
+local MAX_ZOOM = 50
 
--- Các hệ số nhạy cho input
-local mouseRotationSensitivity = 0.2
-local mouseZoomSensitivity = 1.0      -- Điều chỉnh qua vòng chuột
-local touchRotationSensitivity = 0.5  -- Nhạy cảm với cảm ứng
-local touchZoomSensitivity = 0.05     -- Nhạy cảm với cử chỉ pinch
+-- 🔹 Cài đặt cảm ứng & chuột
+local mouseSensitivity = 0.3
+local zoomSensitivity = 2
+local touchSensitivity = 0.5
+local touchZoomSensitivity = 0.05
 
------------------------------------------------------------
--- Xử lý Input từ chuột (Desktop)
------------------------------------------------------------
-UserInputService.InputChanged:Connect(function(input, gameProcessed)
-    if gameProcessed then return end
-    if input.UserInputType == Enum.UserInputType.MouseMovement then
-        rotationX = math.clamp(rotationX - input.Delta.Y * mouseRotationSensitivity, -80, 80)
-        rotationY = rotationY - input.Delta.X * mouseRotationSensitivity
-    elseif input.UserInputType == Enum.UserInputType.MouseWheel then
-        zoomDistance = math.clamp(zoomDistance - input.Position.Z * mouseZoomSensitivity, MIN_ZOOM, MAX_ZOOM)
-    end
-end)
-
------------------------------------------------------------
--- Xử lý Input từ cảm ứng (Mobile)
------------------------------------------------------------
-local activeTouches = {}      -- Lưu trữ các cảm ứng đang hoạt động theo UserInputId
-local pinchStartDistance = nil  -- Khoảng cách ban đầu giữa 2 cảm ứng để tính zoom
+local lastTouchPositions = {}
+local pinchStartDist = nil
 local pinchStartZoom = zoomDistance
 
--- Khi cảm ứng bắt đầu
-UserInputService.TouchStarted:Connect(function(input, gameProcessed)
+-----------------------------------------------------------
+-- 🎮 Xử lý Input: Chuột (PC) & Cảm ứng (Mobile)
+-----------------------------------------------------------
+
+UserInputService.InputChanged:Connect(function(input, gameProcessed)
     if gameProcessed then return end
-    activeTouches[input.UserInputId] = {
-        last = input.Position,
-        current = input.Position,
-        delta = Vector2.new(0, 0)
-    }
+
+    -- 🔹 Xoay camera bằng chuột
+    if input.UserInputType == Enum.UserInputType.MouseMovement then
+        rotationX = math.clamp(rotationX - input.Delta.Y * mouseSensitivity, -80, 80)
+        rotationY = rotationY - input.Delta.X * mouseSensitivity
+    end
+
+    -- 🔹 Zoom bằng con lăn chuột
+    if input.UserInputType == Enum.UserInputType.MouseWheel then
+        zoomDistance = math.clamp(zoomDistance - input.Position.Z * zoomSensitivity, MIN_ZOOM, MAX_ZOOM)
+    end
 end)
 
--- Khi cảm ứng di chuyển
+-----------------------------------------------------------
+-- 📱 Xử lý Input: Cảm ứng (Mobile)
+-----------------------------------------------------------
+
+UserInputService.TouchStarted:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    lastTouchPositions[input.UserInputId] = input.Position
+end)
+
 UserInputService.TouchMoved:Connect(function(input, gameProcessed)
     if gameProcessed then return end
-    local touchData = activeTouches[input.UserInputId]
-    if touchData then
-        local previousPos = touchData.current
-        touchData.current = input.Position
-        touchData.delta = input.Position - previousPos
-    end
-    
-    -- Đếm số cảm ứng đang hoạt động
+    local touch = lastTouchPositions[input.UserInputId]
+    if not touch then return end
+
+    local delta = input.Position - touch
+    lastTouchPositions[input.UserInputId] = input.Position
+
+    -- 🔹 Nếu có 1 ngón tay: Xoay camera
     local touchCount = 0
-    for _ in pairs(activeTouches) do
+    for _ in pairs(lastTouchPositions) do
         touchCount = touchCount + 1
     end
 
     if touchCount == 1 then
-        -- Một cảm ứng: dùng di chuyển để xoay camera
-        for _, touchData in pairs(activeTouches) do
-            rotationX = math.clamp(rotationX - touchData.delta.Y * touchRotationSensitivity, -80, 80)
-            rotationY = rotationY - touchData.delta.X * touchRotationSensitivity
-        end
-    elseif touchCount >= 2 then
-        -- Hai cảm ứng trở lên: dùng cử chỉ pinch để zoom, đồng thời dùng trung bình chuyển động để xoay
+        rotationX = math.clamp(rotationX - delta.Y * touchSensitivity, -80, 80)
+        rotationY = rotationY - delta.X * touchSensitivity
+    end
+
+    -- 🔹 Nếu có 2 ngón tay: Zoom camera
+    if touchCount == 2 then
         local touches = {}
-        for _, data in pairs(activeTouches) do
-            table.insert(touches, data)
+        for _, pos in pairs(lastTouchPositions) do
+            table.insert(touches, pos)
         end
-        
-        if #touches >= 2 then
-            local pos1 = touches[1].current
-            local pos2 = touches[2].current
-            local currentPinchDistance = (pos1 - pos2).Magnitude
-            
-            if not pinchStartDistance then
-                pinchStartDistance = currentPinchDistance
+
+        if #touches == 2 then
+            local dist = (touches[1] - touches[2]).Magnitude
+            if not pinchStartDist then
+                pinchStartDist = dist
                 pinchStartZoom = zoomDistance
             else
-                local pinchDelta = currentPinchDistance - pinchStartDistance
-                zoomDistance = math.clamp(pinchStartZoom - pinchDelta * touchZoomSensitivity, MIN_ZOOM, MAX_ZOOM)
+                local zoomDelta = (dist - pinchStartDist) * touchZoomSensitivity
+                zoomDistance = math.clamp(pinchStartZoom - zoomDelta, MIN_ZOOM, MAX_ZOOM)
             end
-            
-            -- Dùng trung bình chuyển động của 2 cảm ứng để xoay camera
-            local avgDelta = (touches[1].delta + touches[2].delta) / 2
-            rotationX = math.clamp(rotationX - avgDelta.Y * touchRotationSensitivity, -80, 80)
-            rotationY = rotationY - avgDelta.X * touchRotationSensitivity
         end
     end
 end)
 
--- Khi cảm ứng kết thúc
 UserInputService.TouchEnded:Connect(function(input, gameProcessed)
     if gameProcessed then return end
-    activeTouches[input.UserInputId] = nil
-    -- Nếu số cảm ứng giảm dưới 2, reset pinch
-    local touchCount = 0
-    for _ in pairs(activeTouches) do
-        touchCount = touchCount + 1
-    end
-    if touchCount < 2 then
-        pinchStartDistance = nil
+    lastTouchPositions[input.UserInputId] = nil
+    if not next(lastTouchPositions) then
+        pinchStartDist = nil
     end
 end)
 
 -----------------------------------------------------------
--- Cập nhật vị trí và hướng của camera clone mỗi khung hình
+-- 🔄 Cập nhật Camera mỗi khung hình
 -----------------------------------------------------------
 RunService.RenderStepped:Connect(function()
     local character = player.Character
     if character and character:FindFirstChild("HumanoidRootPart") then
-        local targetPosition = character.HumanoidRootPart.Position
+        local rootPart = character.HumanoidRootPart
+        local targetPosition = rootPart.Position + Vector3.new(0, 3, 0) -- Nâng lên một chút để tránh che khuất
         
-        -- Offset nâng camera lên một chút (có thể điều chỉnh)
-        local offset = Vector3.new(0, 5, zoomDistance)
-        -- Tạo CFrame xoay dựa trên góc người dùng điều chỉnh
+        -- 🔹 Tính toán vị trí Camera
         local rotationCF = CFrame.Angles(math.rad(rotationX), math.rad(rotationY), 0)
-        local cameraPosition = targetPosition + (rotationCF * offset)
-        
-        -- Cập nhật CFrame, đảm bảo camera luôn hướng về vị trí của nhân vật (có thể tùy chỉnh theo ý muốn)
+        local offset = Vector3.new(0, 0, zoomDistance)
+        local cameraPosition = targetPosition + rotationCF:VectorToWorldSpace(offset)
+
+        -- 🔹 Cập nhật Camera
         cloneCamera.CFrame = CFrame.new(cameraPosition, targetPosition)
     end
 end)
