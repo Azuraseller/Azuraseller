@@ -1,10 +1,10 @@
 --[[    
-  Advanced Camera Gun Script - Pro Edition 6.4
+  Advanced Camera Gun Script - Pro Edition 6.5
   --------------------------------------------------
   Cải tiến:
-   1. Aim–Target lock luôn ghim vào head mục tiêu với độ chính xác cao và cập nhật ngay tức thì.
-   2. Nếu có mục tiêu trong bán kính 600, Aim luôn bật (locked = true).
-   3. Nếu mục tiêu ở gần (≤15) trong ít nhất 1 giây, người dùng có thể vuốt xuống để kích hoạt hành động đặc biệt (ví dụ: tiêu diệt mục tiêu).
+   1. Camera được điều chỉnh bằng Lerp (sử dụng deltaTime và CAMERA_SMOOTH_FACTOR) để tránh giật, rung khi ghim vào mục tiêu.
+   2. Khi Aim On và có mục tiêu hợp lệ, Aim tự động bật và luôn ghim vào head của mục tiêu (dùng head.Position nếu khoảng cách < MIN_PREDICTION_DISTANCE, nếu ≥ thì dự đoán theo vận tốc).
+   3. Nếu mục tiêu ở gần (≤15 đơn vị) trong ít nhất 1 giây, người dùng có thể vuốt xuống (với đủ độ lệch theo trục Y và ít nhiễu theo trục X) để kích hoạt hành động đặc biệt (ví dụ: tiêu diệt mục tiêu).
    4. Chức năng Hitbox đã bị loại bỏ.
 --]]    
 
@@ -15,19 +15,23 @@ local LOCK_RADIUS = 600               -- Bán kính ghim mục tiêu
 local HEALTH_BOARD_RADIUS = 900       -- Bán kính hiển thị Health Board
 local PREDICTION_ENABLED = true        -- Bật/tắt dự đoán mục tiêu
 
--- Dự đoán chỉ hoạt động nếu khoảng cách ≥350; nếu nhỏ hơn luôn dùng head.Position
+-- Dự đoán chỉ hoạt động nếu khoảng cách ≥ MIN_PREDICTION_DISTANCE; nếu nhỏ hơn luôn dùng head.Position
 local MIN_PREDICTION_DISTANCE = 350
 
 -- Các tham số khác
 local CLOSE_RADIUS = 7                -- Khi mục tiêu gần, giữ Y của camera
-local HEIGHT_DIFFERENCE_THRESHOLD = 5 -- Ngưỡng chênh lệch độ cao giữa camera & mục tiêu
+local HEIGHT_DIFFERENCE_THRESHOLD = 5 -- Ngưỡng chênh độ cao giữa camera & mục tiêu
 local MOVEMENT_THRESHOLD = 0.1
 local STATIONARY_TIMEOUT = 5
+
+-- Tham số cho camera smoothing (cao = mượt hơn)
+local CAMERA_SMOOTH_FACTOR = 8
 
 -- Cấu hình cho swipe down:
 local NEAR_DISTANCE = 15              -- Mục tiêu cách ≤15 đơn vị
 local SWIPE_WAIT_TIME = 1             -- Phải duy trì khoảng cách này ít nhất 1 giây
 local SWIPE_THRESHOLD = 50            -- Ngưỡng vuốt xuống (pixel theo trục Y)
+local SWIPE_HORIZONTAL_RATIO = 0.5    -- Đảm bảo swipe chủ yếu theo trục Y
 
 -------------------------------------
 -- Dịch vụ & Đối tượng --
@@ -48,17 +52,18 @@ local currentTarget = nil       -- Mục tiêu hiện tại
 local lastLocalPosition = nil  
 local lastMovementTime = tick()
 
--- Các biến hỗ trợ swipe down:
+-- Các biến hỗ trợ swipe down
 local swipeAvailable = false
 local swipeAvailableStartTime = nil
 local swipeStartPos = nil
 local swipeStartTime = nil
+local swipeCooldown = false
 
--- Bảng lưu Health Board (vẫn giữ lại nếu cần hiển thị; có thể xoá nếu không cần)
+-- (Nếu cần hiển thị Health Board, giữ lại bảng này; nếu không thì có thể xoá)
 local healthBoards = {}
 
 -------------------------------------
--- GIAO DIỆN GUI (tối giản: chỉ gồm nút Toggle & Close) --
+-- GIAO DIỆN GUI (Phiên bản tối giản: chỉ gồm nút Toggle & Close) --
 -------------------------------------
 local screenGui = Instance.new("ScreenGui")
 screenGui.Parent = game:GetService("CoreGui")
@@ -274,7 +279,7 @@ local function calculateCameraRotation(targetPosition)
     return newCFrame
 end
 
--- Health Board: hiển thị thanh máu của mục tiêu (không thay đổi)
+-- Health Board: hiển thị thanh máu của mục tiêu (nếu cần, không thay đổi)
 local function updateHealthBoardForTarget(enemy)
     if not enemy or not enemy:FindFirstChild("Head") or not enemy:FindFirstChild("Humanoid") then
         return
@@ -300,7 +305,7 @@ local function updateHealthBoardForTarget(enemy)
         return
     end
     local headSize = enemy.Head.Size
-    local boardWidth = headSize.X * 60
+    local boardWidth = headSize.X * 70
     local boardHeight = headSize.Y * 5
     if not healthBoards[enemy] then
         local billboard = Instance.new("BillboardGui")
@@ -308,7 +313,7 @@ local function updateHealthBoardForTarget(enemy)
         billboard.Adornee = enemy.Head
         billboard.AlwaysOnTop = true
         billboard.Size = UDim2.new(0, boardWidth, 0, boardHeight)
-        billboard.StudsOffset = Vector3.new(0, 50, 0)
+        billboard.StudsOffset = Vector3.new(0, 1, 0)
         billboard.Parent = enemy
 
         local bg = Instance.new("Frame", billboard)
@@ -372,38 +377,15 @@ RunService.RenderStepped:Connect(function(deltaTime)
         if not isValidTarget(currentTarget) then
             currentTarget = selectTarget()
         end
-
-        -- Khi có mục tiêu, tự bật Aim (locked luôn true) nếu có mục tiêu trong bán kính
+        
         if currentTarget then
-            locked = true
+            locked = true  -- Khi có mục tiêu, Aim tự bật
             toggleButton.Text = "ON"
             toggleButton.BackgroundColor3 = Color3.fromRGB(0,200,0)
         else
             locked = false
             toggleButton.Text = "OFF"
             toggleButton.BackgroundColor3 = Color3.fromRGB(220,20,60)
-        end
-
-        -- Cập nhật tính năng swipe down:
-        if currentTarget and isValidTarget(currentTarget) then
-            local localHRP = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-            local enemyHRP = currentTarget:FindFirstChild("HumanoidRootPart")
-            if localHRP and enemyHRP then
-                local dist = (enemyHRP.Position - localHRP.Position).Magnitude
-                if dist <= NEAR_DISTANCE then
-                    if not swipeAvailableStartTime then
-                        swipeAvailableStartTime = tick()
-                    elseif tick() - swipeAvailableStartTime >= SWIPE_WAIT_TIME then
-                        swipeAvailable = true
-                    end
-                else
-                    swipeAvailableStartTime = nil
-                    swipeAvailable = false
-                end
-            end
-        else
-            swipeAvailableStartTime = nil
-            swipeAvailable = false
         end
 
         if currentTarget and locked then
@@ -420,8 +402,9 @@ RunService.RenderStepped:Connect(function(deltaTime)
                 else
                     local predictedPos = predictTargetPosition(currentTarget)
                     if predictedPos then
-                        -- Luôn lock vào head của mục tiêu và cập nhật ngay tức thì
-                        Camera.CFrame = calculateCameraRotation(predictedPos)
+                        local targetCFrame = calculateCameraRotation(predictedPos)
+                        local smoothAlpha = 1 - math.exp(-CAMERA_SMOOTH_FACTOR * deltaTime)
+                        Camera.CFrame = Camera.CFrame:Lerp(targetCFrame, smoothAlpha)
                     end
                 end
             end
@@ -446,10 +429,33 @@ end)
 -------------------------------------
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
-    -- Chỉ bắt đầu ghi nhận nếu khả năng swipe đã được mở
-    if swipeAvailable and (input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1) then
-        swipeStartPos = input.Position
-        swipeStartTime = tick()
+    if (input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1) then
+        if swipeAvailable then
+            swipeStartPos = input.Position
+            swipeStartTime = tick()
+        end
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    -- Kiểm tra xem nếu có mục tiêu ở gần, đánh dấu khả năng swipe
+    if currentTarget and isValidTarget(currentTarget) then
+        local localHRP = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+        local enemyHRP = currentTarget:FindFirstChild("HumanoidRootPart")
+        if localHRP and enemyHRP then
+            local dist = (enemyHRP.Position - localHRP.Position).Magnitude
+            if dist <= NEAR_DISTANCE then
+                if not swipeAvailableStartTime then
+                    swipeAvailableStartTime = tick()
+                elseif tick() - swipeAvailableStartTime >= SWIPE_WAIT_TIME then
+                    swipeAvailable = true
+                end
+            else
+                swipeAvailableStartTime = nil
+                swipeAvailable = false
+            end
+        end
     end
 end)
 
@@ -458,15 +464,17 @@ UserInputService.InputEnded:Connect(function(input, gameProcessed)
     if swipeStartPos and (input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1) then
         local endPos = input.Position
         local deltaY = endPos.Y - swipeStartPos.Y  -- Y tăng xuống dưới
-        if deltaY >= SWIPE_THRESHOLD then
-            -- Vuốt xuống được phát hiện
+        local deltaX = endPos.X - swipeStartPos.X
+        if deltaY >= SWIPE_THRESHOLD and math.abs(deltaX) < SWIPE_HORIZONTAL_RATIO * deltaY and not swipeCooldown then
+            -- Vuốt xuống được xác nhận
             print("Swipe Down Detected!")
-            -- Thực thi hành động đặc biệt: Ví dụ, tiêu diệt mục tiêu
             local enemyHumanoid = currentTarget and currentTarget:FindFirstChild("Humanoid")
             if enemyHumanoid and enemyHumanoid.Health > 0 then
                 enemyHumanoid.Health = 0
                 print("Target eliminated by swipe down!")
             end
+            swipeCooldown = true
+            delay(1, function() swipeCooldown = false end)
         end
         swipeStartPos = nil
         swipeStartTime = nil
