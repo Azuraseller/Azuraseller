@@ -1,17 +1,18 @@
 ------------------------------------------------------------
--- RTX-like Advanced Effects - Phiên bản Nâng Cấp Tổng Thể
+-- RTX-like Advanced Effects – Tổng Thể (Final Integrated Version)
 ------------------------------------------------------------
 --[[
-Các cải tiến:
-1. Ambient môi trường giảm xuống: tông màu xanh tối hơn (Color3.fromRGB(120,150,170)).
-2. Ánh sáng Mặt Trời chiếu mạnh hơn, với Brightness tăng (7) và SunRays mạnh mẽ hơn.
-3. Thêm nguồn sáng “groundLight” dưới chân và quanh người dùng (theo nhân vật), nhằm làm sáng khu vực xung quanh họ và làm cho các nguồn sáng xa hơn trở nên tối hơn.
-4. Tổng thể các hiệu ứng khác được tối ưu lại.
-   • Hiệu ứng bóng, chắn ánh sáng được tăng cường.
-   • Các chức năng sky, star, clouds đã bị loại bỏ.
+Các cải tiến tích hợp:
+1. Ambient & ColorCorrection được tinh chỉnh: giảm tint xanh, ambient chuyển sang tông ấm hơn (120,150,170).
+2. Fog được cập nhật liên tục: ban ngày dùng màu xanh nhạt dịu, ban đêm chuyển sang tông tối (20,20,40).
+3. Mặt Trời có Brightness tăng lên (8 hoặc 7–8) và SunRays mạnh hơn, tạo các tia sáng rõ nét.
+4. Thêm nguồn sáng “GroundLight” gắn dưới chân nhân vật (Range=50, Brightness cao, màu ấm) để làm nổi bật chi tiết vật liệu quanh người chơi.
+5. Các hiệu ứng bóng (Adaptive Shadows) được mô phỏng qua raycast và nội suy, với độ trong suốt được điều chỉnh theo góc Mặt Trời.
+6. Tăng độ phản chiếu cho nước và vật liệu (DetailQuality.Reflectance tăng, Water.Reflectance tăng).
+7. Các chức năng sky, star, clouds bị loại bỏ hoàn toàn.
 ]]--
 
--- Dịch vụ Roblox
+-- Services
 local Lighting = game:GetService("Lighting")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
@@ -23,34 +24,34 @@ local player = Players.LocalPlayer
 local camera = Workspace.CurrentCamera
 
 ------------------------------------------------------------
--- BẢNG CẤU HÌNH
+-- Configuration Table
 ------------------------------------------------------------
 local config = {
     PostProcessing = {
         Bloom = { Intensity = 1.2, Size = 40, Threshold = 2 },
         ColorCorrection = { 
             Brightness = 0.15, 
-            Contrast = 0.25, 
+            Contrast = 0.3, 
             Saturation = 0.1, 
-            TintColor = Color3.fromRGB(160,200,240)  -- giảm tint xanh
+            TintColor = Color3.fromRGB(160,200,240)
         },
         DepthOfField = { FarIntensity = 0.3, FocusDistance = 20, InFocusRadius = 10, NearIntensity = 0.3 },
         SSR = { Intensity = 0.8, Reflectance = 0.7 },
-        SunRays = { Intensity = 0.5, Spread = 0.2 }  -- tăng intensity của sun rays
+        SunRays = { Intensity = 0.6, Spread = 0.2 }
     },
     RtxUpgrade = {
         LightBleedReduction = 0.5,
         DeviceBrightnessFactor = 0.8,
     },
     Water = {
-        Reflectance = 0.4,
+        Reflectance = 0.6, -- tăng phản chiếu
         TextureSpeed = { U = 0.1, V = 0.05 },
         Mist = { Rate = 2, Lifetime = {3,5}, Speed = {0.5,1}, Size = 5, Color = Color3.fromRGB(200,200,255), Transparency = 0.5 },
         WaveAmplitude = 0.05,
         WaveFrequency = 0.5
     },
     ReflectionProbe = { Size = Vector3.new(70,70,70) },
-    GlobalLighting = { DayBrightness = 2.5, NightBrightness = 1.5 },
+    GlobalLighting = { DayBrightness = 2.5, NightBrightness = 1.5, MaxBrightness = 8 },
     Shadow = {
         BaseSize = 6,
         Offsets = { offsetDistance = 3 },
@@ -65,7 +66,7 @@ local config = {
     Sun = {
         PartSize = Vector3.new(60,60,60),
         PartColor = Color3.fromRGB(255,220,100),
-        Light = { Range = 1200, Brightness = 7 },  -- Mặt Trời sáng hơn
+        Light = { Range = 1200, Brightness = 8 },
         Billboard = { Size = UDim2.new(4,0,4,0), FlareSize = UDim2.new(5,0,5,0), ImageTransparencyFocused = 0.2, ImageTransparencyNormal = 0.5 },
         OcclusionFactor = 0.2
     },
@@ -92,7 +93,7 @@ local config = {
     DetailQuality = {
         Radius = 200,
         HighMaterial = Enum.Material.Metal,
-        Reflectance = 0.3,
+        Reflectance = 0.7, -- tăng reflectance của vật liệu
         UpdateInterval = 5
     },
     EnvironmentCheck = { UpdateInterval = 3 },
@@ -111,18 +112,33 @@ local config = {
 local advancedMode = true
 
 ------------------------------------------------------------
--- THIẾT LẬP ENVIRONMENT: AMBIENT, FOG & COLOR CORRECTION
+-- HÀM ỨNG DỰNG NGUỒN SÁNG "GROUND LIGHT" – dưới chân người chơi (Range ~50)
 ------------------------------------------------------------
--- Giảm ánh sáng môi trường xanh tối hơn (ambient)
+local function setupGroundLight(character)
+	local hrp = character:FindFirstChild("HumanoidRootPart")
+	if hrp and not hrp:FindFirstChild("GroundLight") then
+		local groundLight = Instance.new("PointLight")
+		groundLight.Name = "GroundLight"
+		groundLight.Brightness = 3
+		groundLight.Range = 50
+		groundLight.Color = Color3.fromRGB(255,240,200)
+		groundLight.Parent = hrp
+		groundLight.Enabled = true
+	end
+end
+
+------------------------------------------------------------
+-- ENVIRONMENT: AMBIENT, FOG & COLOR CORRECTION
+------------------------------------------------------------
 Lighting.Ambient = Color3.fromRGB(120,150,170)
 local function updateFog()
 	local hour = tonumber(Lighting.TimeOfDay:sub(1,2))
 	if hour >= 6 and hour < 18 then
-		Lighting.FogColor = Color3.fromRGB(190,210,255)  -- ban ngày: xanh nhạt
+		Lighting.FogColor = Color3.fromRGB(190,210,255)
 		Lighting.FogStart = 50
 		Lighting.FogEnd = 300
 	else
-		Lighting.FogColor = Color3.fromRGB(20,20,40)     -- ban đêm: tối, sâu hơn
+		Lighting.FogColor = Color3.fromRGB(20,20,40)
 		Lighting.FogStart = 30
 		Lighting.FogEnd = 150
 	end
@@ -138,7 +154,7 @@ colorCorrection.TintColor = config.PostProcessing.ColorCorrection.TintColor
 colorCorrection.Parent = Lighting
 
 ------------------------------------------------------------
--- POST-PROCESSING EFFECTS: Bloom, DOF, SSR, SunRays
+-- POST-PROCESSING: Bloom, DOF, SSR, SunRays
 ------------------------------------------------------------
 local bloom = Instance.new("BloomEffect")
 bloom.Intensity = config.PostProcessing.Bloom.Intensity
@@ -172,24 +188,31 @@ sunRays.Spread = config.PostProcessing.SunRays.Spread
 sunRays.Parent = Lighting
 
 ------------------------------------------------------------
--- THÊM NGUỒN SÁNG "GROUND LIGHT" (sáng nhẹ dưới chân người dùng)
+-- ON CHARACTER: Gắn GroundLight và Halo xung quanh người dùng
 ------------------------------------------------------------
-local function setupGroundLight(character)
-	local hrp = character:FindFirstChild("HumanoidRootPart")
-	if hrp and not hrp:FindFirstChild("GroundLight") then
-		local groundLight = Instance.new("PointLight")
-		groundLight.Name = "GroundLight"
-		groundLight.Brightness = 2
-		groundLight.Range = 15
-		groundLight.Color = Color3.fromRGB(255,240,200)
-		groundLight.Parent = hrp
-		-- Đặt vị trí nhẹ dưới chân
-		groundLight.Enabled = true
+local function onCharacterAdded(char)
+	local hrp = char:WaitForChild("HumanoidRootPart")
+	setupGroundLight(char)
+	-- Tạo hiệu ứng Halo cho người dùng (xung quanh đầu)
+	if not char:FindFirstChild("UserHalo") then
+		local halo = Instance.new("ParticleEmitter")
+		halo.Name = "UserHalo"
+		halo.Texture = "rbxassetid://YourHaloTexture"  -- Thay asset của bạn
+		halo.Rate = 5
+		halo.Lifetime = NumberRange.new(1,2)
+		halo.Speed = NumberRange.new(0,0)
+		halo.Size = NumberSequence.new({NumberSequenceKeypoint.new(0,4), NumberSequenceKeypoint.new(1,8)})
+		halo.LightEmission = 1
+		halo.Parent = char.Head
 	end
+	playerLight.Parent = hrp
 end
 
+if player.Character then onCharacterAdded(player.Character) end
+player.CharacterAdded:Connect(onCharacterAdded)
+
 ------------------------------------------------------------
--- COSMIC PARTICLE EFFECTS (xung quanh nguồn sáng)
+-- COSMIC PARTICLE EFFECTS (xung quanh Mặt Trời)
 ------------------------------------------------------------
 local function setupCosmicParticles()
 	if sunPart and not sunPart:FindFirstChild("CosmicParticles") then
@@ -206,7 +229,7 @@ local function setupCosmicParticles()
 end
 
 ------------------------------------------------------------
--- MIRROR OVERLAY EFFECT (lớp “gương” siêu mỏng, trong suốt)
+-- MIRROR OVERLAY EFFECT (lớp “gương” mỏng, trong suốt cho mọi đối tượng)
 ------------------------------------------------------------
 local function applyMirrorOverlay(part)
 	local excludeList = {"SunPart", "MoonPart", "EnhancedShootingStar", "MirrorOverlay"}
@@ -226,7 +249,6 @@ for _, obj in pairs(Workspace:GetDescendants()) do
 		applyMirrorOverlay(obj)
 	end
 end
-
 Workspace.DescendantAdded:Connect(function(child)
 	if child:IsA("BasePart") then
 		task.wait(0.1)
@@ -287,7 +309,6 @@ reflectionProbe.Name = "LocalReflectionProbe"
 reflectionProbe.Size = config.ReflectionProbe.Size
 reflectionProbe.ReflectionType = Enum.ReflectionType.Dynamic
 reflectionProbe.Parent = Workspace
-
 RunService.RenderStepped:Connect(function()
 	if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
 		reflectionProbe.CFrame = player.Character.HumanoidRootPart.CFrame
@@ -295,7 +316,7 @@ RunService.RenderStepped:Connect(function()
 end)
 
 ------------------------------------------------------------
--- GLOBAL LIGHTING (với điều chỉnh)
+-- GLOBAL LIGHTING & ADJUSTMENT (với hạn chế chói)
 ------------------------------------------------------------
 local function updateGlobalLighting()
 	local hour = tonumber(Lighting.TimeOfDay:sub(1,2))
@@ -304,7 +325,7 @@ local function updateGlobalLighting()
 	if quality < 2 then
 		baseBrightness = baseBrightness * config.RtxUpgrade.DeviceBrightnessFactor
 	end
-	Lighting.Brightness = baseBrightness
+	Lighting.Brightness = math.clamp(baseBrightness, 0, config.GlobalLighting.MaxBrightness)
 end
 
 local function adjustGlobalBrightness()
@@ -328,7 +349,7 @@ task.spawn(function()
 end)
 
 ------------------------------------------------------------
--- HIỆU ỨNG BÓNG NHÂN VẬT (Adaptive Shadows – nâng cấp)
+-- ADAPTIVE SHADOWS (với hiệu ứng bóng nâng cấp)
 ------------------------------------------------------------
 local shadowLayers = {}
 local function createShadowLayer(layerConfig)
@@ -415,7 +436,7 @@ end
 RunService.RenderStepped:Connect(updateAdvancedShadows)
 
 ------------------------------------------------------------
--- HIỆU ỨNG ÁNH SÁNG & HALO (như cũ)
+-- LIGHTING & HALO (với các hiệu ứng quanh người dùng)
 ------------------------------------------------------------
 local playerLight = Instance.new("PointLight")
 playerLight.Name = "PlayerLight"
@@ -426,21 +447,18 @@ playerLight.Shadows = true
 
 local function onCharacterAdded(char)
 	local hrp = char:WaitForChild("HumanoidRootPart")
-	playerLight.Parent = hrp
-	-- Thiết lập ground light cho người dùng
 	setupGroundLight(char)
-	local head = char:FindFirstChild("Head")
-	if head and not head:FindFirstChild("HaloEmitter") then
+	playerLight.Parent = hrp
+	if not char:FindFirstChild("UserHalo") then
 		local halo = Instance.new("ParticleEmitter")
-		halo.Name = "HaloEmitter"
-		halo.Parent = head
+		halo.Name = "UserHalo"
 		halo.Texture = "rbxassetid://YourHaloTexture"  -- Thay asset của bạn
 		halo.Rate = 5
 		halo.Lifetime = NumberRange.new(1,2)
 		halo.Speed = NumberRange.new(0,0)
-		halo.Size = NumberSequence.new({NumberSequenceKeypoint.new(0,3), NumberSequenceKeypoint.new(1,6)})
-		halo.Transparency = NumberSequence.new({NumberSequenceKeypoint.new(0,0.2), NumberSequenceKeypoint.new(1,1)})
+		halo.Size = NumberSequence.new({NumberSequenceKeypoint.new(0,4), NumberSequenceKeypoint.new(1,8)})
 		halo.LightEmission = 1
+		halo.Parent = char.Head
 	end
 end
 
@@ -454,7 +472,7 @@ RunService.RenderStepped:Connect(function()
 end)
 
 ------------------------------------------------------------
--- HIỆU ỨNG MẶT TRỜI & MẶT TRĂNG (như cũ)
+-- MẶT TRỜI & MẶT TRĂNG (hiệu ứng cơ bản)
 ------------------------------------------------------------
 local sunPart = Instance.new("Part")
 sunPart.Name = "SunPart"
@@ -638,7 +656,7 @@ task.spawn(function()
 end)
 
 ------------------------------------------------------------
--- TĂNG CHẤT LƯỢNG CHI TIẾT XUNG QUANH NGƯỜI CHƠI (như cũ)
+-- DETAIL QUALITY: Cải tiến vật liệu (nếu có thuộc tính "EnhancedMaterial")
 ------------------------------------------------------------
 local function updateDetailQuality()
 	if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
@@ -646,7 +664,7 @@ local function updateDetailQuality()
 		local regionSize = Vector3.new(config.DetailQuality.Radius, config.DetailQuality.Radius, config.DetailQuality.Radius)
 		local parts = Workspace:GetPartBoundsInBox(hrp.CFrame, regionSize, {player.Character})
 		for _, part in ipairs(parts) do
-			if part:GetAttribute("EnhancedDetail") then
+			if part:GetAttribute("EnhancedMaterial") then
 				part.Material = config.DetailQuality.HighMaterial
 				part.Reflectance = config.DetailQuality.Reflectance
 			end
@@ -661,7 +679,7 @@ task.spawn(function()
 end)
 
 ------------------------------------------------------------
--- KIỂM TRA MÔI TRƯỜNG & AMBIENT OCCLUSION (như cũ, cải tiến)
+-- ENVIRONMENT & AMBIENT OCCLUSION
 ------------------------------------------------------------
 local function updateEnvironmentLighting()
 	if player.Character and player.Character:FindFirstChild("Head") then
@@ -692,7 +710,7 @@ task.spawn(function()
 end)
 
 ------------------------------------------------------------
--- ENHANCED OBJECT SHADOWS (như cũ, nâng cấp)
+-- ENHANCED OBJECT SHADOWS
 ------------------------------------------------------------
 local objectShadows = {}
 local function initObjectShadow(part)
@@ -766,7 +784,7 @@ RunService.RenderStepped:Connect(function()
 end)
 
 ------------------------------------------------------------
--- HẠN CHẾ ÁNH SÁNG LOÁ (như cũ)
+-- HẠN CHẾ ÁNH SÁNG LOÁ
 ------------------------------------------------------------
 RunService.RenderStepped:Connect(function()
 	local sunVector = (sunPart.Position - camera.CFrame.Position).Unit
@@ -779,7 +797,7 @@ RunService.RenderStepped:Connect(function()
 end)
 
 ------------------------------------------------------------
--- HIỆU ỨNG “RAY-TRACED” & VẬT LIỆU (nâng cấp mô phỏng)
+-- HIỆU ỨNG “RAY-TRACED” & VẬT LIỆU (mô phỏng nâng cấp)
 ------------------------------------------------------------
 local function simulateRTGI()
 	if config.AdvancedEffects.RTGI.Enabled then
@@ -928,7 +946,7 @@ RunService.RenderStepped:Connect(function(deltaTime)
 end)
 
 ------------------------------------------------------------
--- HIỆU ỨNG CHUYỂN ĐỘNG & CAMERA (Motion Blur & Chromatic Aberration)
+-- MOTION BLUR & CHROMATIC ABERRATION (nâng cấp)
 ------------------------------------------------------------
 local motionBlur = Instance.new("BlurEffect")
 motionBlur.Enabled = config.AdvancedEffects.MotionBlur.Enabled
@@ -949,7 +967,7 @@ if config.AdvancedEffects.ChromaticAberration.Enabled then
 end
 
 ------------------------------------------------------------
--- CHUYỂN ĐỔI GIỎI HỌA (Advanced vs Default)
+-- SWITCHING GRAPHICS MODE (Advanced vs Default)
 ------------------------------------------------------------
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
 	if not gameProcessed and input.KeyCode == Enum.KeyCode.R then
