@@ -1,16 +1,6 @@
 ------------------------------------------------------------
--- RTX-like Advanced Effects – Tổng Thể (Final Integrated Version)
+-- RTX-like Advanced Effects – Final Upgraded Version
 ------------------------------------------------------------
---[[
-Các cải tiến tích hợp:
-1. Ambient & ColorCorrection được tinh chỉnh: giảm tint xanh, ambient chuyển sang tông ấm hơn (120,150,170).
-2. Fog được cập nhật liên tục: ban ngày dùng màu xanh nhạt dịu, ban đêm chuyển sang tông tối (20,20,40).
-3. Mặt Trời có Brightness tăng lên (8 hoặc 7–8) và SunRays mạnh hơn, tạo các tia sáng rõ nét.
-4. Thêm nguồn sáng “GroundLight” gắn dưới chân nhân vật (Range=50, Brightness cao, màu ấm) để làm nổi bật chi tiết vật liệu quanh người chơi.
-5. Các hiệu ứng bóng (Adaptive Shadows) được mô phỏng qua raycast và nội suy, với độ trong suốt được điều chỉnh theo góc Mặt Trời.
-6. Tăng độ phản chiếu cho nước và vật liệu (DetailQuality.Reflectance tăng, Water.Reflectance tăng).
-7. Các chức năng sky, star, clouds bị loại bỏ hoàn toàn.
-]]--
 
 -- Services
 local Lighting = game:GetService("Lighting")
@@ -31,20 +21,20 @@ local config = {
         Bloom = { Intensity = 1.2, Size = 40, Threshold = 2 },
         ColorCorrection = { 
             Brightness = 0.15, 
-            Contrast = 0.3, 
+            Contrast = 0.35, 
             Saturation = 0.1, 
-            TintColor = Color3.fromRGB(160,200,240)
+            TintColor = Color3.fromRGB(155,195,230)  -- hơi ấm, giảm tint xanh
         },
         DepthOfField = { FarIntensity = 0.3, FocusDistance = 20, InFocusRadius = 10, NearIntensity = 0.3 },
         SSR = { Intensity = 0.8, Reflectance = 0.7 },
-        SunRays = { Intensity = 0.6, Spread = 0.2 }
+        SunRays = { Intensity = 0.7, Spread = 0.2 }
     },
     RtxUpgrade = {
         LightBleedReduction = 0.5,
         DeviceBrightnessFactor = 0.8,
     },
     Water = {
-        Reflectance = 0.6, -- tăng phản chiếu
+        Reflectance = 0.9,  -- tăng phản chiếu nước
         TextureSpeed = { U = 0.1, V = 0.05 },
         Mist = { Rate = 2, Lifetime = {3,5}, Speed = {0.5,1}, Size = 5, Color = Color3.fromRGB(200,200,255), Transparency = 0.5 },
         WaveAmplitude = 0.05,
@@ -67,7 +57,7 @@ local config = {
         PartSize = Vector3.new(60,60,60),
         PartColor = Color3.fromRGB(255,220,100),
         Light = { Range = 1200, Brightness = 8 },
-        Billboard = { Size = UDim2.new(4,0,4,0), FlareSize = UDim2.new(5,0,5,0), ImageTransparencyFocused = 0.2, ImageTransparencyNormal = 0.5 },
+        Billboard = { Size = UDim2.new(4,0,4,0), FlareSize = UDim2.new(5,0,5,0), ImageTransparencyFocused = 0.15, ImageTransparencyNormal = 0.5 },
         OcclusionFactor = 0.2
     },
     Moon = {
@@ -93,7 +83,7 @@ local config = {
     DetailQuality = {
         Radius = 200,
         HighMaterial = Enum.Material.Metal,
-        Reflectance = 0.7, -- tăng reflectance của vật liệu
+        Reflectance = 1,  -- tăng reflectance cho vật liệu
         UpdateInterval = 5
     },
     EnvironmentCheck = { UpdateInterval = 3 },
@@ -112,29 +102,19 @@ local config = {
 local advancedMode = true
 
 ------------------------------------------------------------
--- HÀM ỨNG DỰNG NGUỒN SÁNG "GROUND LIGHT" – dưới chân người chơi (Range ~50)
-------------------------------------------------------------
-local function setupGroundLight(character)
-	local hrp = character:FindFirstChild("HumanoidRootPart")
-	if hrp and not hrp:FindFirstChild("GroundLight") then
-		local groundLight = Instance.new("PointLight")
-		groundLight.Name = "GroundLight"
-		groundLight.Brightness = 3
-		groundLight.Range = 50
-		groundLight.Color = Color3.fromRGB(255,240,200)
-		groundLight.Parent = hrp
-		groundLight.Enabled = true
-	end
-end
-
-------------------------------------------------------------
 -- ENVIRONMENT: AMBIENT, FOG & COLOR CORRECTION
 ------------------------------------------------------------
 Lighting.Ambient = Color3.fromRGB(120,150,170)
-local function updateFog()
+-- Fog thay đổi màu liên tục theo tham số nhỏ (sử dụng sin)
+RunService.RenderStepped:Connect(function()
+	local t = tick()
+	-- Màu fog dao động từ (185,205,255) đến (195,215,255) ban ngày
+	local r = math.floor(190 + 5 * math.sin(t * 0.1))
+	local g = math.floor(210 + 5 * math.sin(t * 0.1 + 1))
+	local b = math.floor(255 + 5 * math.sin(t * 0.1 + 2))
 	local hour = tonumber(Lighting.TimeOfDay:sub(1,2))
 	if hour >= 6 and hour < 18 then
-		Lighting.FogColor = Color3.fromRGB(190,210,255)
+		Lighting.FogColor = Color3.fromRGB(r, g, b)
 		Lighting.FogStart = 50
 		Lighting.FogEnd = 300
 	else
@@ -142,9 +122,7 @@ local function updateFog()
 		Lighting.FogStart = 30
 		Lighting.FogEnd = 150
 	end
-end
-updateFog()
-RunService.RenderStepped:Connect(function() updateFog() end)
+end)
 
 local colorCorrection = Instance.new("ColorCorrectionEffect")
 colorCorrection.Brightness = config.PostProcessing.ColorCorrection.Brightness
@@ -188,12 +166,66 @@ sunRays.Spread = config.PostProcessing.SunRays.Spread
 sunRays.Parent = Lighting
 
 ------------------------------------------------------------
--- ON CHARACTER: Gắn GroundLight và Halo xung quanh người dùng
+-- NGUỒN SÁNG: GroundLight và MiniLights quanh người dùng
+------------------------------------------------------------
+local function setupGroundLight(character)
+	local hrp = character:FindFirstChild("HumanoidRootPart")
+	if hrp and not hrp:FindFirstChild("GroundLight") then
+		local groundLight = Instance.new("PointLight")
+		groundLight.Name = "GroundLight"
+		groundLight.Brightness = 3
+		groundLight.Range = 50
+		groundLight.Color = Color3.fromRGB(255,240,200)
+		groundLight.Parent = hrp
+	end
+	-- Tạo một số mini-lights ngẫu nhiên quanh người dùng, với độ chói thấp và màu trong suốt
+	if hrp and not hrp:FindFirstChild("MiniGroundLights") then
+		local container = Instance.new("Folder", hrp)
+		container.Name = "MiniGroundLights"
+		for i = 1, 5 do
+			local miniLight = Instance.new("PointLight")
+			miniLight.Name = "MiniGroundLight_" .. i
+			miniLight.Brightness = math.random(3, 4) / 10  -- rất nhẹ
+			miniLight.Range = 8
+			miniLight.Color = Color3.fromRGB(255,250,240)  -- màu ấm, nhẹ
+			miniLight.Parent = container
+		end
+		task.spawn(function()
+			while hrp.Parent do
+				for _, ml in ipairs(container:GetChildren()) do
+					ml.CFrame = hrp.CFrame * CFrame.new(math.random(-10,10)/10, -1, math.random(-10,10)/10)
+				end
+				task.wait(0.5)
+			end
+		end)
+	end
+end
+
+------------------------------------------------------------
+-- VIGNETTE EFFECT (giúp các vùng xung quanh trở nên tối hơn)
+------------------------------------------------------------
+local function setupVignette()
+	if player:FindFirstChild("PlayerGui") and not player.PlayerGui:FindFirstChild("VignetteGui") then
+		local vignetteGui = Instance.new("ScreenGui")
+		vignetteGui.Name = "VignetteGui"
+		vignetteGui.ResetOnSpawn = false
+		vignetteGui.Parent = player.PlayerGui
+		
+		local vignette = Instance.new("ImageLabel", vignetteGui)
+		vignette.Size = UDim2.new(1,0,1,0)
+		vignette.BackgroundTransparency = 1
+		vignette.Image = "rbxassetid://YourVignetteTexture"  -- Asset radial gradient cần có (phải thay bằng asset của bạn)
+		vignette.ImageTransparency = 0.5
+	end
+end
+setupVignette()
+
+------------------------------------------------------------
+-- CHARACTER SETUP: Gắn GroundLight, MiniLights, và Halo cho người chơi
 ------------------------------------------------------------
 local function onCharacterAdded(char)
 	local hrp = char:WaitForChild("HumanoidRootPart")
 	setupGroundLight(char)
-	-- Tạo hiệu ứng Halo cho người dùng (xung quanh đầu)
 	if not char:FindFirstChild("UserHalo") then
 		local halo = Instance.new("ParticleEmitter")
 		halo.Name = "UserHalo"
@@ -229,7 +261,7 @@ local function setupCosmicParticles()
 end
 
 ------------------------------------------------------------
--- MIRROR OVERLAY EFFECT (lớp “gương” mỏng, trong suốt cho mọi đối tượng)
+-- MIRROR OVERLAY: Áp dụng lớp “gương” mỏng cho tất cả vật thể
 ------------------------------------------------------------
 local function applyMirrorOverlay(part)
 	local excludeList = {"SunPart", "MoonPart", "EnhancedShootingStar", "MirrorOverlay"}
@@ -261,7 +293,7 @@ end)
 ------------------------------------------------------------
 
 ------------------------------------------------------------
--- HIỆU ỨNG MẶT NƯỚC (giữ nguyên)
+-- HIỆU ỨNG MẶT NƯỚC (vẫn giữ nguyên nhưng tăng reflectance)
 ------------------------------------------------------------
 for _, obj in pairs(Workspace:GetDescendants()) do
 	if obj:IsA("BasePart") and obj.Material == Enum.Material.Water then
@@ -349,7 +381,7 @@ task.spawn(function()
 end)
 
 ------------------------------------------------------------
--- ADAPTIVE SHADOWS (với hiệu ứng bóng nâng cấp)
+-- ADAPTIVE SHADOWS (với hiệu ứng bóng cải tiến)
 ------------------------------------------------------------
 local shadowLayers = {}
 local function createShadowLayer(layerConfig)
@@ -436,7 +468,7 @@ end
 RunService.RenderStepped:Connect(updateAdvancedShadows)
 
 ------------------------------------------------------------
--- LIGHTING & HALO (với các hiệu ứng quanh người dùng)
+-- LIGHTING & HALO AROUND PLAYER
 ------------------------------------------------------------
 local playerLight = Instance.new("PointLight")
 playerLight.Name = "PlayerLight"
@@ -472,7 +504,7 @@ RunService.RenderStepped:Connect(function()
 end)
 
 ------------------------------------------------------------
--- MẶT TRỜI & MẶT TRĂNG (hiệu ứng cơ bản)
+-- MẶT TRỜI & MẶT TRĂNG
 ------------------------------------------------------------
 local sunPart = Instance.new("Part")
 sunPart.Name = "SunPart"
@@ -587,7 +619,7 @@ end
 RunService.RenderStepped:Connect(updateSunOcclusion)
 
 ------------------------------------------------------------
--- HIỆU ỨNG SAO BĂNG (như cũ)
+-- ENHANCED SHOOTING STARS
 ------------------------------------------------------------
 local function spawnEnhancedShootingStar()
 	local star = Instance.new("Part")
@@ -656,7 +688,7 @@ task.spawn(function()
 end)
 
 ------------------------------------------------------------
--- DETAIL QUALITY: Cải tiến vật liệu (nếu có thuộc tính "EnhancedMaterial")
+-- DETAIL QUALITY: Cải tiến vật liệu (nếu có "EnhancedMaterial")
 ------------------------------------------------------------
 local function updateDetailQuality()
 	if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
@@ -797,7 +829,7 @@ RunService.RenderStepped:Connect(function()
 end)
 
 ------------------------------------------------------------
--- HIỆU ỨNG “RAY-TRACED” & VẬT LIỆU (mô phỏng nâng cấp)
+-- SIMULATION EFFECTS (RTGI, Reflections, Caustics, etc.)
 ------------------------------------------------------------
 local function simulateRTGI()
 	if config.AdvancedEffects.RTGI.Enabled then
@@ -946,7 +978,7 @@ RunService.RenderStepped:Connect(function(deltaTime)
 end)
 
 ------------------------------------------------------------
--- MOTION BLUR & CHROMATIC ABERRATION (nâng cấp)
+-- MOTION BLUR & CHROMATIC ABERRATION
 ------------------------------------------------------------
 local motionBlur = Instance.new("BlurEffect")
 motionBlur.Enabled = config.AdvancedEffects.MotionBlur.Enabled
@@ -963,11 +995,11 @@ RunService.RenderStepped:Connect(function(deltaTime)
 end)
 
 if config.AdvancedEffects.ChromaticAberration.Enabled then
-	-- Placeholder: Custom implementation qua GUI/shader.
+	-- Placeholder: Implement custom chromatic aberration using GUI layers or post-processing shader if available.
 end
 
 ------------------------------------------------------------
--- SWITCHING GRAPHICS MODE (Advanced vs Default)
+-- SWITCH GRAPHICS MODE (Advanced vs Default)
 ------------------------------------------------------------
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
 	if not gameProcessed and input.KeyCode == Enum.KeyCode.R then
