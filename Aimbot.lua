@@ -1,48 +1,41 @@
---[[    
-  Advanced Camera Gun Script - Pro Edition 6.6 (Upgraded V3)
+--[[
+  Advanced Camera Gun Script - Pro Edition 6.6 (Upgraded V4 + Enhanced)
   -------------------------------------------------------------
   Cải tiến:
-   1. Lock tốc độ được điều chỉnh nhanh nhưng có giới hạn để tránh nhảy đột ngột (dynamicSmoothAlpha được clamp).
-   2. Chức năng dự đoán vị trí được cải tiến: 
-      - Nếu khoảng cách >= 350, tính dự đoán dựa trên hướng của nhân vật (với offset 7 studs)
-      - Nếu mục tiêu di chuyển mà hướng nhân vật trái với hướng di chuyển thì ưu tiên dùng hướng di chuyển.
-      - Sử dụng bộ lọc (low-pass filter) cho vị trí dự đoán để giảm nhiễu khi mục tiêu đổi hướng đột ngột.
-      - Thời gian dự đoán tính bằng distance/100 (clamped từ 0.5 đến 1 giây) để đảm bảo phản ứng nhanh nhưng ổn định.
-   3. Các phép tính Lerp và cập nhật được clamp, tối ưu hóa để giảm tiêu tốn tài nguyên.
-   4. Camera lock được Lerp mềm mại hơn nhằm tránh hiện tượng giật, rung, đảm bảo chuyển động tự nhiên.
-   5. Hệ thống chuyển/hủy mục tiêu được kiểm tra liên tục, giúp giảm bớt tính toán khi mục tiêu không thay đổi.
---]]    
+   1. Adjustment Lock: Tự động kiểm tra và điều chỉnh lock nếu aim assist lệch khỏi mục tiêu.
+   2. Smoothness Functions: Tối ưu chuyển động với low-pass filter và weighted average, mang lại cảm giác mượt mà.
+   3. Predict Position, Movement in Multiple Directions: Dự đoán vị trí mục tiêu dựa trên vận tốc và hướng di chuyển với trung bình có trọng số
+      nhằm tăng độ chính xác khi mục tiêu thay đổi hướng hoặc tốc độ.
+--]]
 
 -------------------------------------
 -- CẤU HÌNH (có thể điều chỉnh) --
 -------------------------------------
 local LOCK_RADIUS = 600               -- Bán kính ghim mục tiêu
-local HEALTH_BOARD_RADIUS = 900       -- Bán kính hiển thị Health Board (nếu cần)
+local HEALTH_BOARD_RADIUS = 1000       -- Bán kính hiển thị Health Board (nếu cần)
 local PREDICTION_ENABLED = true        -- Bật/tắt dự đoán mục tiêu
 
--- Dự đoán chỉ hoạt động nếu khoảng cách ≥ MIN_PREDICTION_DISTANCE
-local MIN_PREDICTION_DISTANCE = 350
-
--- Các tham số khác
-local CLOSE_RADIUS = 7                -- Khi mục tiêu gần, giữ Y của camera
-local HEIGHT_DIFFERENCE_THRESHOLD = 5 -- Ngưỡng chênh lệch độ cao giữa camera & mục tiêu
+local MIN_PREDICTION_DISTANCE = 350    -- Dự đoán chỉ hoạt động nếu khoảng cách ≥ giá trị này
+local CLOSE_RADIUS = 7                 -- Khi mục tiêu gần, giữ Y của gun (nếu cần)
+local HEIGHT_DIFFERENCE_THRESHOLD = 5  -- Ngưỡng chênh lệch độ cao giữa vị trí dự đoán & điểm mục tiêu
 local MOVEMENT_THRESHOLD = 0.1
 local STATIONARY_TIMEOUT = 5
 
--- Tham số làm mượt camera (cao = mượt hơn)
-local CAMERA_SMOOTH_FACTOR = 8
-
--- Tham số nâng cấp cho target lock (siêu nhanh nhưng có giới hạn để tránh nhảy)
-local TARGET_LOCK_SPEED = 50          -- Tốc độ lock tăng cường
-local MISALIGN_THRESHOLD = math.rad(5)  -- Ngưỡng góc lệch 5° để tăng tốc lock
+-- Tham số làm mượt & lock
+local AIM_SMOOTH_FACTOR = 15           -- Hệ số Lerp (càng cao thì phản ứng càng nhanh nhưng vẫn mượt)
+local TARGET_LOCK_SPEED = 100          -- Tốc độ lock (nâng cấp nhanh)
+local MISALIGN_THRESHOLD = math.rad(5) -- Ngưỡng góc lệch 5° để điều chỉnh lại
 
 -------------------------------------
--- Các biến hỗ trợ cho dự đoán mượt (low-pass filter)
-local lastTarget = nil                -- Kiểm tra thay đổi mục tiêu
-local lastPredictedPosition = nil     -- Vị trí dự đoán của frame trước
+-- BIẾN HỖ TRỢ DỰ ĐOÁN VÀ LOCK --
+-------------------------------------
+local lastTarget = nil                    -- Theo dõi mục tiêu frame trước
+local lastPredictedPositions = {}         -- Lưu các vị trí dự đoán của vài frame trước
+local lastPredictedPosition = nil          -- Vị trí dự đoán trung bình của frame trước
+local aimAssistCFrame = nil               -- CFrame dùng cho aim assist (không thay đổi Camera)
 
 -------------------------------------
--- Dịch vụ & Đối tượng --
+-- DỊCH VỤ & ĐỐI TƯỢNG --
 -------------------------------------
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -51,19 +44,19 @@ local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 
 -------------------------------------
--- Biến trạng thái toàn cục --
+-- BIẾN TRẠNG TOÀN CỤC --
 -------------------------------------
-local aimActive = true          -- Script hoạt động
-local locked = false            -- Aim lock On/Off
+local aimActive = true          -- Script đang hoạt động
+local locked = false            -- Trạng thái aim lock On/Off
 local currentTarget = nil       -- Mục tiêu hiện tại
 local lastLocalPosition = nil  
 local lastMovementTime = tick()
 
--- (Nếu cần hiển thị Health Board; không bắt buộc)
+-- (Nếu cần hiển thị Health Board)
 local healthBoards = {}
 
 -------------------------------------
--- GIAO DIỆN GUI (Tối giản: chỉ gồm nút Toggle & Close) --
+-- GIAO DIỆN GUI (Toggle & Close) --
 -------------------------------------
 local screenGui = Instance.new("ScreenGui")
 screenGui.Parent = game:GetService("CoreGui")
@@ -124,7 +117,7 @@ closeUIStroke.Thickness = 2
 addHoverEffect(closeButton, baseButtonSize)
 
 -------------------------------------
--- Sự kiện GUI cho Toggle & Close --
+-- SỰ KIỆN GUI cho Toggle & Close --
 -------------------------------------
 closeButton.MouseButton1Click:Connect(function()
     aimActive = not aimActive
@@ -147,7 +140,7 @@ toggleButton.MouseButton1Click:Connect(function()
 end)
 
 -------------------------------------
--- Các hàm tiện ích cho Camera Gun --
+-- HÀM TIỆN ÍCH CHO AIM ASSIST --
 -------------------------------------
 local function updateLocalMovement()
     local character = LocalPlayer.Character
@@ -183,7 +176,7 @@ local function getEnemiesInRadius(radius)
     return enemies
 end
 
--- Hàm chọn mục tiêu: điểm = khoảng cách + (góc lệch * 100)
+-- Hàm chọn mục tiêu: tính điểm = khoảng cách + (góc lệch * 100)
 local function selectTarget()
     local enemies = getEnemiesInRadius(LOCK_RADIUS)
     if #enemies == 0 then return nil end
@@ -220,18 +213,58 @@ local function isValidTarget(target)
     return distance <= LOCK_RADIUS
 end
 
--- Hàm dự đoán vị trí mục tiêu nâng cấp:
--- Nếu distance < MIN_PREDICTION_DISTANCE, dùng head.Position.
--- Nếu >=, tính dựa trên hướng của nhân vật (với offset 7 studs),
--- ưu tiên hướng di chuyển nếu hướng di chuyển trái với hướng mặt.
--- Thời gian dự đoán = distance/100, clamped [0.5, 1] giây.
--- Sử dụng low-pass filter để làm mượt các thay đổi đột ngột.
+-- Hàm tính toán CFrame cho Aim Assist dựa trên vị trí mục tiêu
+local function calculateAimAssistCFrame(targetPosition)
+    local localChar = LocalPlayer.Character
+    local localPos = (localChar and localChar:FindFirstChild("HumanoidRootPart") and localChar.HumanoidRootPart.Position) or Vector3.new(0,0,0)
+    return CFrame.new(localPos, targetPosition)
+end
+
+-------------------------------------
+-- CHỨC NĂNG: Adjustment Lock (nâng cấp động) --
+-------------------------------------
+local function adjustAimLock(targetPosition)
+    local localChar = LocalPlayer.Character
+    if not localChar or not localChar:FindFirstChild("HumanoidRootPart") then return end
+    local localPos = localChar.HumanoidRootPart.Position
+    local desiredCFrame = CFrame.new(localPos, targetPosition)
+    
+    if aimAssistCFrame then
+        local currentLookVector = aimAssistCFrame.LookVector
+        local desiredLookVector = (targetPosition - localPos).Unit
+        local angleDiff = math.acos(math.clamp(currentLookVector:Dot(desiredLookVector), -1, 1))
+        -- Tỉ lệ điều chỉnh động: càng lệch nhiều thì Lerp nhanh hơn (tối đa 0.9)
+        local lerpFactor = math.clamp(angleDiff / MISALIGN_THRESHOLD, 0, 1) * 0.9
+        if angleDiff > MISALIGN_THRESHOLD then
+            aimAssistCFrame = aimAssistCFrame:Lerp(desiredCFrame, lerpFactor)
+        end
+    else
+        aimAssistCFrame = desiredCFrame
+    end
+end
+
+-------------------------------------
+-- CHỨC NĂNG: Smooth Aim Assist (low-pass filter nâng cao) --
+-------------------------------------
+local function smoothAimAssist(newCFrame)
+    if aimAssistCFrame then
+        -- Dùng AIM_SMOOTH_FACTOR làm hệ số điều chỉnh (càng lớn thì càng mượt)
+        aimAssistCFrame = aimAssistCFrame:Lerp(newCFrame, 1 / AIM_SMOOTH_FACTOR)
+    else
+        aimAssistCFrame = newCFrame
+    end
+end
+
+-------------------------------------
+-- CHỨC NĂNG: Predict Position Multi-Directional (có trọng số) --
+-------------------------------------
 local function predictTargetPosition(target)
     local hrp = target:FindFirstChild("HumanoidRootPart")
     local head = target:FindFirstChild("Head")
     if not hrp or not head then return nil end
     local localChar = LocalPlayer.Character
     if not localChar or not localChar:FindFirstChild("HumanoidRootPart") then return nil end
+    
     local distance = (hrp.Position - localChar.HumanoidRootPart.Position).Magnitude
     if distance < MIN_PREDICTION_DISTANCE then
         return head.Position
@@ -256,34 +289,34 @@ local function predictTargetPosition(target)
     local predictedTime = math.clamp(distance / 100, 0.5, 1)
     local computedPrediction = hrp.Position + hrp.Velocity * predictedTime + predictionOffset
 
-    -- Áp dụng low-pass filter cho dự đoán để làm mượt thay đổi
+    -- Cập nhật buffer dự đoán: nếu mục tiêu thay đổi, reset buffer
     if lastTarget ~= target then
-        lastPredictedPosition = computedPrediction
+        lastPredictedPositions = {computedPrediction}
         lastTarget = target
     else
-        lastPredictedPosition = lastPredictedPosition:Lerp(computedPrediction, 0.5)
+        table.insert(lastPredictedPositions, computedPrediction)
+        if #lastPredictedPositions > 5 then
+            table.remove(lastPredictedPositions, 1)
+        end
     end
+
+    -- Tính trung bình có trọng số: ưu tiên giá trị mới hơn
+    local weightedSum = Vector3.new(0, 0, 0)
+    local totalWeight = 0
+    for i = 1, #lastPredictedPositions do
+        local weight = i  -- trọng số tăng dần theo thời gian (phiên bản đơn giản)
+        weightedSum = weightedSum + lastPredictedPositions[i] * weight
+        totalWeight = totalWeight + weight
+    end
+    local averagePrediction = weightedSum / totalWeight
+    lastPredictedPosition = averagePrediction
+
     return lastPredictedPosition
 end
 
-local function calculateCameraRotation(targetPosition)
-    local camPos = Camera.CFrame.Position
-    local direction = targetPosition - camPos
-    local horizontalDirection = Vector3.new(direction.X, 0, direction.Z)
-    local newCFrame
-    if math.abs(targetPosition.Y - camPos.Y) > HEIGHT_DIFFERENCE_THRESHOLD then
-        newCFrame = CFrame.new(camPos, targetPosition)
-    else
-        if horizontalDirection.Magnitude > 0 then
-            newCFrame = CFrame.new(camPos, camPos + horizontalDirection)
-        else
-            newCFrame = Camera.CFrame
-        end
-    end
-    return newCFrame
-end
-
--- (Nếu cần) Hàm hiển thị Health Board; có thể xoá nếu không dùng
+-------------------------------------
+-- (Tùy chọn) Hàm hiển thị Health Board --
+-------------------------------------
 local function updateHealthBoardForTarget(enemy)
     if not enemy or not enemy:FindFirstChild("Head") or not enemy:FindFirstChild("Humanoid") then return end
     local humanoid = enemy.Humanoid
@@ -368,16 +401,17 @@ local function updateAllHealthBoards()
 end
 
 -------------------------------------
--- Main Loop: RenderStepped Update --
+-- MAIN LOOP: RenderStepped Update --
 -------------------------------------
 RunService.RenderStepped:Connect(function(deltaTime)
     if aimActive then
         updateLocalMovement()
         
-        -- Kiểm tra chuyển mục tiêu nếu mục tiêu không hợp lệ
+        -- Kiểm tra mục tiêu hợp lệ, nếu không chọn mục tiêu mới và reset buffer dự đoán
         if not isValidTarget(currentTarget) then
             currentTarget = selectTarget()
-            lastPredictedPosition = nil -- reset khi chuyển mục tiêu
+            lastPredictedPositions = {}
+            lastPredictedPosition = nil
         end
         
         if currentTarget then
@@ -396,7 +430,7 @@ RunService.RenderStepped:Connect(function(deltaTime)
             local localHRP = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
             if enemyHumanoid and enemyHRP and localHRP then
                 local distance = (enemyHRP.Position - localHRP.Position).Magnitude
-                -- Nếu mục tiêu ra ngoài bán kính hoặc chết, hủy lock ngay
+                -- Nếu mục tiêu ra ngoài bán kính hoặc chết, hủy lock
                 if enemyHumanoid.Health <= 0 or distance > LOCK_RADIUS then
                     currentTarget = nil
                     locked = false
@@ -405,29 +439,18 @@ RunService.RenderStepped:Connect(function(deltaTime)
                 else
                     local predictedPos = predictTargetPosition(currentTarget)
                     if predictedPos then
-                        local desiredCFrame = calculateCameraRotation(predictedPos)
-                        local currentCFrame = Camera.CFrame
-                        local currentLook = currentCFrame.LookVector
-                        local desiredLook = desiredCFrame.LookVector
-                        local angleDiff = math.acos(math.clamp(currentLook:Dot(desiredLook), -1, 1))
-                        -- Tính tốc độ lock dựa trên tốc độ ngang của mục tiêu
-                        local targetVelocity = enemyHRP.Velocity
-                        local horizontalSpeed = Vector3.new(targetVelocity.X, 0, targetVelocity.Z).Magnitude
-                        local dynamicSpeed = TARGET_LOCK_SPEED + horizontalSpeed * 0.2
-                        local dynamicSmoothAlpha = math.clamp(1 - math.exp(-dynamicSpeed * deltaTime), 0, 0.95)
-                        
-                        -- Lerp camera với hệ số mượt, giúp chuyển động tự nhiên hơn
-                        if angleDiff > MISALIGN_THRESHOLD then
-                            Camera.CFrame = currentCFrame:Lerp(desiredCFrame, dynamicSmoothAlpha)
-                        else
-                            Camera.CFrame = currentCFrame:Lerp(desiredCFrame, 1 - math.exp(-CAMERA_SMOOTH_FACTOR * deltaTime))
-                        end
+                        local newAimCFrame = calculateAimAssistCFrame(predictedPos)
+                        -- Áp dụng smooth để chuyển dần sang vị trí mới
+                        smoothAimAssist(newAimCFrame)
+                        -- Sau đó điều chỉnh lại nếu có lệch
+                        adjustAimLock(predictedPos)
+                        -- (Ví dụ: GunScript.UpdateAim(aimAssistCFrame))
                     end
                 end
             end
         end
 
-        -- Hiệu ứng GUI cho nút Toggle (dựa theo trạng thái lock)
+        -- Hiệu ứng GUI cho nút Toggle dựa theo trạng thái lock
         if locked then
             local oscillation = 0.05 * math.sin(tick() * 5)
             local newWidth = baseToggleSize.X * (1 + oscillation)
@@ -442,7 +465,7 @@ RunService.RenderStepped:Connect(function(deltaTime)
 end)
 
 -------------------------------------
--- Xử lý khi Player/Character rời server --
+-- XỬ LÝ KHI PLAYER/CHARACTER RỜI SERVER --
 -------------------------------------
 Players.PlayerRemoving:Connect(function(player)
     if player ~= LocalPlayer and player.Character and healthBoards[player.Character] then
@@ -461,8 +484,9 @@ LocalPlayer.CharacterAdded:Connect(function(character)
     lastLocalPosition = hrp.Position
     lastMovementTime = tick()
     currentTarget = nil
+    lastPredictedPositions = {}
     lastPredictedPosition = nil
     local humanoid = character:WaitForChild("Humanoid")
+    -- Để đảm bảo camera không bị khóa, không thay đổi Camera.CameraType
     Camera.CameraSubject = humanoid
-    Camera.CameraType = Enum.CameraType.Custom
 end)
