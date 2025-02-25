@@ -1,16 +1,15 @@
 --[[    
-  Advanced Camera Gun Script - Pro Edition 6.6 (Upgraded V3)
+  Advanced Camera Gun Script - Pro Edition 6.6 (Upgraded V2)
   -------------------------------------------------------------
   Cải tiến:
-   1. Lock tốc độ được điều chỉnh nhanh nhưng có giới hạn để tránh nhảy đột ngột (dynamicSmoothAlpha được clamp).
-   2. Chức năng dự đoán vị trí được cải tiến: 
-      - Nếu khoảng cách >= 350, tính dự đoán dựa trên hướng của nhân vật (với offset 7 studs)
-      - Nếu mục tiêu di chuyển mà hướng nhân vật trái với hướng di chuyển thì ưu tiên dùng hướng di chuyển.
-      - Sử dụng bộ lọc (low-pass filter) cho vị trí dự đoán để giảm nhiễu khi mục tiêu đổi hướng đột ngột.
-      - Thời gian dự đoán tính bằng distance/100 (clamped từ 0.5 đến 1 giây) để đảm bảo phản ứng nhanh nhưng ổn định.
-   3. Các phép tính Lerp và cập nhật được clamp, tối ưu hóa để giảm tiêu tốn tài nguyên.
-   4. Camera lock được Lerp mềm mại hơn nhằm tránh hiện tượng giật, rung, đảm bảo chuyển động tự nhiên.
-   5. Hệ thống chuyển/hủy mục tiêu được kiểm tra liên tục, giúp giảm bớt tính toán khi mục tiêu không thay đổi.
+   1. Lock tốc độ siêu nhanh.
+   2. Dự đoán vị trí mục tiêu cải tiến: 
+      - Nếu khoảng cách >= 350, dự đoán dựa trên hướng nhân vật (với offset cơ bản = 7 studs)
+      - Nếu mục tiêu di chuyển nhưng hướng nhân vật trái với hướng di chuyển thì dùng hướng di chuyển.
+      - Thời gian dự đoán = (distance / 100) clamped trong khoảng [0.5, 1] giây.
+   3. Tất cả các chức năng (target lock, dự đoán, chuyển mục tiêu) hoạt động với tốc độ siêu nhanh.
+   4. Tự động chuyển hoặc hủy mục tiêu khi mục tiêu ra ngoài bán kính hoặc bị kill.
+   5. Camera lock mượt mà, tránh giật, rung khi đang ghim mục tiêu.
 --]]    
 
 -------------------------------------
@@ -32,14 +31,9 @@ local STATIONARY_TIMEOUT = 5
 -- Tham số làm mượt camera (cao = mượt hơn)
 local CAMERA_SMOOTH_FACTOR = 8
 
--- Tham số nâng cấp cho target lock (siêu nhanh nhưng có giới hạn để tránh nhảy)
+-- Tham số nâng cấp cho target lock (siêu nhanh)
 local TARGET_LOCK_SPEED = 50          -- Tốc độ lock tăng cường
 local MISALIGN_THRESHOLD = math.rad(5)  -- Ngưỡng góc lệch 5° để tăng tốc lock
-
--------------------------------------
--- Các biến hỗ trợ cho dự đoán mượt (low-pass filter)
-local lastTarget = nil                -- Kiểm tra thay đổi mục tiêu
-local lastPredictedPosition = nil     -- Vị trí dự đoán của frame trước
 
 -------------------------------------
 -- Dịch vụ & Đối tượng --
@@ -221,11 +215,10 @@ local function isValidTarget(target)
 end
 
 -- Hàm dự đoán vị trí mục tiêu nâng cấp:
--- Nếu distance < MIN_PREDICTION_DISTANCE, dùng head.Position.
--- Nếu >=, tính dựa trên hướng của nhân vật (với offset 7 studs),
--- ưu tiên hướng di chuyển nếu hướng di chuyển trái với hướng mặt.
--- Thời gian dự đoán = distance/100, clamped [0.5, 1] giây.
--- Sử dụng low-pass filter để làm mượt các thay đổi đột ngột.
+-- Nếu khoảng cách < MIN_PREDICTION_DISTANCE, dùng head.Position.
+-- Nếu >=, dựa vào hướng nhân vật của mục tiêu với offset 7 studs,
+-- nhưng nếu mục tiêu di chuyển và hướng (velocity) trái với hướng nhân vật thì dùng hướng di chuyển.
+-- Thời gian dự đoán = distance/100, clamped [0.5,1] giây.
 local function predictTargetPosition(target)
     local hrp = target:FindFirstChild("HumanoidRootPart")
     local head = target:FindFirstChild("Head")
@@ -237,15 +230,17 @@ local function predictTargetPosition(target)
         return head.Position
     end
 
+    -- Lấy thông tin vận tốc và hướng nhân vật
     local velocity = hrp.Velocity
     local speed = velocity.Magnitude
-    local baseOffset = 7  -- offset cơ bản
     local predictionOffset = Vector3.new(0, 0, 0)
+    local baseOffset = 7  -- offset cơ bản
     if speed < 0.1 then
         predictionOffset = Vector3.new(0, 0, 0)
     else
-        local faceDir = hrp.CFrame.LookVector
-        local moveDir = velocity.Unit
+        local faceDir = hrp.CFrame.LookVector  -- hướng nhân vật
+        local moveDir = velocity.Unit          -- hướng di chuyển của mục tiêu
+        -- Nếu hướng nhân vật trái với hướng di chuyển (dot âm) thì dùng hướng di chuyển
         if faceDir:Dot(moveDir) < 0 then
             predictionOffset = moveDir * baseOffset
         else
@@ -253,17 +248,11 @@ local function predictTargetPosition(target)
         end
     end
 
+    -- Tính thời gian dự đoán nhanh: chia khoảng cách cho 100, clamped [0.5, 1] giây
     local predictedTime = math.clamp(distance / 100, 0.5, 1)
-    local computedPrediction = hrp.Position + hrp.Velocity * predictedTime + predictionOffset
-
-    -- Áp dụng low-pass filter cho dự đoán để làm mượt thay đổi
-    if lastTarget ~= target then
-        lastPredictedPosition = computedPrediction
-        lastTarget = target
-    else
-        lastPredictedPosition = lastPredictedPosition:Lerp(computedPrediction, 0.5)
-    end
-    return lastPredictedPosition
+    -- Dự đoán vị trí = vị trí hiện tại + vận tốc * predictedTime + offset dựa trên hướng
+    local prediction = hrp.Position + hrp.Velocity * predictedTime + predictionOffset
+    return prediction
 end
 
 local function calculateCameraRotation(targetPosition)
@@ -374,10 +363,9 @@ RunService.RenderStepped:Connect(function(deltaTime)
     if aimActive then
         updateLocalMovement()
         
-        -- Kiểm tra chuyển mục tiêu nếu mục tiêu không hợp lệ
+        -- Kiểm tra và chuyển mục tiêu nhanh chóng nếu mục tiêu không hợp lệ
         if not isValidTarget(currentTarget) then
             currentTarget = selectTarget()
-            lastPredictedPosition = nil -- reset khi chuyển mục tiêu
         end
         
         if currentTarget then
@@ -414,9 +402,9 @@ RunService.RenderStepped:Connect(function(deltaTime)
                         local targetVelocity = enemyHRP.Velocity
                         local horizontalSpeed = Vector3.new(targetVelocity.X, 0, targetVelocity.Z).Magnitude
                         local dynamicSpeed = TARGET_LOCK_SPEED + horizontalSpeed * 0.2
-                        local dynamicSmoothAlpha = math.clamp(1 - math.exp(-dynamicSpeed * deltaTime), 0, 0.95)
+                        local dynamicSmoothAlpha = 1 - math.exp(-dynamicSpeed * deltaTime)
                         
-                        -- Lerp camera với hệ số mượt, giúp chuyển động tự nhiên hơn
+                        -- Nếu lệch vượt ngưỡng, lock nhanh hơn ngay tức thì
                         if angleDiff > MISALIGN_THRESHOLD then
                             Camera.CFrame = currentCFrame:Lerp(desiredCFrame, dynamicSmoothAlpha)
                         else
@@ -461,7 +449,6 @@ LocalPlayer.CharacterAdded:Connect(function(character)
     lastLocalPosition = hrp.Position
     lastMovementTime = tick()
     currentTarget = nil
-    lastPredictedPosition = nil
     local humanoid = character:WaitForChild("Humanoid")
     Camera.CameraSubject = humanoid
     Camera.CameraType = Enum.CameraType.Custom
