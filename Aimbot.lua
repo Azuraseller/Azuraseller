@@ -1,15 +1,6 @@
 --[[
   Advanced Camera Gun Script - Pro Edition 6.6 (Upgraded V4 + Enhanced)
-  -------------------------------------------------------------
-  Cải tiến:
-   1. Adjustment Lock: Tự động kiểm tra và điều chỉnh lock nếu aim assist lệch khỏi mục tiêu.
-   2. Smoothness Functions: Tối ưu chuyển động với low-pass filter và weighted average, mang lại cảm giác mượt mà.
-   3. Predict Position, Movement in Multiple Directions: Dự đoán vị trí mục tiêu dựa trên vận tốc và hướng di chuyển với trung bình có trọng số
-      nhằm tăng độ chính xác khi mục tiêu thay đổi hướng hoặc tốc độ.
-   4. **Auto Lock:** Tự động bật lock khi có mục tiêu trong bán kính và tự động chuyển/swap khi mục tiêu không hợp lệ.
-   5. **Target Lock xoay lập tức:** Nếu góc lệch quá lớn (mục tiêu nằm sau/bên trái/bên phải) thì xoay ngay tức thì.
---]]
-
+]]--
 -------------------------------------
 -- CẤU HÌNH (có thể điều chỉnh) --
 -------------------------------------
@@ -228,31 +219,6 @@ local function calculateAimAssistCFrame(targetPosition)
 end
 
 -------------------------------------
--- CHỨC NĂNG: Adjustment Lock (nâng cấp động) --
--------------------------------------
-local function adjustAimLock(targetPosition)
-    local localChar = LocalPlayer.Character
-    if not localChar or not localChar:FindFirstChild("HumanoidRootPart") then return end
-    local localPos = localChar.HumanoidRootPart.Position
-    local desiredCFrame = CFrame.new(localPos, targetPosition)
-    
-    if aimAssistCFrame then
-        local angleDiff = math.acos(math.clamp(aimAssistCFrame.LookVector:Dot(desiredCFrame.LookVector), -1, 1))
-        -- Nếu góc lệch quá lớn, xoay tức thì
-        if angleDiff > INSTANT_LOCK_THRESHOLD then
-            aimAssistCFrame = desiredCFrame
-        else
-            local lerpFactor = math.clamp(angleDiff / MISALIGN_THRESHOLD, 0, 1) * 0.9
-            if angleDiff > MISALIGN_THRESHOLD then
-                aimAssistCFrame = aimAssistCFrame:Lerp(desiredCFrame, lerpFactor)
-            end
-        end
-    else
-        aimAssistCFrame = desiredCFrame
-    end
-end
-
--------------------------------------
 -- CHỨC NĂNG: Smooth Aim Assist (low-pass filter nâng cao) --
 -------------------------------------
 local function smoothAimAssist(newCFrame)
@@ -457,8 +423,6 @@ RunService.RenderStepped:Connect(function(deltaTime)
                         local newAimCFrame = calculateAimAssistCFrame(predictedPos)
                         -- Áp dụng smooth (có khả năng xoay tức thì nếu góc lệch lớn)
                         smoothAimAssist(newAimCFrame)
-                        -- Sau đó điều chỉnh lại nếu có lệch
-                        adjustAimLock(predictedPos)
                         -- Ví dụ: GunScript.UpdateAim(aimAssistCFrame)
                     end
                 end
