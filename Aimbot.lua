@@ -20,7 +20,7 @@ local TARGET_LOCK_SPEED = 100          -- Tốc độ lock (nâng cấp nhanh)
 local MISALIGN_THRESHOLD = math.rad(5) -- Ngưỡng góc lệch 5° để điều chỉnh lại
 
 -- << THÊM >> Ngưỡng để xoay lock tức thì (nếu mục tiêu lệch quá xa so với hướng hiện tại)
-local INSTANT_LOCK_THRESHOLD = math.rad(45)
+local INSTANT_LOCK_THRESHOLD = math.rad(5)
 
 -------------------------------------
 -- BIẾN HỖ TRỢ DỰ ĐOÁN VÀ LOCK --
