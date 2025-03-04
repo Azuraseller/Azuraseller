@@ -5,10 +5,11 @@
 -------------------------------------
 -- CẤU HÌNH (có thể điều chỉnh) --
 -------------------------------------
-local LOCK_RADIUS = 600               -- Bán kính ghim mục tiêu (Auto Lock)
-local HEALTH_BOARD_RADIUS = 900       -- Bán kính hiển thị Health Board
+local LOCK_RADIUS = 700               -- Bán kính ghim mục tiêu (Auto Lock)
+local HEALTH_BOARD_RADIUS = 100       -- Bán kính hiển thị Health Board
 local PREDICTION_ENABLED = true       -- Bật/tắt dự đoán mục tiêu
 local UNLOCK_RADIUS = 1200            -- Bán kính hủy lock
+local CAMERA_SMOOTH_FACTOR = 0.3      -- Hệ số làm mượt camera (0.1 = mượt, 1 = tức thì)
 
 -- Các tham số khác
 local CLOSE_RADIUS = 7                -- Khi mục tiêu gần, giữ Y của camera
@@ -32,7 +33,6 @@ local locked = false            -- Aim lock On/Off
 local currentTarget = nil       -- Mục tiêu hiện tại
 local lastLocalPosition = nil  
 local lastMovementTime = tick()
-local targetType = "Players"    -- "Players" hoặc "NPCs"
 
 -- Bảng lưu Health Board (key = Character)
 local healthBoards = {}
@@ -98,25 +98,6 @@ closeUIStroke.Color = Color3.new(1,1,1)
 closeUIStroke.Thickness = 2
 addHoverEffect(closeButton, baseButtonSize)
 
--- Nút Toggle NPC
-local npcToggleButton = Instance.new("TextButton")
-npcToggleButton.Name = "NPCToggleButton"
-npcToggleButton.Parent = screenGui
-npcToggleButton.Size = UDim2.new(0, baseButtonSize.X, 0, baseButtonSize.Y)
-npcToggleButton.Position = UDim2.new(0.70, 0, 0.03, 0) -- Bên trái nút X
-npcToggleButton.AnchorPoint = Vector2.new(0.5, 0.5)
-npcToggleButton.Text = "PLY"
-npcToggleButton.Font = Enum.Font.GothamBold
-npcToggleButton.TextSize = 18
-npcToggleButton.BackgroundColor3 = Color3.fromRGB(220,20,60)
-npcToggleButton.TextColor3 = Color3.new(1,1,1)
-local npcUICorner = Instance.new("UICorner", npcToggleButton)
-npcUICorner.CornerRadius = UDim.new(0, 10)
-local npcUIStroke = Instance.new("UIStroke", npcToggleButton)
-npcUIStroke.Color = Color3.new(1,1,1)
-npcUIStroke.Thickness = 2
-addHoverEffect(npcToggleButton, baseButtonSize)
-
 -------------------------------------
 -- Sự kiện GUI --
 -------------------------------------
@@ -146,20 +127,6 @@ toggleButton.MouseButton1Click:Connect(function()
     end
 end)
 
-npcToggleButton.MouseButton1Click:Connect(function()
-    if targetType == "Players" then
-        targetType = "NPCs"
-        npcToggleButton.Text = "NPC"
-        npcToggleButton.BackgroundColor3 = Color3.fromRGB(0,200,0)
-    else
-        targetType = "Players"
-        npcToggleButton.Text = "PLY"
-        npcToggleButton.BackgroundColor3 = Color3.fromRGB(220,20,60)
-    end
-    currentTarget = nil
-    locked = false
-end)
-
 -------------------------------------
 -- Các hàm tiện ích --
 -------------------------------------
@@ -181,27 +148,14 @@ local function getTargetsInRadius(radius)
         return targets
     end
     local localPos = character.HumanoidRootPart.Position
-    if targetType == "Players" then
-        for _, player in ipairs(Players:GetPlayers()) do
-            if player ~= LocalPlayer then
-                local targetChar = player.Character
-                if targetChar and targetChar:FindFirstChild("HumanoidRootPart") and targetChar:FindFirstChild("Humanoid") then
-                    if targetChar.Humanoid.Health > 0 then
-                        local dist = (targetChar.HumanoidRootPart.Position - localPos).Magnitude
-                        if dist <= radius then
-                            table.insert(targets, targetChar)
-                        end
-                    end
-                end
-            end
-        end
-    elseif targetType == "NPCs" then
-        for _, model in ipairs(workspace:GetChildren()) do
-            if model ~= character and model:FindFirstChild("HumanoidRootPart") and model:FindFirstChild("Humanoid") then
-                if model.Humanoid.Health > 0 then
-                    local dist = (model.HumanoidRootPart.Position - localPos).Magnitude
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer then
+            local targetChar = player.Character
+            if targetChar and targetChar:FindFirstChild("HumanoidRootPart") and targetChar:FindFirstChild("Humanoid") then
+                if targetChar.Humanoid.Health > 0 then
+                    local dist = (targetChar.HumanoidRootPart.Position - localPos).Magnitude
                     if dist <= radius then
-                        table.insert(targets, model)
+                        table.insert(targets, targetChar)
                     end
                 end
             end
@@ -314,7 +268,7 @@ local function updateHealthBoardForTarget(target)
     end
 
     local headSize = target.Head.Size
-    local boardWidth = headSize.X * 70
+    local boardWidth = headSize.X * 45
     local boardHeight = headSize.Y * 3
     if not healthBoards[target] then
         local billboard = Instance.new("BillboardGui")
@@ -405,8 +359,9 @@ RunService.RenderStepped:Connect(function(deltaTime)
         if locked and currentTarget then
             local predictedPos = predictTargetPosition(currentTarget)
             if predictedPos then
-                -- Camera lock tức thì
-                Camera.CFrame = calculateCameraRotation(predictedPos)
+                local newCFrame = calculateCameraRotation(predictedPos)
+                -- Làm mượt camera
+                Camera.CFrame = Camera.CFrame:Lerp(newCFrame, CAMERA_SMOOTH_FACTOR)
             end
         end
 
