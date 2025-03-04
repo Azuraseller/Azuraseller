@@ -9,7 +9,7 @@ local LOCK_RADIUS = 700               -- Bán kính ghim mục tiêu (Auto Lock)
 local HEALTH_BOARD_RADIUS = 100       -- Bán kính hiển thị Health Board
 local PREDICTION_ENABLED = true       -- Bật/tắt dự đoán mục tiêu
 local UNLOCK_RADIUS = 1200            -- Bán kính hủy lock
-local CAMERA_SMOOTH_FACTOR = 0.3      -- Hệ số làm mượt camera (0.1 = mượt, 1 = tức thì)
+local CAMERA_SMOOTH_FACTOR = 1      -- Hệ số làm mượt camera (0.1 = mượt, 1 = tức thì)
 
 -- Các tham số khác
 local CLOSE_RADIUS = 7                -- Khi mục tiêu gần, giữ Y của camera
