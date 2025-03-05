@@ -7,7 +7,7 @@
 -------------------------------------
 local LOCK_RADIUS = 600               -- Bán kính ghim mục tiêu (Auto Lock)
 local HEALTH_BOARD_RADIUS = 100       -- Bán kính hiển thị Health Board
-local PREDICTION_ENABLED = true       -- Bật/tắt dự đoán mục tiêu
+local PREDICTION_ENABLED = False      -- Bật/tắt dự đoán mục tiêu
 local UNLOCK_RADIUS = 1200            -- Bán kính hủy lock
 local CAMERA_SMOOTH_FACTOR = 0.8      -- Hệ số làm mượt camera (gần 1 để lock nhanh)
 local PREDICTION_FACTOR = 1.5         -- Hệ số dự đoán cho mục tiêu xa
@@ -100,7 +100,7 @@ closeButton.Parent = screenGui
 closeButton.Size = UDim2.new(0, baseButtonSize.X, 0, baseButtonSize.Y)
 closeButton.Position = UDim2.new(0.75, 0, 0.03, 0)
 closeButton.AnchorPoint = Vector2.new(0.5, 0.5)
-closeButton.Text = "X"
+closeButton.Text = "⚙️"
 closeButton.Font = Enum.Font.GothamBold
 closeButton.TextSize = 18
 closeButton.BackgroundColor3 = Color3.fromRGB(220,20,60)
