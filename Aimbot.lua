@@ -1,15 +1,16 @@
 --[[    
-  Advanced Camera Gun Script - Pro Edition 6.2 (Nâng cấp)
+  Advanced Camera Gun Script - Pro Edition 6.2 (Nâng cấp cao cấp)
 --]]    
 
 -------------------------------------
 -- CẤU HÌNH (có thể điều chỉnh) --
 -------------------------------------
-local LOCK_RADIUS = 700               -- Bán kính ghim mục tiêu (Auto Lock)
+local LOCK_RADIUS = 600               -- Bán kính ghim mục tiêu (Auto Lock)
 local HEALTH_BOARD_RADIUS = 100       -- Bán kính hiển thị Health Board
 local PREDICTION_ENABLED = true       -- Bật/tắt dự đoán mục tiêu
 local UNLOCK_RADIUS = 1200            -- Bán kính hủy lock
-local CAMERA_SMOOTH_FACTOR = 1      -- Hệ số làm mượt camera (0.1 = mượt, 1 = tức thì)
+local CAMERA_SMOOTH_FACTOR = 0.8      -- Hệ số làm mượt camera (gần 1 để lock nhanh)
+local PREDICTION_FACTOR = 1.5         -- Hệ số dự đoán cho mục tiêu xa
 
 -- Các tham số khác
 local CLOSE_RADIUS = 7                -- Khi mục tiêu gần, giữ Y của camera
@@ -60,6 +61,18 @@ local function addHoverEffect(button, baseSize)
     end)
 end
 
+-- Hàm thêm hiệu ứng bấm cho nút
+local function addClickEffect(button, baseSize)
+    button.MouseButton1Down:Connect(function()
+        local tween = TweenService:Create(button, TweenInfo.new(0.1, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {Size = UDim2.new(0, baseSize.X * 0.9, 0, baseSize.Y * 0.9)})
+        tween:Play()
+    end)
+    button.MouseButton1Up:Connect(function()
+        local tween = TweenService:Create(button, TweenInfo.new(0.1, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {Size = UDim2.new(0, baseSize.X, 0, baseSize.Y)})
+        tween:Play()
+    end)
+end
+
 -- Nút Toggle (On/Off Aim)
 local toggleButton = Instance.new("TextButton")
 toggleButton.Name = "ToggleButton"
@@ -78,6 +91,7 @@ local toggleUIStroke = Instance.new("UIStroke", toggleButton)
 toggleUIStroke.Color = Color3.new(1,1,1)
 toggleUIStroke.Thickness = 2
 addHoverEffect(toggleButton, baseToggleSize)
+addClickEffect(toggleButton, baseToggleSize)
 
 -- Nút Close (X)
 local closeButton = Instance.new("TextButton")
@@ -97,6 +111,18 @@ local closeUIStroke = Instance.new("UIStroke", closeButton)
 closeUIStroke.Color = Color3.new(1,1,1)
 closeUIStroke.Thickness = 2
 addHoverEffect(closeButton, baseButtonSize)
+addClickEffect(closeButton, baseButtonSize)
+
+-- Hiệu ứng xuất hiện (fade-in)
+local function fadeInButton(button)
+    button.BackgroundTransparency = 1
+    button.TextTransparency = 1
+    local tween = TweenService:Create(button, TweenInfo.new(0.5, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {BackgroundTransparency = 0, TextTransparency = 0})
+    tween:Play()
+end
+
+fadeInButton(toggleButton)
+fadeInButton(closeButton)
 
 -------------------------------------
 -- Sự kiện GUI --
@@ -124,7 +150,7 @@ toggleButton.MouseButton1Click:Connect(function()
         toggleButton.Text = "OFF"
         toggleButton.BackgroundColor3 = Color3.fromRGB(220,20,60)
         currentTarget = nil
-    end
+    end)
 end)
 
 -------------------------------------
@@ -209,18 +235,17 @@ end
 
 local function predictTargetPosition(target)
     local hrp = target:FindFirstChild("HumanoidRootPart")
-    local head = target:FindFirstChild("Head")
-    if not hrp or not head then return nil end
+    if not hrp then return nil end
     local localCharacter = LocalPlayer.Character
     if not localCharacter or not localCharacter:FindFirstChild("HumanoidRootPart") then
         return nil
     end
     local distance = (hrp.Position - localCharacter.HumanoidRootPart.Position).Magnitude
     if (not PREDICTION_ENABLED) or (distance < 350) then
-        return head.Position
+        return hrp.Position  -- Lock vào thân
     end
-    local predictedTime = distance / 50
-    predictedTime = math.clamp(predictedTime, 1, 2)
+    local predictedTime = distance / 50 * PREDICTION_FACTOR
+    predictedTime = math.clamp(predictedTime, 1, 3)
     return hrp.Position + hrp.Velocity * predictedTime
 end
 
@@ -276,7 +301,7 @@ local function updateHealthBoardForTarget(target)
         billboard.Adornee = target.Head
         billboard.AlwaysOnTop = true
         billboard.Size = UDim2.new(0, boardWidth, 0, boardHeight)
-        billboard.StudsOffset = Vector3.new(0, 100, 0)
+        billboard.StudsOffset = Vector3.new(0, 1.5, 0)  -- Nâng cao hơn
         billboard.Parent = target
 
         local bg = Instance.new("Frame", billboard)
@@ -306,7 +331,7 @@ local function updateHealthBoardForTarget(target)
     else
         local billboard = healthBoards[target]
         billboard.Size = UDim2.new(0, boardWidth, 0, boardHeight)
-        billboard.StudsOffset = Vector3.new(0, 1, 0)
+        billboard.StudsOffset = Vector3.new(0, 1.5, 0)  -- Nâng cao hơn
         local bg = billboard:FindFirstChild("Background")
         if bg then
             local healthFill = bg:FindFirstChild("HealthFill")
@@ -360,7 +385,7 @@ RunService.RenderStepped:Connect(function(deltaTime)
             local predictedPos = predictTargetPosition(currentTarget)
             if predictedPos then
                 local newCFrame = calculateCameraRotation(predictedPos)
-                -- Làm mượt camera
+                -- Lock tức thì nhưng không giật
                 Camera.CFrame = Camera.CFrame:Lerp(newCFrame, CAMERA_SMOOTH_FACTOR)
             end
         end
