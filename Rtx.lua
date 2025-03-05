@@ -1,17 +1,18 @@
 local lighting = game:GetService("Lighting")
 local workspace = game:GetService("Workspace")
 local runService = game:GetService("RunService")
+local players = game:GetService("Players")
 
--- Thiết lập ban đầu cho Lighting
+-- Initial Lighting Setup
 lighting.Ambient = Color3.fromRGB(20, 20, 25)
 lighting.OutdoorAmbient = Color3.fromRGB(60, 60, 70)
 lighting.Brightness = 1.5
 lighting.ClockTime = 6
 lighting.GeographicLatitude = 45
-lighting.GlobalShadows = true
-lighting.ShadowSoftness = 0.05
+lighting.GlobalShadows = true -- Enable shadows globally
+lighting.ShadowSoftness = 0.05 -- Default sharpness
 
--- Tạo các hiệu ứng ánh sáng
+-- Lighting Effects
 local bloom = Instance.new("BloomEffect")
 bloom.Intensity = 1.2
 bloom.Size = 24
@@ -19,15 +20,15 @@ bloom.Threshold = 0.4
 bloom.Parent = lighting
 
 local sunRays = Instance.new("SunRaysEffect")
-sunRays.Intensity = 0.8
-sunRays.Spread = 1.0
+sunRays.Intensity = 1.0 -- Increased for detailed, clear rays
+sunRays.Spread = 0.8 -- Adjusted for better spread
 sunRays.Parent = lighting
 
 local colorCorrection = Instance.new("ColorCorrectionEffect")
 colorCorrection.Brightness = 0.25
 colorCorrection.Contrast = 0.5
 colorCorrection.Saturation = 0.35
-colorCorrection.TintColor = Color3.fromRGB(255, 235, 210) -- Màu trắng ngà ấm
+colorCorrection.TintColor = Color3.fromRGB(255, 235, 210)
 colorCorrection.Parent = lighting
 
 local depthOfField = Instance.new("DepthOfFieldEffect")
@@ -53,7 +54,7 @@ directionalLight.Direction = Vector3.new(-0.5, -1, -0.3)
 directionalLight.Shadows = true
 directionalLight.Parent = lighting
 
--- Hàm tạo PointLight
+-- Function to Create Point Lights
 local function createPointLight(position, color, range, maxBrightness)
     local part = Instance.new("Part")
     part.Anchored = true
@@ -71,39 +72,41 @@ local function createPointLight(position, color, range, maxBrightness)
     return light
 end
 
--- Tạo một số PointLight mẫu
-createPointLight(Vector3.new(15, 6, 15), Color3.fromRGB(255, 190, 140), 18, 4)
-createPointLight(Vector3.new(-15, 6, -15), Color3.fromRGB(140, 190, 255), 16, 3.5)
+-- Create Sample Point Lights
+local auxiliaryLight1 = createPointLight(Vector3.new(15, 6, 15), Color3.fromRGB(255, 190, 140), 18, 4)
+local auxiliaryLight2 = createPointLight(Vector3.new(-15, 6, -15), Color3.fromRGB(140, 190, 255), 16, 3.5)
 
--- Hàm thêm phản chiếu cho vật liệu
-local function addReflectionToAll()
-    for _, part in pairs(workspace:GetDescendants()) do
-        if part:IsA("BasePart") then
-            if part.Material == Enum.Material.Metal then
-                part.Reflectance = 0.8
-                local surface = Instance.new("SurfaceAppearance")
-                surface.ColorMap = "rbxassetid://987654321" -- Thay bằng texture kim loại
-                surface.MetalnessMap = "rbxassetid://987654321"
-                surface.Parent = part
-            elseif part.Material == Enum.Material.Glass then
-                part.Reflectance = 0.6
-                local surface = Instance.new("SurfaceAppearance")
-                surface.ColorMap = "rbxassetid://123456789" -- Thay bằng texture kính
-                surface.Parent = part
-            elseif part.Material == Enum.Material.Water then
-                part.Reflectance = 0.4
-                local surface = Instance.new("SurfaceAppearance")
-                surface.ColorMap = "rbxassetid://123456789" -- Thay bằng texture nước
-                surface.Parent = part
-            elseif part.Material == Enum.Material.Wood then
-                part.Reflectance = 0.1
-            end
+-- Function to Add Reflections to a Single Part
+local function addReflectionToPart(part)
+    if part:IsA("BasePart") then
+        if part.Material == Enum.Material.Metal then
+            part.Reflectance = 0.8 -- Strong reflection for metal
+        elseif part.Material == Enum.Material.Glass then
+            part.Reflectance = 0.6 -- Moderate reflection for glass
+        elseif part.Material == Enum.Material.Water then
+            part.Reflectance = 0.4 -- Subtle reflection for water
+        elseif part.Material == Enum.Material.Wood then
+            part.Reflectance = 0.1 -- Minimal reflection for wood
         end
     end
 end
-addReflectionToAll()
 
--- Hàm tạo hiệu ứng môi trường cho từng khu vực
+-- Function to Apply Material Effects Around the Player
+local function applyMaterialEffects()
+    local player = players.LocalPlayer
+    local character = player.Character
+    if not character then return end
+    local rootPart = character:FindFirstChild("HumanoidRootPart")
+    if not rootPart then return end
+
+    -- Check parts within a 50-unit radius of the player
+    local nearbyParts = workspace:GetPartBoundsInRadius(rootPart.Position, 50)
+    for _, part in pairs(nearbyParts) do
+        addReflectionToPart(part)
+    end
+end
+
+-- Function to Create Area-Specific Effects
 local function createAreaEffects(areaPart, atmosphereParams, particleTexture)
     local atmosphereClone = atmosphere:Clone()
     atmosphereClone.Density = atmosphereParams.Density
@@ -119,52 +122,51 @@ local function createAreaEffects(areaPart, atmosphereParams, particleTexture)
     particleEmitter.Parent = areaPart
 end
 
--- Áp dụng hiệu ứng cho khu vực rừng
+-- Apply Effects to Specific Areas
 local forestArea = workspace:FindFirstChild("ForestArea")
 if forestArea then
     createAreaEffects(forestArea, {Density = 0.6, Color = Color3.fromRGB(100, 150, 100)}, "rbxassetid://123456789")
 end
 
--- Áp dụng hiệu ứng cho khu vực sa mạc
 local desertArea = workspace:FindFirstChild("DesertArea")
 if desertArea then
     createAreaEffects(desertArea, {Density = 0.1, Color = Color3.fromRGB(255, 200, 150)}, "rbxassetid://987654321")
 end
 
--- Tạo nguồn sáng phụ
-local auxiliaryLight = createPointLight(Vector3.new(0, 10, 0), Color3.fromRGB(255, 255, 255), 20, 1.5)
-
--- Hàm cập nhật động
+-- Dynamic Update Functions
 local function updateShadowSoftness()
     local time = lighting.ClockTime
     if time >= 7 and time < 17 then
-        lighting.ShadowSoftness = 0.05 -- Ban ngày: bóng sắc nét
+        lighting.ShadowSoftness = 0.05 -- Sharp shadows during the day
     else
-        lighting.ShadowSoftness = 0.3 -- Ban đêm: bóng mờ
+        lighting.ShadowSoftness = 0.2 -- Softer shadows at night
     end
 end
 
-local function updateAuxiliaryLight()
+local function updateAuxiliaryLights()
     local time = lighting.ClockTime
+    local brightnessMultiplier
     if time >= 7 and time < 17 then
-        auxiliaryLight.Brightness = 2.0 -- Ban ngày: sáng mạnh
+        brightnessMultiplier = 0.5 -- Dimmer during the day
     else
-        auxiliaryLight.Brightness = 0.5 -- Ban đêm: sáng yếu
+        brightnessMultiplier = 1.5 -- Brighter at night
     end
+    auxiliaryLight1.Brightness = math.min(4 * brightnessMultiplier, 4)
+    auxiliaryLight2.Brightness = math.min(3.5 * brightnessMultiplier, 3.5)
 end
 
 local function updateColorCorrection()
     local time = lighting.ClockTime
     if time >= 7 and time < 17 then
-        colorCorrection.Contrast = 0.6 -- Ban ngày: vùng sáng/tối rõ
-        colorCorrection.Saturation = 0.3 -- Màu tươi
+        colorCorrection.Contrast = 0.7 -- Higher contrast for clear shadows during the day
+        colorCorrection.Saturation = 0.3
     else
-        colorCorrection.Contrast = 0.4 -- Ban đêm: tương phản thấp
-        colorCorrection.Saturation = 0.2 -- Màu nhạt, dễ chịu
+        colorCorrection.Contrast = 0.4 -- Lower contrast at night
+        colorCorrection.Saturation = 0.2
     end
 end
 
-local timeSpeed = 0.15 -- Tốc độ thay đổi thời gian
+local timeSpeed = 0.15 -- Time progression speed
 local function updateLighting()
     lighting.ClockTime = (lighting.ClockTime + timeSpeed * runService.Heartbeat:Wait()) % 24
     local time = lighting.ClockTime
@@ -172,25 +174,27 @@ local function updateLighting()
     local angle = math.rad(timeFraction * 360)
     directionalLight.Direction = Vector3.new(math.sin(angle), -math.cos(angle), 0.2)
 
-    -- Thay đổi màu sắc ánh sáng theo thời gian
-    if time >= 5 and time < 7 then -- Bình minh
+    -- Adjust lighting color based on time of day
+    if time >= 5 and time < 7 then -- Dawn
         directionalLight.Color = Color3.fromRGB(255, 200, 150)
         bloom.Intensity = 1.0
-    elseif time >= 7 and time < 17 then -- Ban ngày
+    elseif time >= 7 and time < 17 then -- Day
         directionalLight.Color = Color3.fromRGB(255, 240, 220)
         bloom.Intensity = 1.2
-    elseif time >= 17 and time < 19 then -- Hoàng hôn
+    elseif time >= 17 and time < 19 then -- Dusk
         directionalLight.Color = Color3.fromRGB(255, 150, 100)
         bloom.Intensity = 0.9
-    else -- Ban đêm
+    else -- Night
         directionalLight.Color = Color3.fromRGB(100, 100, 150)
         bloom.Intensity = 0.6
     end
 
+    -- Call update functions
     updateShadowSoftness()
-    updateAuxiliaryLight()
+    updateAuxiliaryLights()
     updateColorCorrection()
+    applyMaterialEffects() -- Apply reflections around the player
 end
 
--- Kết nối hàm cập nhật với Heartbeat
+-- Connect to Heartbeat for continuous updates
 runService.Heartbeat:Connect(updateLighting)
