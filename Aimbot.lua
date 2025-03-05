@@ -6,13 +6,13 @@
 -- CẤU HÌNH (có thể điều chỉnh) --
 -------------------------------------
 local LOCK_RADIUS = 600               -- Bán kính ghim mục tiêu (Auto Lock)
-local HEALTH_BOARD_RADIUS = 900       -- Bán kính hiển thị Health Board
+local HEALTH_BOARD_RADIUS = 100       -- Bán kính hiển thị Health Board
 local UNLOCK_RADIUS = 1200            -- Bán kính hủy lock
 local CAMERA_SMOOTH_FACTOR = 0.9      -- Hệ số làm mượt camera (gần 1 để lock nhanh)
 
 -- Các tham số khác
 local CLOSE_RADIUS = 7                -- Khi mục tiêu gần, giữ Y của camera
-local HEIGHT_DIFFERENCE_THRESHOLD = 3 -- Ngưỡng chênh lệch độ cao giữa camera & mục tiêu
+local HEIGHT_DIFFERENCE_THRESHOLD = 5 -- Ngưỡng chênh lệch độ cao giữa camera & mục tiêu
 local MOVEMENT_THRESHOLD = 0.1
 
 -------------------------------------
@@ -216,8 +216,20 @@ end
 
 local function getTargetPosition(target)
     local hrp = target:FindFirstChild("HumanoidRootPart")
-    if not hrp then return nil end
-    return hrp.Position
+    local head = target:FindFirstChild("Head")
+    if not hrp or not head then return nil end
+    
+    local localCharacter = LocalPlayer.Character
+    if not localCharacter or not localCharacter:FindFirstChild("HumanoidRootPart") then
+        return nil
+    end
+    
+    local distance = (hrp.Position - localCharacter.HumanoidRootPart.Position).Magnitude
+    if distance <= 100 then
+        return head.Position
+    else
+        return hrp.Position
+    end
 end
 
 local function calculateCameraRotation(targetPosition)
@@ -265,14 +277,14 @@ local function updateHealthBoardForTarget(target)
 
     local headSize = target.Head.Size
     local boardWidth = headSize.X * 45
-    local boardHeight = headSize.Y * 3
+    local boardHeight = headSize.Y * 2
     if not healthBoards[target] then
         local billboard = Instance.new("BillboardGui")
         billboard.Name = "HealthBoard"
         billboard.Adornee = target.Head
         billboard.AlwaysOnTop = true
         billboard.Size = UDim2.new(0, boardWidth, 0, boardHeight)
-        billboard.StudsOffset = Vector3.new(0, 2, 0)  -- Nâng cao hơn
+        billboard.StudsOffset = Vector3.new(0, 20, 0)  -- Nâng cao hơn
         billboard.Parent = target
 
         local bg = Instance.new("Frame", billboard)
@@ -342,12 +354,28 @@ RunService.RenderStepped:Connect(function(deltaTime)
             end
         else
             if currentTarget then
-                local distance = (currentTarget.HumanoidRootPart.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude
-                if distance > UNLOCK_RADIUS then
+                if not isValidTarget(currentTarget) then
                     locked = false
                     currentTarget = nil
                     toggleButton.Text = "OFF"
                     toggleButton.BackgroundColor3 = Color3.fromRGB(220,20,60)
+                    local potentialTargets = getTargetsInRadius(LOCK_RADIUS)
+                    if #potentialTargets > 0 then
+                        currentTarget = selectTarget()
+                        if currentTarget then
+                            locked = true
+                            toggleButton.Text = "ON"
+                            toggleButton.BackgroundColor3 = Color3.fromRGB(0,200,0)
+                        end
+                    end
+                else
+                    local distance = (currentTarget.HumanoidRootPart.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude
+                    if distance > UNLOCK_RADIUS then
+                        locked = false
+                        currentTarget = nil
+                        toggleButton.Text = "OFF"
+                        toggleButton.BackgroundColor3 = Color3.fromRGB(220,20,60)
+                    end
                 end
             end
         end
