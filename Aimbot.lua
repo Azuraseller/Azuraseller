@@ -1,16 +1,14 @@
 --[[    
-  Advanced Camera Gun Script - Pro Edition 6.2 (Nâng cấp cao cấp)
+  Advanced Camera Gun Script - Pro Edition 6.3 (Nâng cấp)
 --]]    
 
 -------------------------------------
 -- CẤU HÌNH (có thể điều chỉnh) --
 -------------------------------------
 local LOCK_RADIUS = 600               -- Bán kính ghim mục tiêu (Auto Lock)
-local HEALTH_BOARD_RADIUS = 100       -- Bán kính hiển thị Health Board
-local PREDICTION_ENABLED = False      -- Bật/tắt dự đoán mục tiêu
+local HEALTH_BOARD_RADIUS = 900       -- Bán kính hiển thị Health Board
 local UNLOCK_RADIUS = 1200            -- Bán kính hủy lock
-local CAMERA_SMOOTH_FACTOR = 0.8      -- Hệ số làm mượt camera (gần 1 để lock nhanh)
-local PREDICTION_FACTOR = 1.5         -- Hệ số dự đoán cho mục tiêu xa
+local CAMERA_SMOOTH_FACTOR = 0.9      -- Hệ số làm mượt camera (gần 1 để lock nhanh)
 
 -- Các tham số khác
 local CLOSE_RADIUS = 7                -- Khi mục tiêu gần, giữ Y của camera
@@ -50,25 +48,19 @@ local baseToggleSize = Vector2.new(100, 50)
 local baseButtonSize = Vector2.new(30, 30)
 
 -- Hàm thêm hiệu ứng hover cho nút
-local function addHoverEffect(button, baseSize)
+local function addHoverEffect(button, baseSize, originalColor)
     button.MouseEnter:Connect(function()
-        local tween = TweenService:Create(button, TweenInfo.new(0.2, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {Size = UDim2.new(0, baseSize.X * 1.1, 0, baseSize.Y * 1.1)})
+        local tween = TweenService:Create(button, TweenInfo.new(0.2, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {
+            Size = UDim2.new(0, baseSize.X * 1.1, 0, baseSize.Y * 1.1),
+            BackgroundColor3 = originalColor:Lerp(Color3.new(1,1,1), 0.2)
+        })
         tween:Play()
     end)
     button.MouseLeave:Connect(function()
-        local tween = TweenService:Create(button, TweenInfo.new(0.2, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {Size = UDim2.new(0, baseSize.X, 0, baseSize.Y)})
-        tween:Play()
-    end)
-end
-
--- Hàm thêm hiệu ứng bấm cho nút
-local function addClickEffect(button, baseSize)
-    button.MouseButton1Down:Connect(function()
-        local tween = TweenService:Create(button, TweenInfo.new(0.1, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {Size = UDim2.new(0, baseSize.X * 0.9, 0, baseSize.Y * 0.9)})
-        tween:Play()
-    end)
-    button.MouseButton1Up:Connect(function()
-        local tween = TweenService:Create(button, TweenInfo.new(0.1, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {Size = UDim2.new(0, baseSize.X, 0, baseSize.Y)})
+        local tween = TweenService:Create(button, TweenInfo.new(0.2, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {
+            Size = UDim2.new(0, baseSize.X, 0, baseSize.Y),
+            BackgroundColor3 = originalColor
+        })
         tween:Play()
     end)
 end
@@ -90,8 +82,8 @@ toggleUICorner.CornerRadius = UDim.new(0, 10)
 local toggleUIStroke = Instance.new("UIStroke", toggleButton)
 toggleUIStroke.Color = Color3.new(1,1,1)
 toggleUIStroke.Thickness = 2
-addHoverEffect(toggleButton, baseToggleSize)
-addClickEffect(toggleButton, baseToggleSize)
+local toggleOriginalColor = toggleButton.BackgroundColor3
+addHoverEffect(toggleButton, baseToggleSize, toggleOriginalColor)
 
 -- Nút Close (X)
 local closeButton = Instance.new("TextButton")
@@ -100,7 +92,7 @@ closeButton.Parent = screenGui
 closeButton.Size = UDim2.new(0, baseButtonSize.X, 0, baseButtonSize.Y)
 closeButton.Position = UDim2.new(0.75, 0, 0.03, 0)
 closeButton.AnchorPoint = Vector2.new(0.5, 0.5)
-closeButton.Text = "⚙️"
+closeButton.Text = "X"
 closeButton.Font = Enum.Font.GothamBold
 closeButton.TextSize = 18
 closeButton.BackgroundColor3 = Color3.fromRGB(220,20,60)
@@ -110,19 +102,8 @@ closeUICorner.CornerRadius = UDim.new(0, 10)
 local closeUIStroke = Instance.new("UIStroke", closeButton)
 closeUIStroke.Color = Color3.new(1,1,1)
 closeUIStroke.Thickness = 2
-addHoverEffect(closeButton, baseButtonSize)
-addClickEffect(closeButton, baseButtonSize)
-
--- Hiệu ứng xuất hiện (fade-in)
-local function fadeInButton(button)
-    button.BackgroundTransparency = 1
-    button.TextTransparency = 1
-    local tween = TweenService:Create(button, TweenInfo.new(0.5, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {BackgroundTransparency = 0, TextTransparency = 0})
-    tween:Play()
-end
-
-fadeInButton(toggleButton)
-fadeInButton(closeButton)
+local closeOriginalColor = closeButton.BackgroundColor3
+addHoverEffect(closeButton, baseButtonSize, closeOriginalColor)
 
 -------------------------------------
 -- Sự kiện GUI --
@@ -150,7 +131,7 @@ toggleButton.MouseButton1Click:Connect(function()
         toggleButton.Text = "OFF"
         toggleButton.BackgroundColor3 = Color3.fromRGB(220,20,60)
         currentTarget = nil
-    end)
+    end
 end)
 
 -------------------------------------
@@ -233,20 +214,10 @@ local function isValidTarget(target)
     return distance <= UNLOCK_RADIUS
 end
 
-local function predictTargetPosition(target)
+local function getTargetPosition(target)
     local hrp = target:FindFirstChild("HumanoidRootPart")
     if not hrp then return nil end
-    local localCharacter = LocalPlayer.Character
-    if not localCharacter or not localCharacter:FindFirstChild("HumanoidRootPart") then
-        return nil
-    end
-    local distance = (hrp.Position - localCharacter.HumanoidRootPart.Position).Magnitude
-    if (not PREDICTION_ENABLED) or (distance < 350) then
-        return hrp.Position  -- Lock vào thân
-    end
-    local predictedTime = distance / 50 * PREDICTION_FACTOR
-    predictedTime = math.clamp(predictedTime, 1, 3)
-    return hrp.Position + hrp.Velocity * predictedTime
+    return hrp.Position
 end
 
 local function calculateCameraRotation(targetPosition)
@@ -301,7 +272,7 @@ local function updateHealthBoardForTarget(target)
         billboard.Adornee = target.Head
         billboard.AlwaysOnTop = true
         billboard.Size = UDim2.new(0, boardWidth, 0, boardHeight)
-        billboard.StudsOffset = Vector3.new(0, 1.5, 0)  -- Nâng cao hơn
+        billboard.StudsOffset = Vector3.new(0, 2, 0)  -- Nâng cao hơn
         billboard.Parent = target
 
         local bg = Instance.new("Frame", billboard)
@@ -331,7 +302,7 @@ local function updateHealthBoardForTarget(target)
     else
         local billboard = healthBoards[target]
         billboard.Size = UDim2.new(0, boardWidth, 0, boardHeight)
-        billboard.StudsOffset = Vector3.new(0, 1.5, 0)  -- Nâng cao hơn
+        billboard.StudsOffset = Vector3.new(0, 2, 0)  -- Nâng cao hơn
         local bg = billboard:FindFirstChild("Background")
         if bg then
             local healthFill = bg:FindFirstChild("HealthFill")
@@ -382,10 +353,9 @@ RunService.RenderStepped:Connect(function(deltaTime)
         end
 
         if locked and currentTarget then
-            local predictedPos = predictTargetPosition(currentTarget)
-            if predictedPos then
-                local newCFrame = calculateCameraRotation(predictedPos)
-                -- Lock tức thì nhưng không giật
+            local targetPos = getTargetPosition(currentTarget)
+            if targetPos then
+                local newCFrame = calculateCameraRotation(targetPos)
                 Camera.CFrame = Camera.CFrame:Lerp(newCFrame, CAMERA_SMOOTH_FACTOR)
             end
         end
