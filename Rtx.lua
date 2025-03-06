@@ -9,8 +9,8 @@ lighting.OutdoorAmbient = Color3.fromRGB(60, 60, 70)
 lighting.Brightness = 1.5
 lighting.ClockTime = 6
 lighting.GeographicLatitude = 45
-lighting.GlobalShadows = true -- Enable shadows globally
-lighting.ShadowSoftness = 0.05 -- Default sharpness
+lighting.GlobalShadows = true
+lighting.ShadowSoftness = 0.05
 
 -- Lighting Effects
 local bloom = Instance.new("BloomEffect")
@@ -20,8 +20,8 @@ bloom.Threshold = 0.4
 bloom.Parent = lighting
 
 local sunRays = Instance.new("SunRaysEffect")
-sunRays.Intensity = 1.0 -- Increased for detailed, clear rays
-sunRays.Spread = 0.8 -- Adjusted for better spread
+sunRays.Intensity = 1.5 -- Tăng để tia sáng rõ nét hơn
+sunRays.Spread = 0.7 -- Điều chỉnh độ lan tỏa
 sunRays.Parent = lighting
 
 local colorCorrection = Instance.new("ColorCorrectionEffect")
@@ -80,13 +80,13 @@ local auxiliaryLight2 = createPointLight(Vector3.new(-15, 6, -15), Color3.fromRG
 local function addReflectionToPart(part)
     if part:IsA("BasePart") then
         if part.Material == Enum.Material.Metal then
-            part.Reflectance = 0.8 -- Strong reflection for metal
+            part.Reflectance = 0.8
         elseif part.Material == Enum.Material.Glass then
-            part.Reflectance = 0.6 -- Moderate reflection for glass
+            part.Reflectance = 0.6
         elseif part.Material == Enum.Material.Water then
-            part.Reflectance = 0.4 -- Subtle reflection for water
+            part.Reflectance = 0.4
         elseif part.Material == Enum.Material.Wood then
-            part.Reflectance = 0.1 -- Minimal reflection for wood
+            part.Reflectance = 0.1
         end
     end
 end
@@ -99,7 +99,6 @@ local function applyMaterialEffects()
     local rootPart = character:FindFirstChild("HumanoidRootPart")
     if not rootPart then return end
 
-    -- Check parts within a 50-unit radius of the player
     local nearbyParts = workspace:GetPartBoundsInRadius(rootPart.Position, 50)
     for _, part in pairs(nearbyParts) do
         addReflectionToPart(part)
@@ -134,39 +133,36 @@ if desertArea then
 end
 
 -- Dynamic Update Functions
-local function updateShadowSoftness()
-    local time = lighting.ClockTime
+local function updateShadowSoftness(time)
     if time >= 7 and time < 17 then
-        lighting.ShadowSoftness = 0.05 -- Sharp shadows during the day
+        lighting.ShadowSoftness = 0.05 -- Bóng sắc nét ban ngày
     else
-        lighting.ShadowSoftness = 0.2 -- Softer shadows at night
+        lighting.ShadowSoftness = 0.2 -- Bóng mềm hơn ban đêm
     end
 end
 
-local function updateAuxiliaryLights()
-    local time = lighting.ClockTime
+local function updateAuxiliaryLights(time)
     local brightnessMultiplier
     if time >= 7 and time < 17 then
-        brightnessMultiplier = 0.5 -- Dimmer during the day
+        brightnessMultiplier = 0.5 -- Giảm sáng ban ngày
     else
-        brightnessMultiplier = 1.5 -- Brighter at night
+        brightnessMultiplier = 1.5 -- Tăng sáng ban đêm
     end
     auxiliaryLight1.Brightness = math.min(4 * brightnessMultiplier, 4)
     auxiliaryLight2.Brightness = math.min(3.5 * brightnessMultiplier, 3.5)
 end
 
-local function updateColorCorrection()
-    local time = lighting.ClockTime
+local function updateColorCorrection(time)
     if time >= 7 and time < 17 then
-        colorCorrection.Contrast = 0.7 -- Higher contrast for clear shadows during the day
+        colorCorrection.Contrast = 0.7 -- Tăng độ tương phản ban ngày
         colorCorrection.Saturation = 0.3
     else
-        colorCorrection.Contrast = 0.4 -- Lower contrast at night
+        colorCorrection.Contrast = 0.4 -- Giảm độ tương phản ban đêm
         colorCorrection.Saturation = 0.2
     end
 end
 
-local timeSpeed = 0.15 -- Time progression speed
+local timeSpeed = 0.15 -- Tốc độ tiến trình thời gian
 local function updateLighting()
     lighting.ClockTime = (lighting.ClockTime + timeSpeed * runService.Heartbeat:Wait()) % 24
     local time = lighting.ClockTime
@@ -174,27 +170,37 @@ local function updateLighting()
     local angle = math.rad(timeFraction * 360)
     directionalLight.Direction = Vector3.new(math.sin(angle), -math.cos(angle), 0.2)
 
-    -- Adjust lighting color based on time of day
-    if time >= 5 and time < 7 then -- Dawn
+    -- Điều chỉnh màu sắc và hiệu ứng theo thời gian trong ngày
+    if time >= 5 and time < 7 then -- Bình minh
         directionalLight.Color = Color3.fromRGB(255, 200, 150)
         bloom.Intensity = 1.0
-    elseif time >= 7 and time < 17 then -- Day
+        lighting.Ambient = Color3.fromRGB(30, 30, 35)
+        lighting.OutdoorAmbient = Color3.fromRGB(70, 70, 80)
+    elseif time >= 7 and time < 17 then -- Ban ngày
         directionalLight.Color = Color3.fromRGB(255, 240, 220)
         bloom.Intensity = 1.2
-    elseif time >= 17 and time < 19 then -- Dusk
-        directionalLight.Color = Color3.fromRGB(255, 150, 100)
+        lighting.Ambient = Color3.fromRGB(20, 20, 25)
+        lighting.OutdoorAmbient = Color3.fromRGB(60, 60, 70)
+        lighting.Brightness = 2.0 -- Sáng hơn ban ngày
+    elseif time >= 17 and time < 19 then -- Hoàng hôn
+        directionalLight.Color = Color3.fromRGB(255, 150, 100) -- Màu cam nhẹ
         bloom.Intensity = 0.9
-    else -- Night
+        lighting.Ambient = Color3.fromRGB(25, 25, 30)
+        lighting.OutdoorAmbient = Color3.fromRGB(65, 65, 75)
+    else -- Ban đêm
         directionalLight.Color = Color3.fromRGB(100, 100, 150)
         bloom.Intensity = 0.6
+        lighting.Ambient = Color3.fromRGB(10, 10, 15)
+        lighting.OutdoorAmbient = Color3.fromRGB(30, 30, 40)
+        lighting.Brightness = 1.0 -- Tối hơn ban đêm
     end
 
-    -- Call update functions
-    updateShadowSoftness()
-    updateAuxiliaryLights()
-    updateColorCorrection()
-    applyMaterialEffects() -- Apply reflections around the player
+    -- Cập nhật các hiệu ứng động
+    updateShadowSoftness(time)
+    updateAuxiliaryLights(time)
+    updateColorCorrection(time)
+    applyMaterialEffects()
 end
 
--- Connect to Heartbeat for continuous updates
+-- Kết nối với Heartbeat để cập nhật liên tục
 runService.Heartbeat:Connect(updateLighting)
