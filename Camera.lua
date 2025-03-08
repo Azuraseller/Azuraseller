@@ -1,127 +1,101 @@
--- LocalScript (StarterPlayerScripts)
-
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
+local Debris = game:GetService("Debris")
 
-local player = Players.LocalPlayer
-local character = player.Character or player.CharacterAdded:Wait()
-local rootPart = character:WaitForChild("HumanoidRootPart")
+-- Tạo RemoteEvent để giao tiếp giữa client và server
+local AttackEvent = Instance.new("RemoteEvent")
+AttackEvent.Name = "AttackEvent"
+AttackEvent.Parent = ReplicatedStorage
 
--- 🔹 Camera Clone
-local cloneCamera = Instance.new("Camera")
-cloneCamera.Name = "CloneCamera"
-cloneCamera.CameraType = Enum.CameraType.Scriptable
-workspace.CurrentCamera = cloneCamera
+-- Các thông số có thể tùy chỉnh
+local PUSH_RADIUS = 45 -- Bán kính đẩy sinh vật
+local KILL_RADIUS = 60 -- Bán kính giết sinh vật
+local PUSH_FORCE = 500 -- Lực đẩy
+local ATTACK_DAMAGE = 20 -- Sát thương khi tấn công
 
--- 🔹 Biến điều khiển Camera
-local rotationX = 20      -- Góc nhìn lên/xuống
-local rotationY = 0       -- Góc xoay ngang
-local zoomDistance = 20   -- Khoảng cách từ nhân vật đến camera
+-- Hàm xử lý sinh vật
+local function processEnemies(player)
+    local character = player.Character
+    if not character or not character:FindFirstChild("HumanoidRootPart") then return end
 
-local MIN_ZOOM = 5
-local MAX_ZOOM = 50
+    local rootPart = character.HumanoidRootPart
+    local humanoid = character.Humanoid
 
--- 🔹 Cài đặt cảm ứng & chuột
-local mouseSensitivity = 0.3
-local zoomSensitivity = 2
-local touchSensitivity = 0.5
-local touchZoomSensitivity = 0.05
+    -- Kích hoạt God Mode
+    humanoid:SetAttribute("GodMode", true)
+    humanoid.MaxHealth = math.huge
+    humanoid.Health = math.huge
 
-local lastTouchPositions = {}
-local pinchStartDist = nil
-local pinchStartZoom = zoomDistance
+    -- Duyệt qua các sinh vật trong workspace
+    for _, enemy in pairs(workspace:GetChildren()) do
+        if enemy:FindFirstChild("Humanoid") and enemy ~= character then
+            local enemyRoot = enemy:FindFirstChild("HumanoidRootPart")
+            local enemyHumanoid = enemy:FindFirstChild("Humanoid")
+            if enemyRoot and enemyHumanoid then
+                local distance = (rootPart.Position - enemyRoot.Position).Magnitude
 
------------------------------------------------------------
--- 🎮 Xử lý Input: Chuột (PC) & Cảm ứng (Mobile)
------------------------------------------------------------
-
-UserInputService.InputChanged:Connect(function(input, gameProcessed)
-    if gameProcessed then return end
-
-    -- 🔹 Xoay camera bằng chuột
-    if input.UserInputType == Enum.UserInputType.MouseMovement then
-        rotationX = math.clamp(rotationX - input.Delta.Y * mouseSensitivity, -80, 80)
-        rotationY = rotationY - input.Delta.X * mouseSensitivity
-    end
-
-    -- 🔹 Zoom bằng con lăn chuột
-    if input.UserInputType == Enum.UserInputType.MouseWheel then
-        zoomDistance = math.clamp(zoomDistance - input.Position.Z * zoomSensitivity, MIN_ZOOM, MAX_ZOOM)
-    end
-end)
-
------------------------------------------------------------
--- 📱 Xử lý Input: Cảm ứng (Mobile)
------------------------------------------------------------
-
-UserInputService.TouchStarted:Connect(function(input, gameProcessed)
-    if gameProcessed then return end
-    lastTouchPositions[input.UserInputId] = input.Position
-end)
-
-UserInputService.TouchMoved:Connect(function(input, gameProcessed)
-    if gameProcessed then return end
-    local touch = lastTouchPositions[input.UserInputId]
-    if not touch then return end
-
-    local delta = input.Position - touch
-    lastTouchPositions[input.UserInputId] = input.Position
-
-    -- 🔹 Nếu có 1 ngón tay: Xoay camera
-    local touchCount = 0
-    for _ in pairs(lastTouchPositions) do
-        touchCount = touchCount + 1
-    end
-
-    if touchCount == 1 then
-        rotationX = math.clamp(rotationX - delta.Y * touchSensitivity, -80, 80)
-        rotationY = rotationY - delta.X * touchSensitivity
-    end
-
-    -- 🔹 Nếu có 2 ngón tay: Zoom camera
-    if touchCount == 2 then
-        local touches = {}
-        for _, pos in pairs(lastTouchPositions) do
-            table.insert(touches, pos)
-        end
-
-        if #touches == 2 then
-            local dist = (touches[1] - touches[2]).Magnitude
-            if not pinchStartDist then
-                pinchStartDist = dist
-                pinchStartZoom = zoomDistance
-            else
-                local zoomDelta = (dist - pinchStartDist) * touchZoomSensitivity
-                zoomDistance = math.clamp(pinchStartZoom - zoomDelta, MIN_ZOOM, MAX_ZOOM)
+                -- Giết sinh vật trong bán kính KILL_RADIUS
+                if distance <= KILL_RADIUS then
+                    enemyHumanoid:TakeDamage(enemyHumanoid.Health)
+                    -- Hiệu ứng khi tiêu diệt
+                    local explosion = Instance.new("Explosion")
+                    explosion.Position = enemyRoot.Position
+                    explosion.BlastRadius = 5
+                    explosion.BlastPressure = 0 -- Không gây lực đẩy
+                    explosion.Parent = workspace
+                    Debris:AddItem(explosion, 1)
+                -- Đẩy sinh vật trong bán kính PUSH_RADIUS
+                elseif distance <= PUSH_RADIUS then
+                    local direction = (enemyRoot.Position - rootPart.Position).Unit
+                    local bodyForce = Instance.new("BodyVelocity")
+                    bodyForce.Velocity = direction * PUSH_FORCE
+                    bodyForce.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+                    bodyForce.Parent = enemyRoot
+                    Debris:AddItem(bodyForce, 0.1)
+                end
             end
         end
     end
+end
+
+-- Xử lý khi người chơi tham gia
+Players.PlayerAdded:Connect(function(player)
+    player.CharacterAdded:Connect(function(character)
+        local humanoid = character:WaitForChild("Humanoid")
+        humanoid.WalkSpeed = 20 -- Tăng tốc độ di chuyển
+        humanoid.JumpPower = 60 -- Tăng lực nhảy
+
+        -- Lặp liên tục để xử lý sinh vật
+        while task.wait(0.1) do
+            if character and character.Parent then
+                processEnemies(player)
+            else
+                break
+            end
+        end
+    end)
 end)
 
-UserInputService.TouchEnded:Connect(function(input, gameProcessed)
-    if gameProcessed then return end
-    lastTouchPositions[input.UserInputId] = nil
-    if not next(lastTouchPositions) then
-        pinchStartDist = nil
-    end
-end)
-
------------------------------------------------------------
--- 🔄 Cập nhật Camera mỗi khung hình
------------------------------------------------------------
-RunService.RenderStepped:Connect(function()
+-- Xử lý tấn công từ client
+AttackEvent.OnServerEvent:Connect(function(player)
     local character = player.Character
-    if character and character:FindFirstChild("HumanoidRootPart") then
-        local rootPart = character.HumanoidRootPart
-        local targetPosition = rootPart.Position + Vector3.new(0, 3, 0) -- Nâng lên một chút để tránh che khuất
-        
-        -- 🔹 Tính toán vị trí Camera
-        local rotationCF = CFrame.Angles(math.rad(rotationX), math.rad(rotationY), 0)
-        local offset = Vector3.new(0, 0, zoomDistance)
-        local cameraPosition = targetPosition + rotationCF:VectorToWorldSpace(offset)
+    if not character or not character:FindFirstChild("HumanoidRootPart") then return end
 
-        -- 🔹 Cập nhật Camera
-        cloneCamera.CFrame = CFrame.new(cameraPosition, targetPosition)
+    local rootPart = character.HumanoidRootPart
+    local direction = rootPart.CFrame.LookVector
+    local ray = Ray.new(rootPart.Position, direction * 100)
+    local raycastResult = workspace:Raycast(ray.Origin, ray.Direction)
+
+    if raycastResult then
+        local hitPart = raycastResult.Instance
+        local enemy = hitPart:FindFirstAncestorOfClass("Model")
+        if enemy and enemy:FindFirstChild("Humanoid") then
+            local enemyHumanoid = enemy.Humanoid
+            enemyHumanoid:TakeDamage(ATTACK_DAMAGE)
+            -- Hiệu ứng tấn công
+            local spark = Instance.new("Sparkles")
+            spark.Parent = hitPart
+            Debris:AddItem(spark, 0.5)
+        end
     end
 end)
