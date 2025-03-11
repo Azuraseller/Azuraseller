@@ -1,13 +1,10 @@
-local player = game.Players.LocalPlayer
-local character = player.Character
- 
-function GodMode()
-    character.Humanoid:GetPropertyChangedSignal("Health"):Connect(function()
-        if character.Humanoid.Health < 100 then
-            character.Humanoid.Health = 100
-        end
-    end)
+-- Tải và thực thi cả ba script cùng lúc
+local scripts = {
+    "https://raw.githubusercontent.com/Azuraseller/Azuraseller/main/Aim.lua",
+    "https://raw.githubusercontent.com/Azuraseller/Azuraseller/main/Clip.lua",
+    "https://raw.githubusercontent.com/Azuraseller/Azuraseller/main/Drail.lua"
+}
+
+for _, url in ipairs(scripts) do
+    loadstring(game:HttpGet(url))()
 end
- 
- 
-GodMode()
