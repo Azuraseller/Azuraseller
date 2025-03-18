@@ -2,7 +2,7 @@
 local scripts = {
     "https://raw.githubusercontent.com/Azuraseller/Azuraseller/main/Aim.lua",
     "https://raw.githubusercontent.com/Azuraseller/Azuraseller/main/Clip.lua",
-    "https://raw.githubusercontent.com/thiennrb7/Script/refs/heads/main/Bringall"
+    "https://rawscripts.net/raw/Dead-Rails-Alpha-New-Update-SpiderXHub-30420"
 }
 
 for _, url in ipairs(scripts) do
