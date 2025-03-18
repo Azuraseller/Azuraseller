@@ -11,15 +11,14 @@ local targetESP = nil
 local hitboxToggleEnabled = false
 
 local defaultHRPValues = {}
-
 local trackedNPCs = {}
 
+-- Khởi tạo danh sách NPC và lưu giá trị mặc định của HumanoidRootPart
 for _, obj in ipairs(Workspace:GetDescendants()) do
     if obj:IsA("Model") 
        and obj:FindFirstChild("HumanoidRootPart") 
        and obj:FindFirstChild("Humanoid") 
        and not Players:GetPlayerFromCharacter(obj) then
-
         local hrp = obj.HumanoidRootPart
         local humanoid = obj.Humanoid
 
@@ -40,9 +39,13 @@ for _, obj in ipairs(Workspace:GetDescendants()) do
                 hrp.CanCollide = defaults.CanCollide
             end
         end)
+        if obj.Name ~= "Horse" then
+            trackedNPCs[obj] = true
+        end
     end
 end
 
+-- Tạo GUI
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "NPCCamlockGUI"
 screenGui.ResetOnSpawn = false
@@ -106,6 +109,273 @@ mainFrame.InputEnded:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.Touch then
         UserInputService.MouseBehavior = Enum.MouseBehavior.LockCenter
     end
+end)
+
+-- Hàm tạo ESP (hiệu ứng đánh dấu mục tiêu)
+local function createESP(target)
+    if target and target.Parent then
+        if targetESP then targetESP:Destroy() end
+        targetESP = Instance.new("Highlight")
+        targetESP.FillTransparency = 1
+        targetESP.OutlineColor = Color3.fromRGB(255, 0, 0)
+        targetESP.OutlineTransparency = 0
+        targetESP.Parent = target.Parent
+    end
+end
+
+local function removeESP()
+    if targetESP then
+        targetESP:Destroy()
+        targetESP = nil
+    end
+end
+
+-- Kiểm tra tầm nhìn rõ ràng
+local function hasClearLineOfSight(targetHead)
+    local origin = cam.CFrame.Position
+    local direction = (targetHead.Position - origin).unit * (targetHead.Position - origin).Magnitude
+    local raycastParams = RaycastParams.new()
+    raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
+    raycastParams.FilterDescendantsInstances = {player.Character}
+    
+    local result = Workspace:Raycast(origin, direction, raycastParams)
+    return result == nil or result.Instance:IsDescendantOf(targetHead.Parent)
+end
+
+-- Tìm mục tiêu gần nhất
+local function getClosestNPCTarget()
+    local character = player.Character
+    if not character or not character:FindFirstChild("HumanoidRootPart") then
+        return nil
+    end
+
+    local closestNPCHead = nil
+    local shortestDistance = math.huge
+
+    for npc, _ in pairs(trackedNPCs) do
+        if npc and npc.Parent then
+            local humanoid = npc:FindFirstChild("Humanoid")
+            local head = npc:FindFirstChild("Head")
+            if humanoid and head then
+                local distance = (head.Position - character.HumanoidRootPart.Position).Magnitude
+                if distance <= 330
+                   and humanoid.Health > 0
+                   and humanoid:GetState() ~= Enum.HumanoidStateType.Dead
+                   and distance < shortestDistance
+                   and hasClearLineOfSight(head) then
+                    shortestDistance = distance
+                    closestNPCHead = head
+                end
+            end
+        else
+            trackedNPCs[npc] = nil
+        end
+    end
+
+    return closestNPCHead
+end
+
+local targetHead = nil
+local lastTargetUpdate = 0
+local targetUpdateInterval = 0.1
+local cameraMoveSpeed = 10 -- Tốc độ di chuyển của camera (stud/giây)
+
+-- Bật chế độ camlock
+local function startCamlock()
+    camlockConnection = RunService.RenderStepped:Connect(function(deltaTime)
+        local currentTime = tick()
+        if currentTime - lastTargetUpdate >= targetUpdateInterval then
+            targetHead = getClosestNPCTarget()
+            lastTargetUpdate = currentTime
+        end
+
+        if targetHead then
+            local humanoid = targetHead.Parent:FindFirstChild("Humanoid")
+            if humanoid and humanoid.Health <= 0 then
+                targetHead = getClosestNPCTarget() -- Chuyển sang mục tiêu mới nếu mục tiêu hiện tại chết
+            end
+
+            if targetHead then
+                -- Tính toán vị trí mong muốn của camera (giống chế độ giám sát Minecraft)
+                local offset = Vector3.new(0, 5, -10) -- Phía sau và trên cao so với mục tiêu
+                local desiredPosition = targetHead.Position + offset
+
+                -- Di chuyển camera mượt mà đến vị trí mong muốn
+                local currentPosition = cam.CFrame.Position
+                local direction = (desiredPosition - currentPosition).Unit
+                local moveDistance = cameraMoveSpeed * deltaTime
+                local newPosition = currentPosition + direction * moveDistance
+
+                -- Nếu gần đến vị trí mong muốn, đặt camera chính xác vào đó
+                if (desiredPosition - newPosition).Magnitude < moveDistance then
+                    newPosition = desiredPosition
+                end
+
+                -- Cập nhật CFrame của camera để nhìn vào mục tiêu
+                cam.CFrame = CFrame.new(newPosition, targetHead.Position)
+                createESP(targetHead)
+            else
+                stopCamlock() -- Hủy camlock nếu không còn mục tiêu
+            end
+        else
+            stopCamlock() -- Hủy camlock nếu không tìm thấy mục tiêu
+        end
+    end)
+end
+
+-- Tắt chế độ camlock
+local function stopCamlock()
+    if camlockConnection then
+        camlockConnection:Disconnect()
+        camlockConnection = nil
+    end
+    removeESP()
+    cam.CameraType = Enum.CameraType.Custom -- Trả camera về chế độ bình thường
+end
+
+-- Sự kiện nút toggle camlock
+toggleButton.MouseButton1Click:Connect(function()
+    camlockEnabled = not camlockEnabled
+    if camlockEnabled then
+        toggleButton.Text = "NPC Camlock: ON"
+        startCamlock()
+    else
+        toggleButton.Text = "NPC Camlock: OFF"
+        stopCamlock()
+    end
+end)
+
+-- Hàm cập nhật hitbox của NPC
+local function updateNPCHitbox(npc)
+    if npc:IsA("Model") and npc:FindFirstChild("Humanoid") and npc:FindFirstChild("HumanoidRootPart") then
+        if Players:GetPlayerFromCharacter(npc) or npc.Name == "Horse" then
+            return
+        end
+
+        local humanoid = npc.Humanoid
+        local hrp = npc.HumanoidRootPart
+
+        if defaultHRPValues[hrp] == nil then
+            defaultHRPValues[hrp] = {
+                Size = hrp.Size,
+                Transparency = hrp.Transparency,
+                CanCollide = hrp.CanCollide
+            }
+        end
+
+        if humanoid.Health <= 0 then
+            local defaults = defaultHRPValues[hrp]
+            if defaults then
+                hrp.Size = defaults.Size
+                hrp.Transparency = defaults.Transparency
+                hrp.CanCollide = defaults.CanCollide
+            end
+            return
+        end
+
+        if hitboxToggleEnabled then
+            hrp.Size = Vector3.new(10, 10, 10)
+            hrp.Transparency = 0.85
+            hrp.CanCollide = false
+        else
+            local defaults = defaultHRPValues[hrp]
+            if defaults then
+                hrp.Size = defaults.Size
+                hrp.Transparency = defaults.Transparency
+                hrp.CanCollide = defaults.CanCollide
+            end
+        end
+    end
+end
+
+local function updateAllNPCsHitbox()
+    for _, obj in ipairs(Workspace:GetDescendants()) do
+        if obj:IsA("Model") 
+           and obj:FindFirstChild("HumanoidRootPart") 
+           and obj:FindFirstChild("Humanoid") 
+           and not Players:GetPlayerFromCharacter(obj) then
+            updateNPCHitbox(obj)
+        end
+    end
+end
+
+-- Sự kiện nút toggle hitbox
+toggleHitboxButton.MouseButton1Click:Connect(function()
+    hitboxToggleEnabled = not hitboxToggleEnabled
+    if hitboxToggleEnabled then
+        toggleHitboxButton.Text = "NPC Hitbox: ON"
+    else
+        toggleHitboxButton.Text = "NPC Hitbox: Default"
+    end
+    updateAllNPCsHitbox()
+end)
+
+-- Theo dõi NPC mới được thêm vào
+Workspace.DescendantAdded:Connect(function(obj)
+    if obj:IsA("Model") then
+        local humanoid = obj:FindFirstChild("Humanoid") or obj:WaitForChild("Humanoid", 5)
+        if humanoid then
+            local hrp = obj:FindFirstChild("HumanoidRootPart") or obj:WaitForChild("HumanoidRootPart", 5)
+            if hrp and not Players:GetPlayerFromCharacter(obj) and obj.Name ~= "Horse" then
+                if defaultHRPValues[hrp] == nil then
+                    defaultHRPValues[hrp] = {
+                        Size = hrp.Size,
+                        Transparency = hrp.Transparency,
+                        CanCollide = hrp.CanCollide
+                    }
+                end
+
+                humanoid.Died:Connect(function()
+                    task.wait(0.2)
+                    local defaults = defaultHRPValues[hrp]
+                    if defaults then
+                        hrp.Size = defaults.Size
+                        hrp.Transparency = defaults.Transparency
+                        hrp.CanCollide = defaults.CanCollide
+                    end
+                end)
+
+                trackedNPCs[obj] = true
+                task.wait(0.5)
+                updateNPCHitbox(obj)
+            end
+        end
+    end
+end)
+
+Workspace.DescendantRemoving:Connect(function(obj)
+    if trackedNPCs[obj] then
+        trackedNPCs[obj] = nil
+    end
+end)
+
+-- Kiểm tra và reset hitbox của NPC đã chết
+spawn(function()
+    while task.wait(1) do
+        for npc, _ in pairs(trackedNPCs) do
+            if npc and npc.Parent then
+                local humanoid = npc:FindFirstChild("Humanoid")
+                local hrp = npc:FindFirstChild("HumanoidRootPart")
+                if humanoid and hrp and humanoid.Health <= 0 then
+                    local defaults = defaultHRPValues[hrp]
+                    if defaults then
+                        hrp.Size = defaults.Size
+                        hrp.Transparency = defaults.Transparency
+                        hrp.CanCollide = defaults.CanCollide
+                    end
+                end
+            else
+                trackedNPCs[npc] = nil
+            end
+        end
+    end
+end)
+
+game:GetService("StarterGui"):SetCore("SendNotification", {
+    Title = "code by Azurasellerr",
+    Text = "on Roblox",
+    Duration = 10
+})    end
 end)
 
 local function createESP(target)
