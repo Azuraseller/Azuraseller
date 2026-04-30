@@ -1,29 +1,28 @@
--- // 🧟 SURVIVING THE APOCALYPSE - KILL AURA 1 HIT v2.0
--- // Optimized & Stealth - Tested concept 2026
+-- // 🧟 SURVIVING THE APOCALYPSE - KILL AURA 1 HIT v4.0
+-- // Optimized for Delta Executor on Mobile
+-- // Nhấn E để BẬT / TẮT
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UserInputService = game:GetService("UserInputService")
 
 local LocalPlayer = Players.LocalPlayer
-local Config = {
-    Enabled = true,
-    Range = 28,
-    Delay = 0.07,
-    OneHit = true,
-    IncludePlayers = false
+
+getgenv().STA_KillAura = getgenv().STA_KillAura or {
+    Enabled = false,
+    Range = 25,
+    Delay = 0.08,
 }
 
-local connections = {}
+local Config = getgenv().STA_KillAura
 
--- Tìm Remote Damage (thường nằm trong ReplicatedStorage hoặc Character)
-local damageRemote = nil
-pcall(function()
-    damageRemote = ReplicatedStorage:FindFirstChild("DamageEvent") or 
-                   ReplicatedStorage:FindFirstChild("ZombieDamage") or
-                   ReplicatedStorage:FindFirstChild("HitEvent")
-end)
+print("🔄 Đang load Kill Aura cho Delta Mobile...")
+game.StarterGui:SetCore("SendNotification", {
+    Title = "Kill Aura",
+    Text = "Đang load phiên bản Mobile...",
+    Duration = 3
+})
 
 local function getZombies()
     local zombies = {}
@@ -32,10 +31,8 @@ local function getZombies()
             local hum = v.Humanoid
             if hum.Health > 0 then
                 local isPlayer = Players:GetPlayerFromCharacter(v) \~= nil
-                if not isPlayer or Config.IncludePlayers then
-                    if v.Name:lower():find("zombie") or hum.DisplayName:lower():find("zombie") or not isPlayer then
-                        table.insert(zombies, v)
-                    end
+                if not isPlayer then
+                    table.insert(zombies, v)
                 end
             end
         end
@@ -43,37 +40,7 @@ local function getZombies()
     return zombies
 end
 
-local function oneHitKill(target)
-    if not target or not target:FindFirstChild("Humanoid") then return end
-    local hum = target.Humanoid
-    local root = target:FindFirstChild("HumanoidRootPart")
-    
-    if not root then return end
-
-    pcall(function()
-        if Config.OneHit then
-            -- Layer 1: Set health trực tiếp
-            hum.Health = 0
-            
-            -- Layer 2: Nếu có remote thì fire thêm (rất mạnh)
-            if damageRemote then
-                damageRemote:FireServer(hum, 999999, "Head")
-            end
-            
-            -- Layer 3: Simulate hit mạnh (dành cho melee system)
-            local char = LocalPlayer.Character
-            if char and char:FindFirstChild("HumanoidRootPart") then
-                local myRoot = char.HumanoidRootPart
-                firetouchinterest(myRoot, root, 0)
-                task.wait()
-                firetouchinterest(myRoot, root, 1)
-            end
-        end
-    end)
-end
-
--- Main Loop
-local auraConn = RunService.Heartbeat:Connect(function()
+local function KillAuraLoop()
     if not Config.Enabled then return end
     if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then return end
 
@@ -81,34 +48,55 @@ local auraConn = RunService.Heartbeat:Connect(function()
     local zombies = getZombies()
 
     for _, zombie in ipairs(zombies) do
-        local zRoot = zombie:FindFirstChild("HumanoidRootPart")
-        if zRoot then
-            local dist = (myRoot.Position - zRoot.Position).Magnitude
-            if dist <= Config.Range then
-                oneHitKill(zombie)
-                task.wait(Config.Delay)
+        pcall(function()
+            local zRoot = zombie:FindFirstChild("HumanoidRootPart")
+            if zRoot then
+                local dist = (myRoot.Position - zRoot.Position).Magnitude
+                if dist <= Config.Range and dist > 3 then
+                    local hum = zombie.Humanoid
+                    hum.Health = 0   -- 1 Hit chính
+
+                    -- Simulate touch (hữu ích trên mobile)
+                    firetouchinterest(myRoot, zRoot, 0)
+                    task.wait(0.015)
+                    firetouchinterest(myRoot, zRoot, 1)
+
+                    task.wait(Config.Delay)
+                end
             end
-        end
+        end)
     end
-end)
+end
 
-table.insert(connections, auraConn)
+-- Main Loop (Heartbeat nhẹ hơn trên mobile)
+local mainConn = RunService.Heartbeat:Connect(KillAuraLoop)
 
--- Toggle bằng phím E
-game:GetService("UserInputService").InputBegan:Connect(function(input)
+-- Toggle bằng phím E (hoặc Virtual Button nếu Delta hỗ trợ)
+local toggleConn = UserInputService.InputBegan:Connect(function(input, gp)
+    if gp then return end
     if input.KeyCode == Enum.KeyCode.E then
         Config.Enabled = not Config.Enabled
+        
         game.StarterGui:SetCore("SendNotification", {
             Title = "Kill Aura",
-            Text = "Status: " .. (Config.Enabled and "ENABLED" or "DISABLED"),
-            Duration = 2
+            Text = "Trạng thái: " .. (Config.Enabled and "BẬT ✅" or "TẮT ❌") .. "\nRange: " .. Config.Range,
+            Duration = 4
         })
+        
+        print("Kill Aura:", Config.Enabled and "BẬT" or "TẮT")
     end
 end)
 
-print("✅ Kill Aura v2.0 Loaded | Nhấn E để bật/tắt | Range: " .. Config.Range)
+print("✅ Kill Aura Mobile Loaded!")
+print("Nhấn phím **E** để bật/tắt Kill Aura")
+game.StarterGui:SetCore("SendNotification", {
+    Title = "Kill Aura v4.0",
+    Text = "Load thành công!\nNhấn E để bật/tắt",
+    Duration = 5
+})
 
 -- Cleanup
 LocalPlayer.CharacterRemoving:Connect(function()
-    for _, c in pairs(connections) do c:Disconnect() end
+    pcall(function() mainConn:Disconnect() end)
+    pcall(function() toggleConn:Disconnect() end)
 end)
