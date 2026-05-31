@@ -1,31 +1,23 @@
 -- ====================================================================
--- SCRIPT TRÍCH XUẤT: AUTO LOOTING & UI (ĐÃ SỬA LỖI TOÀN DIỆN)
+-- AUTOLOOT STANDALONE SCRIPT (Survive the Apocalypse)
+-- Cập nhật: Fix lỗi nuốt Nhiên liệu / Đồ ăn / Tài nguyên
 -- ====================================================================
 
--- SERVICES (Đầy đủ và đảm bảo không xung đột)
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
-local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 local CoreGui = game:GetService("CoreGui")
 
 local LocalPlayer = Players.LocalPlayer
 
--- CẤU HÌNH GỐC (ĐỒNG BỘ TỪ SCRIPT CHÍNH)
 local TOGGLE_KEY = Enum.KeyCode.V
 local LOOT_RANGE = 25
 
 local LootConfig = {
-    Enabled   = false, -- Mặc định OFF ở giữa màn hình theo yêu cầu
-    Guns      = true,
-    Melee     = true,
-    Medical   = true,
-    Armor     = true,
-    Food      = true,
-    Resources = true,
-    Ammo      = true,
-    Containers= true,
+    Enabled   = false,
+    Guns      = true, Melee = true, Medical = true, Armor = true,
+    Food      = true, Resources = true, Ammo = true, Containers = true,
 }
 
 local ItemDatabase = {
@@ -40,48 +32,42 @@ local ItemDatabase = {
 
 local FilterLookup = {}
 for category, items in pairs(ItemDatabase) do
-    for _, itemName in ipairs(items) do
-        FilterLookup[itemName] = category
-    end
+    for _, itemName in ipairs(items) do FilterLookup[itemName] = category end
 end
 
--- LẤY REMOTE EVENT GỐC
+-- DANH SÁCH ĐEN TÍN HIỆU (Chống ăn mất đồ)
+local BlacklistRemote = {
+    ["Chips"] = true, ["Carrot"] = true, ["Bloxiade"] = true, ["Beans"] = true, ["MRE"] = true, ["Bloxy Cola"] = true,
+    ["Nuclear Fuel"] = true, ["Refined Fuel"] = true, ["Fuel"] = true,
+    ["Power Armor Arm"] = true, ["Power Armor Core"] = true, ["Radio Tower Part"] = true,
+    ["AC"] = true, ["Battery"] = true, ["Battery Pack"] = true, ["Bucket"] = true, ["Dumbell"] = true, ["Exhaust Pipe"] = true,
+    ["Reactor Component"] = true, ["Refined Metal"] = true, ["Satellite Dish"] = true, ["Scrap"] = true, ["Screws"] = true,
+    ["Spatula"] = true, ["Tray"] = true, ["TV"] = true, ["Watch"] = true, ["Zombie Heart"] = true,
+    ["Airstrike"] = true, ["Attack Order"] = true, ["Call of the Dead"] = true, ["Summon Brute"] = true,
+    ["Summon Zombies"] = true, ["Taunt"] = true, ["The Future"] = true, ["The Past"] = true, ["The Present"] = true,
+}
+
 local Remotes = ReplicatedStorage:FindFirstChild("Remotes")
 local pickUpItemRemote = Remotes and Remotes:FindFirstChild("Interaction") and Remotes.Interaction:FindFirstChild("PickUpItem")
-
-if not pickUpItemRemote then
-    warn("[AutoLoot] Không tìm thấy Remote Event 'PickUpItem'.")
-    return
-end
-
--- ====================================================================
--- SỬA LỖI 1: KHÔNG NHẶT ĐỒ KHI CẦM BALO (Tối ưu tìm vị trí & nhận diện tên)
--- ====================================================================
+local adjustBackpackRemote = Remotes and Remotes:FindFirstChild("Tools") and Remotes.Tools:FindFirstChild("AdjustBackpack")
 
 local function getValidRootPart()
-    local character = LocalPlayer.Character
-    if not character then return nil end
-    -- Sửa lỗi: Khi đeo balo cấu trúc thay đổi, ưu tiên tìm mọi bộ phận gốc còn sống thay vì bị kẹt ở FindFirstChild tĩnh
-    return character:FindFirstChild("HumanoidRootPart") 
-        or character:FindFirstChild("UpperTorso") 
-        or character:FindFirstChild("Torso") 
-        or character:FindFirstChildWhichIsA("BasePart")
+    local char = LocalPlayer.Character
+    if not char then return nil end
+    return char:FindFirstChild("HumanoidRootPart") 
+        or char:FindFirstChild("UpperTorso") 
+        or char:FindFirstChild("Torso") 
+        or char:FindFirstChildWhichIsA("BasePart")
 end
 
 local function shouldLootItem(item)
     if not item or not item.Name then return false end
     local name = item.Name
-    
-    -- Sửa lỗi nhận diện Balo: Cắt bỏ các ký tự rác, khoảng trắng hoặc ID đuôi do hệ thống Balo tạo ra
     local cleanName = string.gsub(name, "%s*[%d%a]+$", "") 
     local category = FilterLookup[cleanName] or FilterLookup[name]
     
-    -- Sửa lỗi Balo thông thường: Nếu tên chứa chữ "Backpack" thì ép nhóm vào Armor luôn để không bị sót
-    if string.find(name:lower(), "backpack") then
-        category = "Armor"
-    end
-    
-    if not category then return true end -- Nhặt nếu là đồ lạ
+    if string.find(name:lower(), "backpack") then category = "Armor" end
+    if not category then return true end 
     
     if category == "Gun" and LootConfig.Guns then return true end
     if category == "Melee" and LootConfig.Melee then return true end
@@ -90,58 +76,80 @@ local function shouldLootItem(item)
     if category == "Food" and LootConfig.Food then return true end
     if category == "Resource" and LootConfig.Resources then return true end
     if category == "Ammo" and LootConfig.Ammo then return true end
-    
     return false
 end
 
-local function getItemPart(item)
-    if item:IsA("BasePart") then return item end
-    if item.PrimaryPart then return item.PrimaryPart end
-    return item:FindFirstChildWhichIsA("BasePart")
+local autoPickupThread = nil
+
+local function stopAutoLoot()
+    if autoPickupThread then
+        pcall(function() task.cancel(autoPickupThread) end)
+        autoPickupThread = nil
+    end
 end
 
--- VÒNG LẶP AUTO LOOT ĐÃ ĐƯỢC FIX
-task.spawn(function()
-    while true do
-        task.wait(0.3)
-        if not LootConfig.Enabled then continue end
-        
-        local rootPart = getValidRootPart()
-        if not rootPart then continue end
-        
-        -- 1. Nhặt đồ rơi dưới đất
-        local droppedFolder = Workspace:FindFirstChild("DroppedItems")
-        if droppedFolder then
-            for _, item in ipairs(droppedFolder:GetChildren()) do
-                if (item:IsA("Model") or item:IsA("BasePart")) and shouldLootItem(item) then
-                    local part = getItemPart(item)
-                    if part then
-                        local distance = (rootPart.Position - part.Position).Magnitude
-                        if distance <= LOOT_RANGE then
+local function startAutoLoot()
+    stopAutoLoot()
+    autoPickupThread = task.spawn(function()
+        while LootConfig.Enabled do 
+            task.wait(0.2) 
+            
+            local hrp = getValidRootPart()
+            if not hrp then continue end
+
+            local droppedFolder = Workspace:FindFirstChild("DroppedItems")
+            if droppedFolder then
+                for _, item in ipairs(droppedFolder:GetChildren()) do
+                    if not LootConfig.Enabled then break end 
+                    
+                    if (item:IsA("Model") or item:IsA("BasePart")) and shouldLootItem(item) then
+                        local mainPart = item.PrimaryPart or item:FindFirstChildWhichIsA("BasePart")
+                        if mainPart and (hrp.Position - mainPart.Position).Magnitude <= LOOT_RANGE then
+                            
+                            -- FIX LỖI Ở ĐÂY: Chỉ gửi tín hiệu trực tiếp nếu vật phẩm KHÔNG CÓ trong danh sách đen
+                            if not BlacklistRemote[item.Name] then
+                                pcall(function() if pickUpItemRemote then pickUpItemRemote:FireServer(item) end end)
+                            end
+                            
+                            -- Lệnh cất đồ vào balo thì luôn chạy cho mọi vật phẩm
+                            pcall(function() if adjustBackpackRemote then adjustBackpackRemote:FireServer(item) end end)
+
                             pcall(function()
-                                pickUpItemRemote:FireServer(item)
+                                if firetouchinterest then
+                                    firetouchinterest(hrp, mainPart, 0)
+                                    firetouchinterest(hrp, mainPart, 1)
+                                end
+                            end)
+
+                            pcall(function()
+                                if fireproximityprompt then
+                                    local prompt = item:FindFirstChildWhichIsA("ProximityPrompt", true)
+                                    if prompt then fireproximityprompt(prompt) end
+                                end
                             end)
                         end
                     end
                 end
             end
-        end
-        
-        -- 2. Tự động mở hòm
-        if LootConfig.Containers then
-            local structuresFolder = Workspace:FindFirstChild("Structures") 
-                or Workspace:FindFirstChild("PlayerStructures") 
-                or Workspace:FindFirstChild("Buildings")
-                
-            if structuresFolder then
-                for _, struct in ipairs(structuresFolder:GetChildren()) do
-                    if struct:IsA("Model") and (string.find(struct.Name:lower(), "crate") or string.find(struct.Name:lower(), "container") or string.find(struct.Name:lower(), "supply")) then
-                        local part = getItemPart(struct)
-                        if part then
-                            local distance = (rootPart.Position - part.Position).Magnitude
-                            if distance <= LOOT_RANGE then
+            
+            if LootConfig.Containers then
+                local structuresFolder = Workspace:FindFirstChild("Structures") 
+                    or Workspace:FindFirstChild("PlayerStructures") 
+                    or Workspace:FindFirstChild("Buildings")
+                    
+                if structuresFolder then
+                    for _, struct in ipairs(structuresFolder:GetChildren()) do
+                        if not LootConfig.Enabled then break end
+                        
+                        if struct:IsA("Model") and (string.find(struct.Name:lower(), "crate") or string.find(struct.Name:lower(), "container") or string.find(struct.Name:lower(), "supply")) then
+                            local mainPart = struct.PrimaryPart or struct:FindFirstChildWhichIsA("BasePart")
+                            if mainPart and (hrp.Position - mainPart.Position).Magnitude <= LOOT_RANGE then
+                                pcall(function() if pickUpItemRemote then pickUpItemRemote:FireServer(struct) end end)
                                 pcall(function()
-                                    pickUpItemRemote:FireServer(struct)
+                                    if fireproximityprompt then
+                                        local prompt = struct:FindFirstChildWhichIsA("ProximityPrompt", true)
+                                        if prompt then fireproximityprompt(prompt) end
+                                    end
                                 end)
                             end
                         end
@@ -149,12 +157,8 @@ task.spawn(function()
                 end
             end
         end
-    end
-end)
-
--- ====================================================================
--- SỬA LỖI 2: KHÔNG KÉO ĐƯỢC MENU (Xử lý nuốt sự kiện Click chuột/Touch)
--- ====================================================================
+    end)
+end
 
 if CoreGui:FindFirstChild("AutoLoot_HorizontalMenu") then
     CoreGui["AutoLoot_HorizontalMenu"]:Destroy()
@@ -165,11 +169,10 @@ ScreenGui.Name = "AutoLoot_HorizontalMenu"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.Parent = CoreGui
 
--- KHUNG NỀN CHÍNH (Nơi nhận dữ liệu kéo thả)
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
 MainFrame.Size = UDim2.new(0, 180, 0, 32)
-MainFrame.Position = UDim2.new(0.5, -90, 0.5, -16) -- Giữa màn hình
+MainFrame.Position = UDim2.new(0.5, -90, 0.5, -16) 
 MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
 MainFrame.BorderSizePixel = 0
 MainFrame.Active = true
@@ -184,7 +187,6 @@ MainStroke.Color = Color3.fromRGB(60, 60, 65)
 MainStroke.Thickness = 1
 MainStroke.Parent = MainFrame
 
--- Khung chứa nút phụ (Sửa lỗi: Không dùng UIListLayout trực tiếp lên nút bấm to)
 local ContentHolder = Instance.new("Frame")
 ContentHolder.Name = "ContentHolder"
 ContentHolder.Size = UDim2.new(1, 0, 1, 0)
@@ -194,16 +196,12 @@ ContentHolder.Parent = MainFrame
 local ListLayout = Instance.new("UIListLayout")
 ListLayout.FillDirection = Enum.FillDirection.Horizontal
 ListLayout.SortOrder = Enum.SortOrder.LayoutOrder
-ListLayout.VerticalAlignment = Enum.VerticalAlignment.Center
 ListLayout.Parent = ContentHolder
 
--- NÚT LOCK (Bên trái)
 local IsLocked = false
 local LockButton = Instance.new("TextButton")
-LockButton.Name = "LockButton"
 LockButton.Size = UDim2.new(0.5, 0, 1, 0)
 LockButton.LayoutOrder = 1
-LockButton.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
 LockButton.BackgroundTransparency = 1
 LockButton.Font = Enum.Font.SourceSansBold
 LockButton.Text = "🔓 UNLOCK"
@@ -211,12 +209,10 @@ LockButton.TextColor3 = Color3.fromRGB(200, 200, 200)
 LockButton.TextSize = 13
 LockButton.Parent = ContentHolder
 
--- NÚT TOGGLE (Bên phải)
 local ToggleButton = Instance.new("TextButton")
-ToggleButton.Name = "ToggleButton"
 ToggleButton.Size = UDim2.new(0.5, 0, 1, 0)
 ToggleButton.LayoutOrder = 2
-ToggleButton.BackgroundColor3 = Color3.fromRGB(180, 50, 50) -- OFF (Màu đỏ)
+ToggleButton.BackgroundColor3 = Color3.fromRGB(180, 50, 50) 
 ToggleButton.Font = Enum.Font.SourceSansBold
 ToggleButton.Text = "AUTO: OFF"
 ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -227,18 +223,29 @@ local ToggleCorner = Instance.new("UICorner")
 ToggleCorner.CornerRadius = UDim.new(0, 6)
 ToggleCorner.Parent = ToggleButton
 
--- ĐỒNG BỘ GIAO DIỆN
 local function updateVisuals()
     if LootConfig.Enabled then
         ToggleButton.BackgroundColor3 = Color3.fromRGB(45, 160, 85)
         ToggleButton.Text = "AUTO: ON"
+        startAutoLoot() 
     else
         ToggleButton.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
         ToggleButton.Text = "AUTO: OFF"
+        stopAutoLoot() 
     end
 end
 
--- LOGIC KÉO THẢ NÂNG CẤP (Liên kết qua Input chung không bị nuốt bởi Nút bấm)
+ToggleButton.MouseButton1Click:Connect(function()
+    LootConfig.Enabled = not LootConfig.Enabled
+    updateVisuals()
+end)
+
+LockButton.MouseButton1Click:Connect(function()
+    IsLocked = not IsLocked
+    LockButton.Text = IsLocked and "🔒 LOCKED" or "🔓 UNLOCK"
+    LockButton.TextColor3 = IsLocked and Color3.fromRGB(230, 90, 90) or Color3.fromRGB(200, 200, 200)
+end)
+
 local dragging, dragInput, dragStart, startPos
 
 local function updateDrag(input)
@@ -247,7 +254,6 @@ local function updateDrag(input)
     MainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
 end
 
--- Lắng nghe sự kiện kéo đè trực tiếp từ mọi thành phần con bên trong MainFrame
 local function setupDragEvents(guiObject)
     guiObject.InputBegan:Connect(function(input)
         if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) and not IsLocked then
@@ -256,13 +262,10 @@ local function setupDragEvents(guiObject)
             startPos = MainFrame.Position
             
             input.Changed:Connect(function()
-                if input.UserInputState == Enum.UserInputState.End then
-                    dragging = false
-                end
+                if input.UserInputState == Enum.UserInputState.End then dragging = false end
             end)
         end
     end)
-
     guiObject.InputChanged:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
             dragInput = input
@@ -270,32 +273,12 @@ local function setupDragEvents(guiObject)
     end)
 end
 
--- Áp dụng khả năng nhận diện kéo thả cho toàn bộ UI để sửa lỗi triệt để
 setupDragEvents(MainFrame)
 setupDragEvents(LockButton)
 setupDragEvents(ToggleButton)
 
 UserInputService.InputChanged:Connect(function(input)
-    if input == dragInput and dragging then
-        updateDrag(input)
-    end
-end)
-
--- SỰ KIỆN NÚT BẤM
-ToggleButton.MouseButton1Click:Connect(function()
-    LootConfig.Enabled = not LootConfig.Enabled
-    updateVisuals()
-end)
-
-LockButton.MouseButton1Click:Connect(function()
-    IsLocked = not IsLocked
-    if IsLocked then
-        LockButton.Text = "🔒 LOCKED"
-        LockButton.TextColor3 = Color3.fromRGB(230, 90, 90)
-    else
-        LockButton.Text = "🔓 UNLOCK"
-        LockButton.TextColor3 = Color3.fromRGB(200, 200, 200)
-    end
+    if input == dragInput and dragging then updateDrag(input) end
 end)
 
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
@@ -307,3 +290,4 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 end)
 
 updateVisuals()
+print("[AutoLoot] Đã vá lỗi nuốt mất Nhiên liệu/Tài nguyên.")
