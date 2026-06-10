@@ -1,0 +1,335 @@
+--[[
+    Sodium Lite v8.3.4 - ESP + Aimbot Only (Mobile Optimized)
+    Survive the Apocalypse
+]]
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+local LocalPlayer = Players.LocalPlayer
+
+local connections = {}
+local espSystems = {}  -- item -> espTable
+
+-- ============================================
+-- DISPLAY NAME MAP (Tiếng Việt)
+-- ============================================
+local displayNameMap = {
+    -- SÚNG
+    ["Assault Rifle"] = "Súng trường tấn công",
+    ["Desert Eagle"] = "Đại bàng sa mạc",
+    ["Double Barrel"] = "Nòng đôi",
+    ["Flamethrower"] = "Súng phun lửa",
+    ["Grenade Launcher"] = "Súng phóng lựu",
+    ["MediGun"] = "Súng y tế",
+    ["Pistol"] = "Súng lục",
+    ["Ray Gun"] = "Súng tia laser",
+    ["Revolver"] = "Súng ngắn",
+    ["Rifle"] = "Súng trường",
+    ["Shotgun"] = "Súng săn",
+    ["Sniper"] = "Súng tỉa",
+    ["AA-12"] = "AA-12",
+    ["AK-47"] = "AK-47",
+    ["LMG"] = "LMG",
+    ["SVD"] = "SVD",
+    ["Uzi"] = "Uzi",
+    ["Heavy Sniper"] = "Súng Tỉa Hạng Nặng",
+
+    -- MELEE
+    ["Bat"] = "Gậy bóng chày",
+    ["Chainsaw"] = "Cưa máy",
+    ["Crowbar"] = "Xà beng",
+    ["Fire Axe"] = "Rìu lửa",
+    ["Hatchet"] = "Rìu",
+    ["Katana"] = "Katana",
+    ["Knife"] = "Dao",
+    ["Riot Shield"] = "Khiên chống bạo động",
+    ["Scythe"] = "Lưỡi hái",
+    ["Sledgehammer"] = "Búa tạ",
+    ["Spear"] = "Thương",
+    ["Spiked Bat"] = "Gậy có gai",
+
+    -- PIN & GÓI PIN
+    ["Battery"] = "Pin",
+    ["Battery Pack"] = "Gói pin",
+
+    -- Y TẾ
+    ["Bandage"] = "Băng gạc",
+    ["Medkit"] = "Bộ dụng cụ y tế",
+    ["Compound H"] = "Hợp chất H",
+    ["Compound I"] = "Hợp chất I",
+    ["Compound R"] = "Hợp chất R",
+    ["Compound S"] = "Hợp chất S",
+
+    -- NHIÊN LIỆU
+    ["Nuclear Fuel"] = "Nhiên liệu hạt nhân",
+    ["Refined Fuel"] = "Nhiên liệu tinh chế",
+    ["Fuel"] = "Nhiên liệu",
+
+    -- VẬT LIỆU
+    ["Scrap"] = "Phế liệu",
+    ["Screws"] = "Ốc vít",
+    ["Refined Metal"] = "Kim loại tinh chế",
+    ["Reactor Component"] = "Thành phần lò phản ứng",
+    ["Satellite Dish"] = "Ăng-ten vệ tinh",
+    ["Exhaust Pipe"] = "Ống xả",
+    ["Bucket"] = "Xô",
+    ["Dumbell"] = "Tạ tay",
+    ["Zombie Heart"] = "Trái tim thây ma",
+    ["Watch"] = "Đồng hồ",
+    ["Tray"] = "Khay",
+    ["Spatula"] = "Thìa",
+
+    -- POWER ARMOR
+    ["Power Armor Core"] = "Lõi Giáp Năng Lượng",
+    ["Power Armor Arm"] = "Cánh tay giáp năng lượng",
+
+    -- ALIEN
+    ["Alien Component"] = "Thành phần ngoài hành tinh",
+    ["Purple Alien Crystal"] = "Purple Alien Crystal",
+    ["Yellow Alien Crystal"] = "Yellow Alien Crystal",
+    ["Blue Alien Crystal"] = "Blue Alien Crystal",
+    ["Green Alien Crystal"] = "Green Alien Crystal",
+    ["Orange Alien Crystal"] = "Orange Alien Crystal",
+}
+
+-- Màu theo loại
+local itemColorMap = {
+    -- Súng (Đỏ đậm)
+    ["AA-12"] = Color3.fromRGB(200, 30, 30),
+    ["AK-47"] = Color3.fromRGB(200, 30, 30),
+    ["Assault Rifle"] = Color3.fromRGB(200, 30, 30),
+    ["Desert Eagle"] = Color3.fromRGB(200, 30, 30),
+    ["Double Barrel"] = Color3.fromRGB(200, 30, 30),
+    ["Flamethrower"] = Color3.fromRGB(200, 30, 30),
+    ["Grenade Launcher"] = Color3.fromRGB(200, 30, 30),
+    ["LMG"] = Color3.fromRGB(200, 30, 30),
+    ["MediGun"] = Color3.fromRGB(200, 30, 30),
+    ["Pistol"] = Color3.fromRGB(200, 30, 30),
+    ["Ray Gun"] = Color3.fromRGB(200, 30, 30),
+    ["Revolver"] = Color3.fromRGB(200, 30, 30),
+    ["Rifle"] = Color3.fromRGB(200, 30, 30),
+    ["Shotgun"] = Color3.fromRGB(200, 30, 30),
+    ["Sniper"] = Color3.fromRGB(200, 30, 30),
+    ["SVD"] = Color3.fromRGB(200, 30, 30),
+    ["Uzi"] = Color3.fromRGB(200, 30, 30),
+    ["Heavy Sniper"] = Color3.fromRGB(200, 30, 30),
+
+    -- Melee (Đỏ nhạt)
+    ["Bat"] = Color3.fromRGB(255, 100, 100),
+    ["Chainsaw"] = Color3.fromRGB(255, 100, 100),
+    ["Crowbar"] = Color3.fromRGB(255, 100, 100),
+    ["Fire Axe"] = Color3.fromRGB(255, 100, 100),
+    ["Hatchet"] = Color3.fromRGB(255, 100, 100),
+    ["Katana"] = Color3.fromRGB(255, 100, 100),
+    ["Knife"] = Color3.fromRGB(255, 100, 100),
+    ["Riot Shield"] = Color3.fromRGB(255, 100, 100),
+    ["Scythe"] = Color3.fromRGB(255, 100, 100),
+    ["Sledgehammer"] = Color3.fromRGB(255, 100, 100),
+    ["Spear"] = Color3.fromRGB(255, 100, 100),
+    ["Spiked Bat"] = Color3.fromRGB(255, 100, 100),
+
+    -- Pin
+    ["Battery"] = Color3.fromRGB(255, 140, 0),
+    ["Battery Pack"] = Color3.fromRGB(255, 140, 0),
+
+    -- Y tế
+    ["Bandage"] = Color3.fromRGB(0, 140, 255),
+    ["Medkit"] = Color3.fromRGB(0, 140, 255),
+    ["Compound H"] = Color3.fromRGB(0, 140, 255),
+    ["Compound I"] = Color3.fromRGB(0, 140, 255),
+    ["Compound R"] = Color3.fromRGB(0, 140, 255),
+    ["Compound S"] = Color3.fromRGB(0, 140, 255),
+
+    -- Nhiên liệu
+    ["Nuclear Fuel"] = Color3.fromRGB(255, 220, 0),
+    ["Refined Fuel"] = Color3.fromRGB(255, 220, 0),
+    ["Fuel"] = Color3.fromRGB(255, 220, 0),
+
+    -- Vật liệu
+    ["Scrap"] = Color3.fromRGB(0, 200, 100),
+    ["Screws"] = Color3.fromRGB(0, 200, 100),
+    ["Refined Metal"] = Color3.fromRGB(0, 200, 100),
+    ["Reactor Component"] = Color3.fromRGB(0, 200, 100),
+    ["Satellite Dish"] = Color3.fromRGB(0, 200, 100),
+    ["Exhaust Pipe"] = Color3.fromRGB(0, 200, 100),
+    ["Bucket"] = Color3.fromRGB(0, 200, 100),
+    ["Dumbell"] = Color3.fromRGB(0, 200, 100),
+    ["Zombie Heart"] = Color3.fromRGB(0, 200, 100),
+    ["Watch"] = Color3.fromRGB(0, 200, 100),
+    ["Tray"] = Color3.fromRGB(0, 200, 100),
+    ["Spatula"] = Color3.fromRGB(0, 200, 100),
+
+    -- Power Armor
+    ["Power Armor Core"] = Color3.fromRGB(180, 50, 255),
+    ["Power Armor Arm"] = Color3.fromRGB(180, 50, 255),
+}
+
+local alienItems = {
+    "Alien Component", "Purple Alien Crystal", "Yellow Alien Crystal",
+    "Blue Alien Crystal", "Green Alien Crystal", "Orange Alien Crystal"
+}
+
+local droppedItemsFolder = Workspace:FindFirstChild("DroppedItems")
+
+-- ============================================
+-- ESP FACTORY
+-- ============================================
+local function createItemESP(item)
+    if not item:IsA("Model") or espSystems[item] then return end
+
+    local mainPart = item.PrimaryPart or item:FindFirstChildWhichIsA("BasePart")
+    if not mainPart then return end
+
+    local displayName = displayNameMap[item.Name] or item.Name
+    local isAlien = table.find(alienItems, item.Name)
+    local baseColor = itemColorMap[item.Name] or Color3.fromRGB(255, 255, 255)
+
+    local espTable = {MainPart = mainPart, IsAlien = isAlien}
+
+    -- Chams
+    local highlight = Instance.new("Highlight")
+    highlight.Adornee = item
+    highlight.FillColor = isAlien and Color3.fromRGB(120, 50, 255) or baseColor
+    highlight.FillTransparency = 0.65
+    highlight.OutlineTransparency = 0.25
+    highlight.Parent = item
+    espTable.Highlight = highlight
+
+    -- Name Label (Tiếng Việt)
+    local billboard = Instance.new("BillboardGui")
+    billboard.Adornee = mainPart
+    billboard.Size = UDim2.new(0, 190, 0, 40)
+    billboard.StudsOffset = Vector3.new(0, 3, 0)
+    billboard.AlwaysOnTop = true
+    billboard.Parent = item
+
+    local nameLabel = Instance.new("TextLabel")
+    nameLabel.Size = UDim2.new(1, 0, 1, 0)
+    nameLabel.BackgroundTransparency = 1
+    nameLabel.Text = displayName
+    nameLabel.TextColor3 = baseColor
+    nameLabel.TextStrokeTransparency = 0.4
+    nameLabel.Font = Enum.Font.GothamBold
+    nameLabel.TextSize = 13
+    nameLabel.Parent = billboard
+    espTable.Billboard = billboard
+    espTable.NameLabel = nameLabel
+
+    -- Heartbeat + Alien animation
+    local animTime = 0
+    local conn
+    conn = RunService.Heartbeat:Connect(function(dt)
+        if not item or not item.Parent then
+            conn:Disconnect()
+            return
+        end
+
+        local char = LocalPlayer.Character
+        local root = char and char:FindFirstChild("HumanoidRootPart")
+        if not root then return end
+
+        local dist = (root.Position - mainPart.Position).Magnitude
+        local visible = dist <= 500
+
+        highlight.Enabled = visible
+        billboard.Enabled = visible
+
+        if isAlien and visible then
+            animTime = animTime + dt
+            local t = (animTime % 3) / 3
+            local slide = math.sin(t * math.pi * 2) * 0.5 + 0.5
+            local color1 = Color3.fromRGB(255, 255, 255)
+            local color2 = Color3.fromRGB(40, 40, 40)
+            nameLabel.TextColor3 = color1:Lerp(color2, slide)
+        elseif not isAlien then
+            nameLabel.TextColor3 = baseColor
+        end
+    end)
+    espTable.Connection = conn
+
+    espSystems[item] = espTable
+end
+
+-- ============================================
+-- INITIAL + DYNAMIC
+-- ============================================
+if droppedItemsFolder then
+    for _, item in ipairs(droppedItemsFolder:GetChildren()) do
+        createItemESP(item)
+    end
+
+    droppedItemsFolder.ChildAdded:Connect(function(child)
+        task.wait(0.12)
+        createItemESP(child)
+    end)
+
+    droppedItemsFolder.ChildRemoved:Connect(function(child)
+        local data = espSystems[child]
+        if data then
+            if data.Connection then data.Connection:Disconnect() end
+            if data.Highlight then data.Highlight:Destroy() end
+            if data.Billboard then data.Billboard:Destroy() end
+            espSystems[child] = nil
+        end
+    end)
+end
+
+-- ============================================
+-- AIMBOT (Giữ nguyên)
+-- ============================================
+local aimbotConn
+local lastTime = tick()
+
+aimbotConn = RunService.RenderStepped:Connect(function()
+    local char = LocalPlayer.Character
+    local camera = Workspace.CurrentCamera
+    if not char or not camera then return end
+
+    local myRoot = char:FindFirstChild("HumanoidRootPart")
+    if not myRoot then return end
+
+    local bestTarget = nil
+    local bestDist = math.huge
+    local maxRange = 300
+
+    local charactersFolder = Workspace:FindFirstChild("Characters")
+    if not charactersFolder then return end
+
+    for _, mob in ipairs(charactersFolder:GetChildren()) do
+        local root = mob:FindFirstChild("HumanoidRootPart")
+        local hum = mob:FindFirstChildOfClass("Humanoid")
+        if root and hum and hum.Health > 0 then
+            local dist = (root.Position - myRoot.Position).Magnitude
+            if dist < maxRange and dist < bestDist then
+                bestDist = dist
+                bestTarget = root
+            end
+        end
+    end
+
+    if bestTarget then
+        local now = tick()
+        local dt = math.min(now - lastTime, 0.1)
+        lastTime = now
+
+        local alpha = 1 - math.pow(0.35, dt * 18)
+        local targetPos = bestTarget.Position + Vector3.new(0, 2.2, 0)
+        local targetCF = CFrame.lookAt(camera.CFrame.Position, targetPos)
+        camera.CFrame = camera.CFrame:Lerp(targetCF, alpha)
+    end
+end)
+
+-- ============================================
+-- CLEANUP
+-- ============================================
+game:BindToClose(function()
+    for _, data in pairs(espSystems) do
+        if data.Connection then data.Connection:Disconnect() end
+        if data.Highlight then data.Highlight:Destroy() end
+        if data.Billboard then data.Billboard:Destroy() end
+    end
+    if aimbotConn then aimbotConn:Disconnect() end
+end)
+
+print("Sodium Lite v8.3.4 Loaded - ESP (Tiếng Việt) + Aimbot Always Active")
