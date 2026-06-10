@@ -1,0 +1,178 @@
+-- ====================================================================
+-- SLIDING HOME SCRIPT (Teleport -200 Studs & Max Zoom 9999)
+-- Tính năng: Nút tròn Home, Nút trượt Lock/Unlock, Draggable, Max Zoom
+-- ====================================================================
+
+local player = game.Players.LocalPlayer
+local UIS = game:GetService("UserInputService")
+local TS = game:GetService("TweenService")
+local CoreGui = game:GetService("CoreGui")
+
+-- =====================
+-- 🟢 CAMERA MAX ZOOM 9999
+-- =====================
+pcall(function()
+    player.CameraMaxZoomDistance = 9999
+end)
+-- Ép giữ nguyên 9999 nếu game cố tình giới hạn lại (Anti-override)
+player:GetPropertyChangedSignal("CameraMaxZoomDistance"):Connect(function()
+    if player.CameraMaxZoomDistance < 9999 then
+        player.CameraMaxZoomDistance = 9999
+    end
+end)
+
+-- XÓA GUI CŨ NẾU ĐÃ TỒN TẠI ĐỂ TRÁNH TRÙNG LẶP
+local guiName = "HomeGui_Sliding"
+if CoreGui:FindFirstChild(guiName) then CoreGui[guiName]:Destroy() end
+if player.PlayerGui:FindFirstChild(guiName) then player.PlayerGui[guiName]:Destroy() end
+
+-- =====================
+-- 🟢 KHỞI TẠO GUI CHÍNH
+-- =====================
+local gui = Instance.new("ScreenGui")
+gui.Name = guiName
+gui.ResetOnSpawn = false
+pcall(function() gui.Parent = CoreGui end)
+if not gui.Parent then gui.Parent = player:WaitForChild("PlayerGui") end
+
+-- KHUNG CHỨA TỔNG (Draggable)
+local MainFrame = Instance.new("Frame")
+MainFrame.Size = UDim2.new(0, 160, 0, 45) 
+MainFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
+MainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+MainFrame.BackgroundTransparency = 1
+MainFrame.Parent = gui
+
+-- Sắp xếp tự động từ Phải sang Trái (Giúp nút Home luôn đứng yên khi trượt)
+local Layout = Instance.new("UIListLayout")
+Layout.FillDirection = Enum.FillDirection.Horizontal
+Layout.HorizontalAlignment = Enum.HorizontalAlignment.Right
+Layout.VerticalAlignment = Enum.VerticalAlignment.Center
+Layout.Padding = UDim.new(0, 5)
+Layout.Parent = MainFrame
+
+-- 1. NÚT HOME (Hình tròn - LayoutOrder = 3 để nằm ngoài cùng bên phải)
+local HomeButton = Instance.new("TextButton")
+HomeButton.Size = UDim2.new(0, 45, 0, 45)
+HomeButton.BackgroundColor3 = Color3.fromRGB(220, 40, 40)
+HomeButton.Text = "🏠"
+HomeButton.TextScaled = true
+HomeButton.LayoutOrder = 3
+HomeButton.Parent = MainFrame
+
+local HomeCorner = Instance.new("UICorner")
+HomeCorner.CornerRadius = UDim.new(1, 0)
+HomeCorner.Parent = HomeButton
+
+local HomeStroke = Instance.new("UIStroke")
+HomeStroke.Thickness = 2
+HomeStroke.Color = Color3.fromRGB(255, 255, 255)
+HomeStroke.Parent = HomeButton
+
+-- 2. NÚT MỞ RỘNG (Trượt < / >)
+local ToggleButton = Instance.new("TextButton")
+ToggleButton.Size = UDim2.new(0, 20, 0, 35)
+ToggleButton.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
+ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+ToggleButton.Text = ">"
+ToggleButton.Font = Enum.Font.SourceSansBold
+ToggleButton.TextSize = 16
+ToggleButton.LayoutOrder = 2
+ToggleButton.Parent = MainFrame
+
+local ToggleCorner = Instance.new("UICorner")
+ToggleCorner.CornerRadius = UDim.new(0, 6)
+ToggleCorner.Parent = ToggleButton
+
+-- 3. KHUNG CHỨA NÚT LOCK (Sẽ trượt ra vào)
+local LockContainer = Instance.new("Frame")
+LockContainer.Size = UDim2.new(0, 0, 0, 35) -- Mặc định ẩn (Size X = 0)
+LockContainer.BackgroundTransparency = 1
+LockContainer.ClipsDescendants = true -- Cắt phần bị dư khi thu nhỏ
+LockContainer.LayoutOrder = 1
+LockContainer.Parent = MainFrame
+
+local LockButton = Instance.new("TextButton")
+LockButton.Size = UDim2.new(0, 80, 1, 0) -- Chiều rộng cố định 80 bên trong
+LockButton.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+LockButton.TextColor3 = Color3.fromRGB(200, 200, 200)
+LockButton.Font = Enum.Font.SourceSansBold
+LockButton.TextSize = 13
+LockButton.Text = "🔓 UNLOCK"
+LockButton.Parent = LockContainer
+
+local LockCorner = Instance.new("UICorner")
+LockCorner.CornerRadius = UDim.new(0, 6)
+LockCorner.Parent = LockButton
+
+local LockStroke = Instance.new("UIStroke")
+LockStroke.Color = Color3.fromRGB(60, 60, 65)
+LockStroke.Parent = LockButton
+
+-- =====================
+-- 🟢 HIỆU ỨNG TRƯỢT (SLIDE)
+-- =====================
+local isExpanded = false
+ToggleButton.MouseButton1Click:Connect(function()
+    isExpanded = not isExpanded
+    local targetWidth = isExpanded and 80 or 0
+    ToggleButton.Text = isExpanded and "<" or ">"
+    
+    local tweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+    local tween = TS:Create(LockContainer, tweenInfo, {Size = UDim2.new(0, targetWidth, 0, 35)})
+    tween:Play()
+end)
+
+-- =====================
+-- 🟢 LOGIC KHÓA (LOCK)
+-- =====================
+local isLocked = false
+LockButton.MouseButton1Click:Connect(function()
+    isLocked = not isLocked
+    LockButton.Text = isLocked and "🔒 LOCKED" or "🔓 UNLOCK"
+    LockButton.TextColor3 = isLocked and Color3.fromRGB(230, 90, 90) or Color3.fromRGB(200, 200, 200)
+end)
+
+-- =====================
+-- 🟢 KÉO THẢ (DRAG - PC + MOBILE)
+-- =====================
+local dragging = false
+local dragStart = nil
+local startPos = nil
+
+-- Chỉ kích hoạt kéo thả khi nhấn vào nút Home tròn để không bị xung đột khi bấm nút trượt
+HomeButton.InputBegan:Connect(function(input)
+    if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) and not isLocked then
+        dragging = true
+        dragStart = input.Position
+        startPos = MainFrame.Position
+    end
+end)
+
+HomeButton.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = false
+    end
+end)
+
+UIS.InputChanged:Connect(function(input)
+    if dragging and not isLocked and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local delta = input.Position - dragStart
+        MainFrame.Position = UDim2.new(
+            startPos.X.Scale, startPos.X.Offset + delta.X,
+            startPos.Y.Scale, startPos.Y.Offset + delta.Y
+        )
+    end
+end)
+
+-- =====================
+-- 🔻 TELEPORT XUỐNG 200 STUDS
+-- =====================
+HomeButton.MouseButton1Click:Connect(function()
+    local char = player.Character or player.CharacterAdded:Wait()
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    
+    if hrp then
+        hrp.CFrame = hrp.CFrame - Vector3.new(0, 200, 0)
+    end
+end)
