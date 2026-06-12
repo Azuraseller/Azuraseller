@@ -1,6 +1,6 @@
 -- ====================================================================
--- AUTOLOOT STANDALONE SCRIPT (Survive the Apocalypse)
--- Cập nhật: Fix lỗi nuốt Nhiên liệu / Đồ ăn / Tài nguyên
+-- AUTOLOOT & MOVEMENT HUB V2 (Survive the Apocalypse)
+-- Cập nhật: Kill Aura (Tùy chỉnh Safe Mode trượt ngang), Custom Speed/Bypass
 -- ====================================================================
 
 local Players = game:GetService("Players")
@@ -8,12 +8,16 @@ local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 local CoreGui = game:GetService("CoreGui")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
 
 local LocalPlayer = Players.LocalPlayer
-
 local TOGGLE_KEY = Enum.KeyCode.V
 local LOOT_RANGE = 25
 
+-- ============================================
+-- 1. CẤU HÌNH & DATA AUTOLOOT
+-- ============================================
 local LootConfig = {
     Enabled   = false,
     Guns      = true, Melee = true, Medical = true, Armor = true,
@@ -35,7 +39,6 @@ for category, items in pairs(ItemDatabase) do
     for _, itemName in ipairs(items) do FilterLookup[itemName] = category end
 end
 
--- DANH SÁCH ĐEN TÍN HIỆU (Chống ăn mất đồ)
 local BlacklistRemote = {
     ["Chips"] = true, ["Carrot"] = true, ["Bloxiade"] = true, ["Beans"] = true, ["MRE"] = true, ["Bloxy Cola"] = true,
     ["Nuclear Fuel"] = true, ["Refined Fuel"] = true, ["Fuel"] = true,
@@ -54,21 +57,15 @@ local adjustBackpackRemote = Remotes and Remotes:FindFirstChild("Tools") and Rem
 local function getValidRootPart()
     local char = LocalPlayer.Character
     if not char then return nil end
-    return char:FindFirstChild("HumanoidRootPart") 
-        or char:FindFirstChild("UpperTorso") 
-        or char:FindFirstChild("Torso") 
-        or char:FindFirstChildWhichIsA("BasePart")
+    return char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("UpperTorso") or char:FindFirstChild("Torso")
 end
 
 local function shouldLootItem(item)
     if not item or not item.Name then return false end
-    local name = item.Name
-    local cleanName = string.gsub(name, "%s*[%d%a]+$", "") 
-    local category = FilterLookup[cleanName] or FilterLookup[name]
-    
-    if string.find(name:lower(), "backpack") then category = "Armor" end
+    local cleanName = string.gsub(item.Name, "%s*[%d%a]+$", "") 
+    local category = FilterLookup[cleanName] or FilterLookup[item.Name]
+    if string.find(item.Name:lower(), "backpack") then category = "Armor" end
     if not category then return true end 
-    
     if category == "Gun" and LootConfig.Guns then return true end
     if category == "Melee" and LootConfig.Melee then return true end
     if category == "Medical" and LootConfig.Medical then return true end
@@ -79,13 +76,32 @@ local function shouldLootItem(item)
     return false
 end
 
-local autoPickupThread = nil
+-- ============================================
+-- 2. BIẾN TRẠNG THÁI CÁC CHỨC NĂNG
+-- ============================================
+local State = {
+    NoClip = false,
+    SpeedMode = 0, 
+    InfJump = false,
+    Bhop = false,
+    KillAura = false,
+    CustomSpeed = 32,      -- Mặc định Speed
+    CustomBypass = 75,     -- Mặc định Bypass
+    SafeModeDelay = 0.5    -- Tốc độ đánh ban đầu của Kill Aura
+}
 
+local Connections = {}
+local noclipLastCFrame = nil
+local targetWalkSpeed = 16
+
+-- ============================================
+-- 3. HÀM XỬ LÝ CHỨC NĂNG
+-- ============================================
+
+-- A. AutoLoot Core
+local autoPickupThread = nil
 local function stopAutoLoot()
-    if autoPickupThread then
-        pcall(function() task.cancel(autoPickupThread) end)
-        autoPickupThread = nil
-    end
+    if autoPickupThread then pcall(function() task.cancel(autoPickupThread) end) autoPickupThread = nil end
 end
 
 local function startAutoLoot()
@@ -93,7 +109,6 @@ local function startAutoLoot()
     autoPickupThread = task.spawn(function()
         while LootConfig.Enabled do 
             task.wait(0.2) 
-            
             local hrp = getValidRootPart()
             if not hrp then continue end
 
@@ -101,57 +116,19 @@ local function startAutoLoot()
             if droppedFolder then
                 for _, item in ipairs(droppedFolder:GetChildren()) do
                     if not LootConfig.Enabled then break end 
-                    
                     if (item:IsA("Model") or item:IsA("BasePart")) and shouldLootItem(item) then
                         local mainPart = item.PrimaryPart or item:FindFirstChildWhichIsA("BasePart")
                         if mainPart and (hrp.Position - mainPart.Position).Magnitude <= LOOT_RANGE then
-                            
-                            -- FIX LỖI Ở ĐÂY: Chỉ gửi tín hiệu trực tiếp nếu vật phẩm KHÔNG CÓ trong danh sách đen
                             if not BlacklistRemote[item.Name] then
                                 pcall(function() if pickUpItemRemote then pickUpItemRemote:FireServer(item) end end)
                             end
-                            
-                            -- Lệnh cất đồ vào balo thì luôn chạy cho mọi vật phẩm
                             pcall(function() if adjustBackpackRemote then adjustBackpackRemote:FireServer(item) end end)
-
                             pcall(function()
                                 if firetouchinterest then
                                     firetouchinterest(hrp, mainPart, 0)
                                     firetouchinterest(hrp, mainPart, 1)
                                 end
                             end)
-
-                            pcall(function()
-                                if fireproximityprompt then
-                                    local prompt = item:FindFirstChildWhichIsA("ProximityPrompt", true)
-                                    if prompt then fireproximityprompt(prompt) end
-                                end
-                            end)
-                        end
-                    end
-                end
-            end
-            
-            if LootConfig.Containers then
-                local structuresFolder = Workspace:FindFirstChild("Structures") 
-                    or Workspace:FindFirstChild("PlayerStructures") 
-                    or Workspace:FindFirstChild("Buildings")
-                    
-                if structuresFolder then
-                    for _, struct in ipairs(structuresFolder:GetChildren()) do
-                        if not LootConfig.Enabled then break end
-                        
-                        if struct:IsA("Model") and (string.find(struct.Name:lower(), "crate") or string.find(struct.Name:lower(), "container") or string.find(struct.Name:lower(), "supply")) then
-                            local mainPart = struct.PrimaryPart or struct:FindFirstChildWhichIsA("BasePart")
-                            if mainPart and (hrp.Position - mainPart.Position).Magnitude <= LOOT_RANGE then
-                                pcall(function() if pickUpItemRemote then pickUpItemRemote:FireServer(struct) end end)
-                                pcall(function()
-                                    if fireproximityprompt then
-                                        local prompt = struct:FindFirstChildWhichIsA("ProximityPrompt", true)
-                                        if prompt then fireproximityprompt(prompt) end
-                                    end
-                                end)
-                            end
                         end
                     end
                 end
@@ -160,21 +137,161 @@ local function startAutoLoot()
     end)
 end
 
-if CoreGui:FindFirstChild("AutoLoot_HorizontalMenu") then
-    CoreGui["AutoLoot_HorizontalMenu"]:Destroy()
+-- B. NoClip
+local function toggleNoClip(state)
+    State.NoClip = state
+    if Connections.NoClip then Connections.NoClip:Disconnect() Connections.NoClip = nil end
+    noclipLastCFrame = nil
+    if state then
+        Connections.NoClip = RunService.Heartbeat:Connect(function()
+            local char = LocalPlayer.Character
+            local root = char and char:FindFirstChild("HumanoidRootPart")
+            if not char or not root then noclipLastCFrame = nil return end
+
+            local currentCF = root.CFrame
+            if noclipLastCFrame then
+                local delta = (currentCF.Position - noclipLastCFrame.Position).Magnitude
+                if delta > 8 then
+                    root.CFrame = noclipLastCFrame
+                    currentCF  = noclipLastCFrame
+                end
+            end
+            noclipLastCFrame = currentCF
+            for _, part in ipairs(char:GetDescendants()) do
+                if part:IsA("BasePart") and part.CanCollide then
+                    part.CanCollide = false
+                end
+            end
+        end)
+    end
+end
+
+-- C. SpeedHack & Bypass Logic 
+local speedBypassThread = nil
+local function updateSpeedLogic()
+    if Connections.SpeedLoop then Connections.SpeedLoop:Disconnect() Connections.SpeedLoop = nil end
+    if speedBypassThread then task.cancel(speedBypassThread) speedBypassThread = nil end
+
+    Connections.SpeedLoop = RunService.Stepped:Connect(function()
+        local char = LocalPlayer.Character
+        local humanoid = char and char:FindFirstChildOfClass("Humanoid")
+        if humanoid then humanoid.WalkSpeed = targetWalkSpeed end
+    end)
+
+    if State.SpeedMode == 0 then
+        targetWalkSpeed = 16
+        if Connections.SpeedLoop then Connections.SpeedLoop:Disconnect() end
+        local char = LocalPlayer.Character
+        local humanoid = char and char:FindFirstChildOfClass("Humanoid")
+        if humanoid then humanoid.WalkSpeed = 16 end
+    elseif State.SpeedMode == 1 then
+        targetWalkSpeed = State.CustomSpeed
+    elseif State.SpeedMode == 2 then
+        speedBypassThread = task.spawn(function()
+            while State.SpeedMode == 2 do
+                targetWalkSpeed = 16
+                task.wait(1)
+                if State.SpeedMode ~= 2 then break end
+                targetWalkSpeed = State.CustomBypass
+                task.wait(0.75)
+            end
+        end)
+    end
+end
+
+-- D. Kill Aura (Loại bỏ Auto-Equip, đánh diện rộng dựa theo Safe Mode)
+local killAuraThread = nil
+local function toggleKillAura(state)
+    State.KillAura = state
+    if killAuraThread then task.cancel(killAuraThread) killAuraThread = nil end
+    if state then
+        killAuraThread = task.spawn(function()
+            while State.KillAura do
+                task.wait(State.SafeModeDelay)
+                local char = LocalPlayer.Character
+                if not char then continue end
+                
+                -- Yêu cầu người chơi tự cầm vũ khí
+                local tool = char:FindFirstChildOfClass("Tool")
+                if not tool or not tool:FindFirstChild("Handle") then continue end 
+                
+                local hrp = char:FindFirstChild("HumanoidRootPart")
+                if not hrp then continue end
+
+                local zombiesFolder = Workspace:FindFirstChild("Zombies") or Workspace:FindFirstChild("Mobs") or Workspace
+                
+                for _, obj in ipairs(zombiesFolder:GetChildren()) do
+                    if obj ~= char and obj:IsA("Model") then
+                        local mobHrp = obj:FindFirstChild("HumanoidRootPart") or obj:FindFirstChild("Torso")
+                        local mobHum = obj:FindFirstChildOfClass("Humanoid")
+                        if mobHrp and mobHum and mobHum.Health > 0 then
+                            local dist = (hrp.Position - mobHrp.Position).Magnitude
+                            if dist <= 20 then
+                                pcall(function()
+                                    if firetouchinterest then
+                                        firetouchinterest(tool.Handle, mobHrp, 0)
+                                        firetouchinterest(tool.Handle, mobHrp, 1)
+                                    end
+                                end)
+                            end
+                        end
+                    end
+                end
+            end
+        end)
+    end
+end
+
+-- E. Inf Jump & Bhop
+local function toggleInfJump(state)
+    State.InfJump = state
+    if Connections.InfJump then Connections.InfJump:Disconnect() Connections.InfJump = nil end
+    if state then
+        Connections.InfJump = UserInputService.JumpRequest:Connect(function()
+            local char = LocalPlayer.Character
+            local humanoid = char and char:FindFirstChildOfClass("Humanoid")
+            if humanoid then humanoid:ChangeState(Enum.HumanoidStateType.Jumping) end
+        end)
+    end
+end
+
+local function toggleBhop(state)
+    State.Bhop = state
+    if Connections.Bhop then Connections.Bhop:Disconnect() Connections.Bhop = nil end
+    if state then
+        Connections.Bhop = RunService.RenderStepped:Connect(function()
+            local char = LocalPlayer.Character
+            local humanoid = char and char:FindFirstChildOfClass("Humanoid")
+            if not humanoid then return end
+            if humanoid.MoveDirection.Magnitude > 0.1 then
+                local state = humanoid:GetState()
+                if state == Enum.HumanoidStateType.Running or state == Enum.HumanoidStateType.RunningNoPhysics then
+                    humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+                end
+            end
+        end)
+    end
+end
+
+-- ============================================
+-- 4. XÂY DỰNG GIAO DIỆN (UI) CẢI TIẾN
+-- ============================================
+if CoreGui:FindFirstChild("AutoLoot_AdvancedMenu") then
+    CoreGui["AutoLoot_AdvancedMenu"]:Destroy()
 end
 
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "AutoLoot_HorizontalMenu"
+ScreenGui.Name = "AutoLoot_AdvancedMenu"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.Parent = CoreGui
 
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
-MainFrame.Size = UDim2.new(0, 180, 0, 32)
+MainFrame.Size = UDim2.new(0, 115, 0, 32) 
 MainFrame.Position = UDim2.new(0.5, -90, 0.5, -16) 
 MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
 MainFrame.BorderSizePixel = 0
+MainFrame.ClipsDescendants = true
 MainFrame.Active = true
 MainFrame.Parent = ScreenGui
 
@@ -187,67 +304,298 @@ MainStroke.Color = Color3.fromRGB(60, 60, 65)
 MainStroke.Thickness = 1
 MainStroke.Parent = MainFrame
 
-local ContentHolder = Instance.new("Frame")
-ContentHolder.Name = "ContentHolder"
-ContentHolder.Size = UDim2.new(1, 0, 1, 0)
-ContentHolder.BackgroundTransparency = 1
-ContentHolder.Parent = MainFrame
+local UIListLayout = Instance.new("UIListLayout")
+UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+UIListLayout.Parent = MainFrame
 
-local ListLayout = Instance.new("UIListLayout")
-ListLayout.FillDirection = Enum.FillDirection.Horizontal
-ListLayout.SortOrder = Enum.SortOrder.LayoutOrder
-ListLayout.Parent = ContentHolder
+local function createButton(name, text, size, color, parent)
+    local btn = Instance.new("TextButton")
+    btn.Name = name
+    btn.Size = size
+    btn.BackgroundColor3 = color
+    btn.Font = Enum.Font.SourceSansBold
+    btn.Text = text
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.TextSize = 13
+    btn.BorderSizePixel = 0
+    btn.Parent = parent
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 6)
+    corner.Parent = btn
+    return btn
+end
 
+local function createInput(name, placeholder, size, parent)
+    local box = Instance.new("TextBox")
+    box.Name = name
+    box.Size = size
+    box.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+    box.Font = Enum.Font.SourceSansBold
+    box.Text = placeholder
+    box.TextColor3 = Color3.fromRGB(200, 200, 200)
+    box.TextSize = 13
+    box.BorderSizePixel = 0
+    box.ClipsDescendants = true
+    box.Parent = parent
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 6)
+    corner.Parent = box
+    local stroke = Instance.new("UIStroke")
+    stroke.Color = Color3.fromRGB(80, 80, 85)
+    stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    stroke.Parent = box
+    return box
+end
+
+-- --- ROW 1: Toggle Menu, Lock, AutoLoot ---
+local Row1 = Instance.new("Frame")
+Row1.Size = UDim2.new(1, 0, 0, 32)
+Row1.BackgroundTransparency = 1
+Row1.LayoutOrder = 1
+Row1.Parent = MainFrame
+local Row1Layout = Instance.new("UIListLayout")
+Row1Layout.FillDirection = Enum.FillDirection.Horizontal
+Row1Layout.Parent = Row1
+
+local BtnToggleMenu = createButton("BtnToggleMenu", ">", UDim2.new(0, 25, 1, 0), Color3.fromRGB(45, 45, 50), Row1)
+local BtnLock = createButton("BtnLock", "🔓 UNLOCK", UDim2.new(0, 65, 1, 0), Color3.fromRGB(30, 30, 35), Row1)
+BtnLock.TextColor3 = Color3.fromRGB(200,200,200)
+local BtnAutoLoot = createButton("BtnAutoLoot", "AUTO: OFF", UDim2.new(1, -90, 1, 0), Color3.fromRGB(180, 50, 50), Row1)
+
+-- --- ROW 2: Noclip, Speed, Toggle Speed Extra (Nút ↓ bên phải) ---
+local Row2 = Instance.new("Frame")
+Row2.Size = UDim2.new(1, 0, 0, 32)
+Row2.BackgroundTransparency = 1
+Row2.LayoutOrder = 2
+Row2.Visible = false
+Row2.Parent = MainFrame
+local Row2Layout = Instance.new("UIListLayout")
+Row2Layout.FillDirection = Enum.FillDirection.Horizontal
+Row2Layout.Parent = Row2
+
+local BtnNoclip = createButton("BtnNoclip", "NOCLIP: OFF", UDim2.new(0, 90, 1, 0), Color3.fromRGB(180, 50, 50), Row2)
+local BtnSpeed = createButton("BtnSpeed", "SPEED: OFF", UDim2.new(0, 80, 1, 0), Color3.fromRGB(180, 50, 50), Row2)
+local BtnToggleSpeedExtra = createButton("BtnToggleSpeedExtra", "↓", UDim2.new(0, 25, 1, 0), Color3.fromRGB(45, 45, 50), Row2)
+
+-- --- ROW 3: Inf Jump, Bhop ---
+local Row3 = Instance.new("Frame")
+Row3.Size = UDim2.new(1, 0, 0, 32)
+Row3.BackgroundTransparency = 1
+Row3.LayoutOrder = 3
+Row3.Visible = false
+Row3.Parent = MainFrame
+local Row3Layout = Instance.new("UIListLayout")
+Row3Layout.FillDirection = Enum.FillDirection.Horizontal
+Row3Layout.Parent = Row3
+
+local BtnInfJump = createButton("BtnInfJump", "INF JUMP", UDim2.new(0.5, 0, 1, 0), Color3.fromRGB(60, 60, 65), Row3)
+local BtnBhop = createButton("BtnBhop", "BUNNY HOP", UDim2.new(0.5, 0, 1, 0), Color3.fromRGB(60, 60, 65), Row3)
+
+-- --- ROW 4: Các Input cho Speed/Bypass (Dưới Inf Jump / Bhop) ---
+local Row4 = Instance.new("Frame")
+Row4.Size = UDim2.new(1, 0, 0, 32)
+Row4.BackgroundTransparency = 1
+Row4.LayoutOrder = 4
+Row4.Visible = false
+Row4.Parent = MainFrame
+local Row4Layout = Instance.new("UIListLayout")
+Row4Layout.FillDirection = Enum.FillDirection.Horizontal
+Row4Layout.Parent = Row4
+
+local Spacer4 = Instance.new("Frame")
+Spacer4.Size = UDim2.new(0, 115, 1, 0)
+Spacer4.BackgroundTransparency = 1
+Spacer4.Parent = Row4
+
+local InputSpeed = createInput("InputSpeed", "32", UDim2.new(0, 40, 1, 0), Row4)
+local InputBypass = createInput("InputBypass", "75", UDim2.new(0, 40, 1, 0), Row4)
+
+-- --- ROW 5: Kill Aura & Tùy chỉnh SafeMode ---
+local Row5 = Instance.new("Frame")
+Row5.Size = UDim2.new(1, 0, 0, 32)
+Row5.BackgroundTransparency = 1
+Row5.LayoutOrder = 5
+Row5.Visible = false
+Row5.Parent = MainFrame
+local Row5Layout = Instance.new("UIListLayout")
+Row5Layout.FillDirection = Enum.FillDirection.Horizontal
+Row5Layout.Parent = Row5
+
+-- Spacer sẽ tự động co lại khi SafeMode trượt ngang ra
+local Spacer5 = Instance.new("Frame")
+Spacer5.Size = UDim2.new(0, 90, 1, 0) 
+Spacer5.BackgroundTransparency = 1
+Spacer5.Parent = Row5
+
+-- Ô nhập Text Safe Mode (Mặc định ẩn với Size X = 0)
+local InputSafeMode = createInput("InputSafeMode", "0.5", UDim2.new(0, 0, 1, 0), Row5)
+
+-- Nút ↓ của Kill Aura (Nằm bên TRÁI nút Kill Aura)
+local BtnToggleAuraExtra = createButton("BtnToggleAuraExtra", "↓", UDim2.new(0, 25, 1, 0), Color3.fromRGB(45, 45, 50), Row5)
+local BtnKillAura = createButton("BtnKillAura", "AURA: OFF", UDim2.new(0, 80, 1, 0), Color3.fromRGB(180, 50, 50), Row5)
+
+-- ============================================
+-- 5. LOGIC GIAO DIỆN & TWEENS MƯỢT MÀ
+-- ============================================
+local MenuExpanded = false
+local SpeedExtraExpanded = false
+local AuraExtraExpanded = false
 local IsLocked = false
-local LockButton = Instance.new("TextButton")
-LockButton.Size = UDim2.new(0.5, 0, 1, 0)
-LockButton.LayoutOrder = 1
-LockButton.BackgroundTransparency = 1
-LockButton.Font = Enum.Font.SourceSansBold
-LockButton.Text = "🔓 UNLOCK"
-LockButton.TextColor3 = Color3.fromRGB(200, 200, 200)
-LockButton.TextSize = 13
-LockButton.Parent = ContentHolder
 
-local ToggleButton = Instance.new("TextButton")
-ToggleButton.Size = UDim2.new(0.5, 0, 1, 0)
-ToggleButton.LayoutOrder = 2
-ToggleButton.BackgroundColor3 = Color3.fromRGB(180, 50, 50) 
-ToggleButton.Font = Enum.Font.SourceSansBold
-ToggleButton.Text = "AUTO: OFF"
-ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-ToggleButton.TextSize = 13
-ToggleButton.Parent = ContentHolder
-
-local ToggleCorner = Instance.new("UICorner")
-ToggleCorner.CornerRadius = UDim.new(0, 6)
-ToggleCorner.Parent = ToggleButton
-
-local function updateVisuals()
-    if LootConfig.Enabled then
-        ToggleButton.BackgroundColor3 = Color3.fromRGB(45, 160, 85)
-        ToggleButton.Text = "AUTO: ON"
-        startAutoLoot() 
+local function updateMenuSize()
+    local targetHeight = 32
+    local targetWidth = 115 
+    
+    if MenuExpanded then
+        targetWidth = 195
+        targetHeight = 96 -- Chứa Row 1, Row 2, Row 5
+        Row2.Visible = true
+        Row5.Visible = true
+        
+        if SpeedExtraExpanded then 
+            targetHeight = targetHeight + 64 -- Thêm Row 3, Row 4
+            Row3.Visible = true
+            Row4.Visible = true
+        end
+    end
+    
+    TweenService:Create(MainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(0, targetWidth, 0, targetHeight)}):Play()
+    
+    if not MenuExpanded then
+        task.delay(0.2, function()
+            if not MenuExpanded then
+                Row2.Visible = false
+                Row3.Visible = false
+                Row4.Visible = false
+                Row5.Visible = false
+                BtnLock.Visible = false
+                BtnAutoLoot.Size = UDim2.new(1, -25, 1, 0)
+            end
+        end)
     else
-        ToggleButton.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
-        ToggleButton.Text = "AUTO: OFF"
-        stopAutoLoot() 
+        BtnLock.Visible = true
+        BtnAutoLoot.Size = UDim2.new(1, -90, 1, 0)
     end
 end
 
-ToggleButton.MouseButton1Click:Connect(function()
-    LootConfig.Enabled = not LootConfig.Enabled
-    updateVisuals()
+-- Sự kiện Click Menu Chính
+BtnToggleMenu.MouseButton1Click:Connect(function()
+    MenuExpanded = not MenuExpanded
+    BtnToggleMenu.Text = MenuExpanded and "<" or ">"
+    if not MenuExpanded then 
+        SpeedExtraExpanded = false BtnToggleSpeedExtra.Text = "↓"
+        AuraExtraExpanded = false BtnToggleAuraExtra.Text = "↓"
+        InputSafeMode.Size = UDim2.new(0, 0, 1, 0)
+        Spacer5.Size = UDim2.new(0, 90, 1, 0)
+    end
+    updateMenuSize()
 end)
 
-LockButton.MouseButton1Click:Connect(function()
+-- Sự kiện Click ↓ của Bypass (Speed)
+BtnToggleSpeedExtra.MouseButton1Click:Connect(function()
+    SpeedExtraExpanded = not SpeedExtraExpanded
+    BtnToggleSpeedExtra.Text = SpeedExtraExpanded and "↑" or "↓"
+    if not SpeedExtraExpanded then
+        task.delay(0.2, function() 
+            if not SpeedExtraExpanded then Row3.Visible = false Row4.Visible = false end 
+        end)
+    end
+    updateMenuSize()
+end)
+
+-- Sự kiện Click ↓ của Kill Aura (Bên Trái) - Hiệu ứng trượt ngang
+BtnToggleAuraExtra.MouseButton1Click:Connect(function()
+    AuraExtraExpanded = not AuraExtraExpanded
+    BtnToggleAuraExtra.Text = AuraExtraExpanded and "↑" or "↓"
+    
+    local targetInputWidth = AuraExtraExpanded and 40 or 0
+    local targetSpacerWidth = AuraExtraExpanded and 50 or 90
+    
+    TweenService:Create(InputSafeMode, TweenInfo.new(0.3), {Size = UDim2.new(0, targetInputWidth, 1, 0)}):Play()
+    TweenService:Create(Spacer5, TweenInfo.new(0.3), {Size = UDim2.new(0, targetSpacerWidth, 1, 0)}):Play()
+end)
+
+-- Xử lý Thay đổi Text (Input Box)
+InputSpeed.FocusLost:Connect(function()
+    local val = tonumber(InputSpeed.Text)
+    if val then State.CustomSpeed = val else InputSpeed.Text = tostring(State.CustomSpeed) end
+    if State.SpeedMode == 1 then updateSpeedLogic() end
+end)
+
+InputBypass.FocusLost:Connect(function()
+    local val = tonumber(InputBypass.Text)
+    if val then State.CustomBypass = val else InputBypass.Text = tostring(State.CustomBypass) end
+    if State.SpeedMode == 2 then updateSpeedLogic() end
+end)
+
+InputSafeMode.FocusLost:Connect(function()
+    local val = tonumber(InputSafeMode.Text)
+    if val then State.SafeModeDelay = val else InputSafeMode.Text = tostring(State.SafeModeDelay) end
+end)
+
+-- Các Sự Kiện Button Chức Năng
+BtnLock.MouseButton1Click:Connect(function()
     IsLocked = not IsLocked
-    LockButton.Text = IsLocked and "🔒 LOCKED" or "🔓 UNLOCK"
-    LockButton.TextColor3 = IsLocked and Color3.fromRGB(230, 90, 90) or Color3.fromRGB(200, 200, 200)
+    BtnLock.Text = IsLocked and "🔒 LOCKED" or "🔓 UNLOCK"
+    BtnLock.TextColor3 = IsLocked and Color3.fromRGB(230, 90, 90) or Color3.fromRGB(200, 200, 200)
 end)
 
-local dragging, dragInput, dragStart, startPos
+BtnAutoLoot.MouseButton1Click:Connect(function()
+    LootConfig.Enabled = not LootConfig.Enabled
+    if LootConfig.Enabled then
+        BtnAutoLoot.BackgroundColor3 = Color3.fromRGB(45, 160, 85)
+        BtnAutoLoot.Text = "AUTO: ON" startAutoLoot() 
+    else
+        BtnAutoLoot.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
+        BtnAutoLoot.Text = "AUTO: OFF" stopAutoLoot() 
+    end
+end)
 
+BtnNoclip.MouseButton1Click:Connect(function()
+    State.NoClip = not State.NoClip
+    BtnNoclip.BackgroundColor3 = State.NoClip and Color3.fromRGB(45, 160, 85) or Color3.fromRGB(180, 50, 50)
+    BtnNoclip.Text = State.NoClip and "NOCLIP: ON" or "NOCLIP: OFF"
+    toggleNoClip(State.NoClip)
+end)
+
+BtnSpeed.MouseButton1Click:Connect(function()
+    State.SpeedMode = (State.SpeedMode + 1) % 3
+    if State.SpeedMode == 0 then
+        BtnSpeed.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
+        BtnSpeed.Text = "SPEED: OFF"
+    elseif State.SpeedMode == 1 then
+        BtnSpeed.BackgroundColor3 = Color3.fromRGB(45, 160, 85)
+        BtnSpeed.Text = "SPEED: ON"
+    elseif State.SpeedMode == 2 then
+        BtnSpeed.BackgroundColor3 = Color3.fromRGB(200, 120, 30)
+        BtnSpeed.Text = "BYPASS"
+    end
+    updateSpeedLogic()
+end)
+
+BtnKillAura.MouseButton1Click:Connect(function()
+    State.KillAura = not State.KillAura
+    BtnKillAura.BackgroundColor3 = State.KillAura and Color3.fromRGB(45, 160, 85) or Color3.fromRGB(180, 50, 50)
+    BtnKillAura.Text = State.KillAura and "AURA: ON" or "AURA: OFF"
+    toggleKillAura(State.KillAura)
+end)
+
+BtnInfJump.MouseButton1Click:Connect(function()
+    State.InfJump = not State.InfJump
+    BtnInfJump.BackgroundColor3 = State.InfJump and Color3.fromRGB(45, 160, 85) or Color3.fromRGB(60, 60, 65)
+    toggleInfJump(State.InfJump)
+end)
+
+BtnBhop.MouseButton1Click:Connect(function()
+    State.Bhop = not State.Bhop
+    BtnBhop.BackgroundColor3 = State.Bhop and Color3.fromRGB(45, 160, 85) or Color3.fromRGB(60, 60, 65)
+    toggleBhop(State.Bhop)
+end)
+
+-- ============================================
+-- 6. HỆ THỐNG KÉO THẢ GIAO DIỆN
+-- ============================================
+local dragging, dragInput, dragStart, startPos
 local function updateDrag(input)
     if IsLocked then return end
     local delta = input.Position - dragStart
@@ -260,7 +608,6 @@ local function setupDragEvents(guiObject)
             dragging = true
             dragStart = input.Position
             startPos = MainFrame.Position
-            
             input.Changed:Connect(function()
                 if input.UserInputState == Enum.UserInputState.End then dragging = false end
             end)
@@ -274,8 +621,7 @@ local function setupDragEvents(guiObject)
 end
 
 setupDragEvents(MainFrame)
-setupDragEvents(LockButton)
-setupDragEvents(ToggleButton)
+setupDragEvents(BtnLock)
 
 UserInputService.InputChanged:Connect(function(input)
     if input == dragInput and dragging then updateDrag(input) end
@@ -284,10 +630,11 @@ end)
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
     if input.KeyCode == TOGGLE_KEY then
-        LootConfig.Enabled = not LootConfig.Enabled
-        updateVisuals()
+        BtnAutoLoot.MouseButton1Click:Fire() 
     end
 end)
 
-updateVisuals()
-print("[AutoLoot] Đã vá lỗi nuốt mất Nhiên liệu/Tài nguyên.")
+-- Trạng thái mặc định khi load
+BtnLock.Visible = false
+BtnAutoLoot.Size = UDim2.new(1, -25, 1, 0)
+print("[AutoLoot HUB] Tải hoàn tất. Đã thêm Kill Aura và Custom Inputs.")
